@@ -153,7 +153,7 @@ export function codexLeadStateForHookEvent(
   eventName: string | undefined,
   normalizedState?: ParsedAgentStatusPayload['state']
 ): CodexLeadTurnState['state'] | undefined {
-  if (eventName === 'Stop') {
+  if (eventName === 'Stop' || eventName === 'SessionStart') {
     return 'done'
   }
   if (eventName === 'PermissionRequest') {
@@ -163,7 +163,6 @@ export function codexLeadStateForHookEvent(
     return normalizedState === 'working' ? 'working' : 'waiting'
   }
   if (
-    eventName === 'SessionStart' ||
     eventName === 'UserPromptSubmit' ||
     eventName === 'PreToolUse' ||
     eventName === 'PostToolUse'
@@ -235,6 +234,7 @@ export function reconcileRemoteCodexState(
       resolution.stateName === 'done' && mainAgentTurnInterrupted(lead) ? true : undefined,
     model: lead.model ?? payload.model,
     subagents: codexRosterToSnapshots(roster),
+    ...(eventName === 'SessionStart' && !agentId ? { sessionBoundary: true } : {}),
     // Why: main's cache outlives a relay restart, so it is the main agent fact for a relayed row too.
     mainAgent: codexMainAgentStatusForPayload(lead)
   }

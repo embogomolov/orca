@@ -199,6 +199,8 @@ export type NativeChatMessage = {
   turnId?: string
   /** How a user message was delivered when it was not an ordinary prompt. */
   sentAs?: AgentJournalMessageSendMode
+  /** Provider-authored API failure, not assistant speech. */
+  providerError?: true
 }
 
 export const NATIVE_CHAT_TURN_LIFECYCLE_STATES = ['working', 'completed', 'interrupted'] as const

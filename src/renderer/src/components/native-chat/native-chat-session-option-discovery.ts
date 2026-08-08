@@ -1,8 +1,8 @@
 import type { AgentType } from '../../../../shared/agent-status-types'
 import {
   claudeModelSupportsContextWindow,
-  codexEffortFromChoices,
   createClaudeCatalogOptions,
+  createCodexCatalogOptions,
   getAgentSessionOptionCatalog,
   normalizeClaudeModelId,
   type CatalogModel
@@ -192,8 +192,12 @@ export async function discoverNativeChatCatalogModels(
               supportsFastMode: model.supportsFastMode,
               supportsContextWindow: claudeModelSupportsContextWindow(id)
             })
-          : agent === 'codex' && choices.length > 0
-            ? [codexEffortFromChoices(choices, model.defaultThinkingLevel)]
+          : agent === 'codex'
+            ? createCodexCatalogOptions({
+                effortChoices: choices,
+                defaultEffort: model.defaultThinkingLevel,
+                supportsFastMode: model.supportsFastMode
+              })
             : []
     })
   }

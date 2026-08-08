@@ -125,6 +125,7 @@ export type RuntimeTerminalAgentStatusEvent = {
   /** The pane's terminal handle, when it is bound to one. Stamped on the stored row so a
    *  reader can rejoin it to the terminal after the pane key moved. */
   terminalHandle?: string
+  providerSession?: AgentProviderSessionMetadata
   payload: ParsedAgentStatusPayload
 }
 
@@ -202,6 +203,9 @@ export type RuntimeProviderSnapshotReadOptions = {
 
 /** Agent-prompt writes add the correlation inputs a queued-acceptance receipt needs. */
 export type RuntimeAgentPromptWriteOptions = RuntimeTerminalWriteOptions & {
+  clearInput?: boolean
+  imagePaths?: readonly string[]
+  prefixPastePayloads?: readonly string[]
   /** Raw prompt text for submit scheduling; not written, only used for line-aware delays. */
   promptForSchedule?: string
   /** See buildAgentPromptPasteBytes. */

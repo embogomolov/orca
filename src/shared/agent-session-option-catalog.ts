@@ -3,7 +3,8 @@ import { ANTIGRAVITY_SESSION_OPTION_CATALOG } from './agent-session-option-catal
 import {
   CLAUDE_SESSION_OPTION_CATALOG,
   CODEX_SESSION_OPTION_CATALOG,
-  createClaudeCatalogOptions
+  createClaudeCatalogOptions,
+  createCodexCatalogOptions
 } from './agent-session-option-catalog-claude-codex'
 import {
   CURSOR_SESSION_OPTION_CATALOG,
@@ -29,7 +30,7 @@ export type {
   CatalogOption,
   CatalogOptionApply
 } from './agent-session-option-catalog-types'
-export { createClaudeCatalogOptions }
+export { createClaudeCatalogOptions, createCodexCatalogOptions }
 export {
   claudeModelSupportsContextWindow,
   codexEffortFromChoices,

@@ -60,6 +60,7 @@ export function useNativeChatComposerSessionControl(args: {
     reportedModel,
     reportedEffort,
     reportedContextWindow,
+    reportedFastMode: context.fastMode,
     onAgentPicker,
     readTerminalScreen
   })

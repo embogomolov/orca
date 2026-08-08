@@ -601,6 +601,15 @@ describe('renderer startup runtime routing', () => {
     )
   })
 
+  it('keeps rooms in the stacked titlebar instead of suppressing its tab target', () => {
+    const source = readSource('src/renderer/src/app-shell/use-app-chrome-layout.ts')
+
+    expect(source).not.toContain("(activeView === 'rooms' && shouldMountTerminalWorkbench)")
+    expect(source).toContain(
+      "activeView === 'terminal' && activeWorktreeId !== null && !creationLayoutActive"
+    )
+  })
+
   it('checkpoints activeView and all session snapshots through one beforeunload handler (#9002)', () => {
     const source = readSource(SESSION_PERSISTENCE_PATH)
     const checkpointStart = source.indexOf(

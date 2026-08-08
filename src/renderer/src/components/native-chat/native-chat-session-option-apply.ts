@@ -34,6 +34,7 @@ type SessionOptionApplyContext = {
   getRecord: () => NativeChatSessionOptionRecord
   dispatchCommand: NativeChatSessionOptionDispatchCommand
   restartSession?: (values: Record<string, SessionOptionValue>) => Promise<void> | void
+  restartAgentPickerOptions?: boolean
   onAgentPicker?: () => void
   /** The one persist entry point, shared with typed commands: it owns both the
    *  null-model guard and whether the id may be adopted as the launch default. */
@@ -211,11 +212,19 @@ async function applySetOption(
     throw new Error(`Unknown session option: ${id}`)
   }
   const { apply, modelId: previousModelId } = resolved
-  if (ctx.mode === 'live' && apply.midSession?.kind === 'agent-picker') {
+  if (
+    ctx.mode === 'live' &&
+    apply.midSession?.kind === 'agent-picker' &&
+    !ctx.restartAgentPickerOptions
+  ) {
     throw new Error('This option must be changed in the agent picker.')
   }
 
-  if (ctx.mode === 'live' && apply.midSession?.kind === 'restart') {
+  if (
+    ctx.mode === 'live' &&
+    (apply.midSession?.kind === 'restart' ||
+      (apply.midSession?.kind === 'agent-picker' && ctx.restartAgentPickerOptions))
+  ) {
     if (!ctx.restartSession) {
       throw new Error('This session cannot be restarted from chat.')
     }
