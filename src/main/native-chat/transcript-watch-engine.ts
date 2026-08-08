@@ -39,7 +39,7 @@ export async function installTranscriptWatcher(
   if (!(await transcriptWatcherPathIsInstallable(filePath, signal))) {
     return null
   }
-  const { onAppend, onInitialSnapshot, onReplace, initialLimit } = args
+  const { onAppend, onInitialSnapshot, onOpaqueAppend, onReplace, initialLimit } = args
   const decodeLifecycle = nativeChatTurnLifecycleDecoderForAgent(args.agent)
 
   const state = createIncrementalTranscriptState()
@@ -69,12 +69,15 @@ export async function installTranscriptWatcher(
 
   async function readAndEmitAppends(): Promise<void> {
     let lifecycle: NativeChatTurnLifecycle | undefined
+    let emitted = false
+    const startOffset = state.offset
     const remaining = await readIncrementalTranscriptMessages(
       filePath,
       state,
       decode,
       (messages) => {
         if (!closed) {
+          emitted = true
           onAppend(messages)
         }
       },
@@ -85,7 +88,11 @@ export async function installTranscriptWatcher(
       gateAbort.signal
     )
     if (!closed && (remaining.length > 0 || lifecycle)) {
+      emitted = true
       onAppend(remaining, lifecycle)
+    }
+    if (!closed && !emitted && state.offset > startOffset) {
+      onOpaqueAppend?.()
     }
   }
 

@@ -14,6 +14,7 @@ import {
 import { imageSourcePathFromText } from '../../shared/native-chat-image-transcript-markers'
 import { claudeContentBlocks } from './transcript-record-blocks'
 import { claudeInterruptedMessageId } from './transcript-turn-markers'
+import { isKnownHarnessInjectedUserTurnText } from '../../shared/harness-injected-user-turns'
 
 export function decodeClaudeTranscriptLine(
   line: string,
@@ -43,6 +44,15 @@ export function decodeClaudeTranscriptLine(
   const message = asRecord(record.message)
   const decodedBlocks = claudeContentBlocks(message?.content)
   if (decodedBlocks.length === 0) {
+    return null
+  }
+  if (
+    role === 'assistant' &&
+    message?.model === '<synthetic>' &&
+    decodedBlocks.some(
+      (block) => block.type === 'text' && isKnownHarnessInjectedUserTurnText(block.text)
+    )
+  ) {
     return null
   }
   // Why: Claude structurally marks injected turns, but tool-result records are
