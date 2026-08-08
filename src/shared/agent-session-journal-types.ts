@@ -381,6 +381,8 @@ export type AgentJournalRenderItem = AgentJournalProducerLinkage & {
    *  shares across every item it creates. Absent ⇒ 0, and on a host that predates it. */
   sequenceIndex?: number
   observedAt: number
+  /** Timestamp of the latest revision; omitted until the item is revised. */
+  updatedAt?: number
   /** Set when the row was appended by crash reconciliation rather than live. */
   recovered?: true
   /** When crash reconciliation wrote this revision; present exactly when `recovered` is. */

@@ -310,6 +310,7 @@ export const AgentJournalRenderItemSchema = z.object({
   sequence: z.number().int(),
   sequenceIndex: z.number().int().nonnegative().optional(),
   observedAt: z.number(),
+  updatedAt: z.number().optional(),
   recovered: z.literal(true).optional(),
   recoveredAt: z.number().optional(),
   turnScope: AgentJournalTurnScopeSchema.optional(),

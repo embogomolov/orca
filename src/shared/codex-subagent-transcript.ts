@@ -74,7 +74,7 @@ function childDayDirectory(parentPath: string, startedAt: number): string | unde
   )
 }
 
-function resolveChildTranscript(
+export function resolveCodexSubagentTranscript(
   parentPath: string,
   threadId: string,
   startedAt: number,
@@ -101,7 +101,7 @@ function resolveChildTranscript(
   return undefined
 }
 
-function readActivity(recordValue: JsonRecord):
+export function readCodexSubagentActivity(recordValue: JsonRecord):
   | {
       id: string
       description?: string
@@ -227,7 +227,7 @@ export function reconcileCodexSubagentTranscript(
       ? undefined
       : (readApprovalsReviewer(parentRecords) ?? state.approvalsReviewer)
   for (const recordValue of parentRecords ?? []) {
-    const activity = readActivity(recordValue)
+    const activity = readCodexSubagentActivity(recordValue)
     if (!activity) {
       continue
     }
@@ -254,7 +254,7 @@ export function reconcileCodexSubagentTranscript(
   const now = Date.now()
   for (const [id, tracked] of state.subagents) {
     if (!tracked.filePath) {
-      tracked.filePath = resolveChildTranscript(
+      tracked.filePath = resolveCodexSubagentTranscript(
         normalizedPath,
         id,
         tracked.startedAt,
