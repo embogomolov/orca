@@ -155,6 +155,7 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
     options: RuntimeAgentPromptWriteOptions = {}
   ): Promise<RuntimeTerminalSend> {
     // Why the consuming agent: the foreground process reads the bytes; launchAgent covers startup.
+    const imagePayloads = (options.imagePaths ?? []).map(buildAgentPromptPasteBytes)
     const payloadFor = (ptyId: string): string => {
       const pty = this.ptysById.get(ptyId)
       const agent = pty?.foregroundAgent ?? pty?.launchAgent
@@ -169,7 +170,7 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
         throw new Error('terminal_not_writable')
       }
       const payload = payloadFor(pty.pty.ptyId)
-      await assertTerminalInputWithinLimitWithYield(payload)
+      await assertTerminalInputWithinLimitWithYield(`${imagePayloads.join('')}${payload}`)
       const generation = this.getPtyLifecycleGeneration(pty.pty.ptyId)
       const delivery = await this.serializeAgentPromptSubmission(
         pty.pty.ptyId,
@@ -179,11 +180,12 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
           this.assertAgentPromptGeneration(pty.pty.ptyId, generation)
           return await this.writeTerminalAgentPrompt(handle, pty.pty.ptyId, generation, payload, {
             ...options,
-            promptForSchedule: prompt
+            promptForSchedule: prompt,
+            prefixPastePayloads: imagePayloads
           })
         }
       )
-      const bytesWritten = Buffer.byteLength(payload, 'utf8') + delivery.submits
+      const bytesWritten = Buffer.byteLength(submissionPayload, 'utf8') + delivery.submits
       return {
         handle,
         accepted: true,
@@ -197,7 +199,7 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
       throw new Error('terminal_not_writable')
     }
     const payload = payloadFor(leaf.ptyId)
-    await assertTerminalInputWithinLimitWithYield(payload)
+    await assertTerminalInputWithinLimitWithYield(`${imagePayloads.join('')}${payload}`)
     // Why: same absence gate as sendTerminal — a stale graph mirror must not
     // accept a prompt into a void; unknown liveness still proceeds.
     if (await this.isLeafPtyProvenAbsent(leaf.ptyId)) {
@@ -209,10 +211,11 @@ export class OrcaRuntimeWithControllerKnowsPtyIsLive extends OrcaRuntimeWithReso
       this.assertAgentPromptGeneration(leaf.ptyId!, generation)
       return await this.writeTerminalAgentPrompt(handle, leaf.ptyId!, generation, payload, {
         ...options,
-        promptForSchedule: prompt
+        promptForSchedule: prompt,
+        prefixPastePayloads: imagePayloads
       })
     })
-    const bytesWritten = Buffer.byteLength(payload, 'utf8') + delivery.submits
+    const bytesWritten = Buffer.byteLength(submissionPayload, 'utf8') + delivery.submits
     return {
       handle,
       accepted: true,

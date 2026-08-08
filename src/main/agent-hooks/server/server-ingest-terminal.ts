@@ -3,6 +3,7 @@ import { MAX_PANE_KEY_LEN } from '../../../shared/agent-hook-listener/listener-l
 import { parseLegacyNumericPaneKey, parsePaneKey } from '../../../shared/stable-pane-id'
 import { terminalStatusPayloadMatchesHook } from '../../../shared/agent-terminal-status-equivalence'
 import type { ParsedAgentStatusPayload } from '../../../shared/agent-status-types'
+import type { AgentProviderSessionMetadata } from '../../../shared/agent-session-resume'
 import type { EnrichedAgentHookEventPayload } from './server-types'
 import { isAgentStatusHeldOpenByChildWork } from '../../../shared/agent-lead-status-fold'
 import { AgentHookServerIngestNormalization } from './server-ingest-normalization'
@@ -15,6 +16,7 @@ export abstract class AgentHookServerIngestTerminal extends AgentHookServerInges
     worktreeId?: string
     connectionId?: string | null
     terminalHandle?: string
+    providerSession?: AgentProviderSessionMetadata
     payload: ParsedAgentStatusPayload
   }): void {
     const physicalPaneKey = event.paneKey.trim()
@@ -148,7 +150,9 @@ export abstract class AgentHookServerIngestTerminal extends AgentHookServerInges
         tabId,
         worktreeId,
         connectionId,
-        ...(preservedProviderSession ? { providerSession: preservedProviderSession } : {}),
+        ...(event.providerSession ?? preservedProviderSession
+          ? { providerSession: event.providerSession ?? preservedProviderSession }
+          : {}),
         ...(terminalHandle ? { terminalHandle } : {}),
         payload: preservedMainAgent
           ? { ...event.payload, mainAgent: preservedMainAgent }

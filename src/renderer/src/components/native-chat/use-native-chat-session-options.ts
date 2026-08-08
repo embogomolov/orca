@@ -65,6 +65,7 @@ export function useNativeChatSessionOptions(args: {
   reportedModel?: string | null
   reportedEffort?: string | null
   reportedContextWindow?: string | null
+  reportedFastMode?: boolean | null
   onAgentPicker?: () => void
   readTerminalScreen?: () => string | null
   /** Pane whose live agent status names the provider model, for agents whose hook
@@ -83,6 +84,7 @@ export function useNativeChatSessionOptions(args: {
     reportedModel: providedModel,
     reportedEffort,
     reportedContextWindow,
+    reportedFastMode,
     onAgentPicker,
     readTerminalScreen,
     paneKey
@@ -163,7 +165,7 @@ export function useNativeChatSessionOptions(args: {
     const model = providedModel?.trim()
     const effort = reportedEffort?.trim()
     const contextWindow = reportedContextWindow?.trim()
-    if (surface && (model || effort || contextWindow)) {
+    if (surface && (model || effort || contextWindow || typeof reportedFastMode === 'boolean')) {
       const currentModel = surface.getSnapshot().find((descriptor) => descriptor.id === 'model')
         ?.kind.currentValue
       const authoritativeModel = model || currentModel
@@ -171,11 +173,12 @@ export function useNativeChatSessionOptions(args: {
         surface.reportSessionOptions({
           model: authoritativeModel,
           ...(effort ? { effort } : {}),
-          ...(contextWindow ? { contextWindow } : {})
+          ...(contextWindow ? { contextWindow } : {}),
+          ...(typeof reportedFastMode === 'boolean' ? { fastMode: reportedFastMode } : {})
         })
       }
     }
-  }, [reportedContextWindow, reportedEffort, providedModel, surface])
+  }, [reportedContextWindow, reportedEffort, reportedFastMode, providedModel, surface])
 
   useEffect(() => {
     if (!surface || agent !== 'claude') {
@@ -274,8 +277,8 @@ export function useNativeChatSessionOptions(args: {
         } else if (reportedValues) {
           // Why: discovery defaults describe the config, not this session; they
           // must never override a model the surface already tracks.
-          const currentModel = surface.getSnapshot().find((option) => option.id === 'model')?.kind
-            .currentValue
+          const currentModel = surface.getSnapshot().find((option) => option.id === 'model')
+            ?.kind.currentValue
           if (!currentModel) {
             surface.reportSessionOptions(reportedValues)
           }

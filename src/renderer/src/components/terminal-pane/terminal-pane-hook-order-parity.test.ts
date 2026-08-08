@@ -26,12 +26,14 @@ const TERMINAL_PANE_HOOK_SOURCE_PATTERN =
 // in projection (211 hooks, 7 useMemo).
 // Then chat ownership through toggles and restore (#23049) added a `useRef`, a `useLayoutEffect`
 // and a `useEffect` across chat-state, layout-persistence and title-effects (214 hooks, still 7 useMemo).
+// Native-chat toggle requests add two hooks (216 hooks, still 7 useMemo).
 const PRE_REFACTOR_HOOK_ORDER_SHA256 =
-  '3736b71c612bb28b9b5298c7704ee1b32c7afc0254e75d0072ff4df870ec3be9'
+  'b10f40a08e55ac14f30bb43f0ac41b894e7c88f6dd09c1d6acc5c367dcc651d5'
 
 const sourceFiles = readdirSync(__dirname)
   .filter((name) => TERMINAL_PANE_HOOK_SOURCE_PATTERN.test(name))
   .sort()
+sourceFiles.push('../native-chat/native-chat-shortcut.ts')
 
 function readFunctionDefinitions(): Map<string, ts.FunctionDeclaration> {
   const definitions = new Map<string, ts.FunctionDeclaration>()
@@ -48,7 +50,9 @@ function readFunctionDefinitions(): Map<string, ts.FunctionDeclaration> {
       if (
         ts.isFunctionDeclaration(node) &&
         node.name &&
-        (node.name.text === 'TerminalPane' || node.name.text.startsWith('useTerminalPane'))
+        (node.name.text === 'TerminalPane' ||
+          node.name.text.startsWith('useTerminalPane') ||
+          node.name.text === 'useNativeChatToggleRequest')
       ) {
         definitions.set(node.name.text, node)
       }
@@ -92,7 +96,7 @@ function readFlattenedHookOrder(): string[] {
 describe('TerminalPane refactor hook parity', () => {
   it('preserves the recursively flattened render hook order', () => {
     const hooks = readFlattenedHookOrder()
-    expect(hooks).toHaveLength(214)
+    expect(hooks).toHaveLength(216)
     expect(hooks.filter((hook) => hook === 'useMemo')).toHaveLength(7)
     expect(createHash('sha256').update(hooks.join('\n')).digest('hex')).toBe(
       PRE_REFACTOR_HOOK_ORDER_SHA256
@@ -100,7 +104,7 @@ describe('TerminalPane refactor hook parity', () => {
   })
 
   it('aggregates every extracted hook stage', () => {
-    expect(sourceFiles).toHaveLength(20)
+    expect(sourceFiles).toHaveLength(21)
     expect(sourceFiles).toContain('TerminalPane.tsx')
     expect(sourceFiles).toContain('use-terminal-pane-controller.ts')
   })
