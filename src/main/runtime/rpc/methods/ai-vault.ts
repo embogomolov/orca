@@ -19,10 +19,12 @@ import {
 } from '../../../ai-vault/structured-session-ownership'
 import {
   AiVaultListSessionsParams,
+  AiVaultListSubagentSessionsParams,
   AiVaultPrepareSessionResumeParams,
   AiVaultSessionTitlesParams
 } from '../../../../shared/rpc-contract/ai-vault-params'
 export { AiVaultListSessionsParams, AiVaultPrepareSessionResumeParams, AiVaultSessionTitlesParams }
+import { listAiVaultSubagentSessions } from '../../../ipc/ai-vault-subagent-list'
 
 export const AI_VAULT_METHODS = [
   defineMethod({
@@ -93,6 +95,17 @@ export const AI_VAULT_METHODS = [
           (clientCapabilities?.includes(STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY) ?? false)
       )
     }
+  }),
+  defineMethod({
+    name: 'aiVault.listSubagentSessions',
+    params: AiVaultListSubagentSessionsParams,
+    // Why: clients speak AgentType, the vault lister speaks AiVaultAgent —
+    // OpenClaude reads the same transcript layout as Claude.
+    handler: (params) =>
+      listAiVaultSubagentSessions({
+        agent: params.agent === 'openclaude' ? 'claude' : params.agent,
+        parentFilePath: params.parentFilePath
+      })
   }),
   defineMethod({
     name: 'aiVault.prepareSessionResume',
