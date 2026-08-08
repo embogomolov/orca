@@ -70,6 +70,7 @@ export function NativeChatMessageList({
   workingStartedAt,
   settledTurns,
   failedDeliveryMessageIds,
+  subagentSourceKey,
   showTurnStatus = true,
   showLiveTurnActivity = true,
   turnActivity,
@@ -91,6 +92,7 @@ export function NativeChatMessageList({
   onLinkClick?: CommentMarkdownLinkClickHandler
   allowFileUriLinks?: boolean
   failedDeliveryMessageIds?: ReadonlySet<string>
+  subagentSourceKey?: string
   /** Turn timing and disclosure are available on structured agent sessions. */
   showTurnStatus?: boolean
   /** Whether the active turn's foreground activity row should be visible. */
@@ -329,6 +331,7 @@ export function NativeChatMessageList({
       taskListPredecessors,
       expandedTurnIds,
       failedDeliveryMessageIds,
+      subagentSourceKey,
       allowFileUriLinks,
       runtimeContext,
       onLinkClick,
@@ -341,6 +344,7 @@ export function NativeChatMessageList({
       expandSignal,
       expandedTurnIds,
       failedDeliveryMessageIds,
+      subagentSourceKey,
       onLinkClick,
       revealDiff,
       revealedDiff,

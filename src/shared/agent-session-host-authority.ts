@@ -114,6 +114,9 @@ export type RuntimeEnsureAgentSessionRequest =
       terminalKittyKeyboardProtocol?: boolean
       /** Explicit client override. Omission keeps launch defaults host-owned. */
       agentArgs?: string | null
+      /** Appended after the resolved launch args (room-owned panes suppress
+       *  interactive CLI nudges that would deadlock an unwatched pane). */
+      extraAgentArgs?: string
       launchPreferences?: AgentLaunchPreferences
       presentation?: RuntimeTerminalPresentation
       placement?: { tabId?: string; leafId?: string }
@@ -133,6 +136,8 @@ export type RuntimeCreateAgentSessionRequest = {
   promptDelivery?: AgentPromptDelivery
   /** Explicit client override. Omission keeps launch defaults host-owned. */
   agentArgs?: string | null
+  /** Appended after the resolved launch args (see the ensure-request field). */
+  extraAgentArgs?: string
   launchPreferences?: AgentLaunchPreferences
   startupCwd?: string
   presentation?: RuntimeTerminalPresentation

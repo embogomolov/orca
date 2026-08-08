@@ -5,6 +5,7 @@ import { MessageRow } from './NativeChatMessageRow'
 import { NativeChatResolutionReceipt } from './NativeChatResolutionReceipt'
 import { NativeChatWorkingStatus } from './NativeChatWorkingStatus'
 import { NativeChatTurnDiffRollup } from './NativeChatTurnDiffRollup'
+import { AgentSubagentTurnLink } from '../agent-subagents/AgentSubagentContext'
 import type { NativeChatTaskListPredecessors } from './native-chat-task-list-history'
 import type { NativeChatTranscriptSlot } from './native-chat-transcript-slots'
 import type { NativeChatDiffReveal, NativeChatDiffTarget } from './native-chat-turn-diffs'
@@ -18,6 +19,7 @@ export type NativeChatTranscriptRowContext = {
   taskListPredecessors: ReadonlyMap<string, NativeChatTaskListPredecessors>
   expandedTurnIds: ReadonlySet<string>
   failedDeliveryMessageIds?: ReadonlySet<string>
+  subagentSourceKey?: string
   allowFileUriLinks: boolean
   runtimeContext?: RuntimeFileOperationArgs | null
   onLinkClick?: CommentMarkdownLinkClickHandler
@@ -74,6 +76,17 @@ export const NativeChatTranscriptRow = memo(function NativeChatTranscriptRow({
           expanded={expanded === true}
           onToggleExpanded={
             slot.turnFolds && turnKey ? () => context.onToggleExpandedTurn(turnKey) : undefined
+          }
+        />
+      ) : null}
+      {status && context.subagentSourceKey ? (
+        <AgentSubagentTurnLink
+          sourceKey={context.subagentSourceKey}
+          startedAt={status.startedAt}
+          completedAt={
+            status.startedAt == null || status.workedSeconds == null
+              ? null
+              : status.startedAt + status.workedSeconds * 1_000
           }
         />
       ) : null}

@@ -1,3 +1,4 @@
+import { EMPTY_AGENT_SESSION_CONTEXT } from "../../../../shared/agent-session-context"
 // @vitest-environment happy-dom
 
 import { fireEvent } from '@testing-library/react'
@@ -173,6 +174,8 @@ export function session(messages: NativeChatMessage[]): NativeChatLiveSession {
     hasMore: false,
     loadingEarlier: false,
     olderHistoryGeneration: 0,
+    context: EMPTY_AGENT_SESSION_CONTEXT,
+    markCompactionRequested: () => {},
     loadEarlier: vi.fn(),
     readPhase: 'ready'
   }

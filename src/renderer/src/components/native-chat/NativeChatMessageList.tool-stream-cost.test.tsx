@@ -1,3 +1,4 @@
+import { EMPTY_AGENT_SESSION_CONTEXT } from "../../../../shared/agent-session-context"
 // @vitest-environment happy-dom
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
@@ -41,6 +42,8 @@ function Transcript({ items }: { items: AgentJournalRenderItem[] }) {
     hasMore: false,
     loadingEarlier: false,
     olderHistoryGeneration: 0,
+    context: EMPTY_AGENT_SESSION_CONTEXT,
+    markCompactionRequested: () => {},
     loadEarlier,
     readPhase: 'ready'
   }

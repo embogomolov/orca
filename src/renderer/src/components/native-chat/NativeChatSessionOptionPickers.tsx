@@ -114,7 +114,7 @@ function ChoiceBody(props: { label: string; description?: string }): React.JSX.E
   )
 }
 
-function DescriptorMenuRows(props: {
+export function SessionOptionMenuRows(props: {
   descriptor: SessionOptionDescriptor
   pending: boolean
   setValue: (value: SessionOptionValue) => void
@@ -269,7 +269,7 @@ function NativeChatSessionOptionPickersInner({
           {modelReason && !model.settable ? (
             <DropdownMenuLabel className="font-normal">{modelReason}</DropdownMenuLabel>
           ) : null}
-          <DescriptorMenuRows
+          <SessionOptionMenuRows
             descriptor={model}
             pending={pendingId !== null}
             setValue={(value) => setOption(model, value)}
@@ -303,7 +303,7 @@ function NativeChatSessionOptionPickersInner({
                   {reason && !descriptor.settable ? (
                     <DropdownMenuLabel className="font-normal">{reason}</DropdownMenuLabel>
                   ) : null}
-                  <DescriptorMenuRows
+                  <SessionOptionMenuRows
                     descriptor={descriptor}
                     pending={pendingId !== null}
                     setValue={(value) => setOption(descriptor, value)}

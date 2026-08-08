@@ -1,3 +1,4 @@
+import { EMPTY_AGENT_SESSION_CONTEXT } from "../../../../shared/agent-session-context"
 // @vitest-environment happy-dom
 
 import '@testing-library/jest-dom/vitest'
@@ -52,6 +53,8 @@ const session: NativeChatLiveSession = {
   hasMore: false,
   loadingEarlier: false,
   olderHistoryGeneration: 0,
+  context: EMPTY_AGENT_SESSION_CONTEXT,
+  markCompactionRequested: () => {},
   loadEarlier: vi.fn(),
   readPhase: 'ready'
 }
