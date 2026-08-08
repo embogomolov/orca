@@ -4,9 +4,11 @@ import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
 import { isAgentSessionHandleProvider } from '../../../../shared/agent-session-provider-handle'
 import type { OpenFile } from '../../store/slices/editor'
+import { useAppStore } from '../../store'
 import SortableTab from './SortableTab'
 import EditorFileTab from './EditorFileTab'
 import BrowserTab from './BrowserTab'
+import { RoomTab } from './RoomTab'
 import type { DropIndicator } from './drop-indicator'
 import type { TabDragItemData } from '../tab-group/useTabDragSplit'
 import { getTabDragLabel, type TabBarItem } from './tab-bar-item-model'
@@ -148,6 +150,23 @@ export function renderTabBarItems({
           dragData={dragData}
           dropIndicator={dropIndicatorByVisibleId.get(item.id) ?? null}
           includeTopTabBorder={includeTopTabBorder}
+        />
+      )
+    }
+    if (item.type === 'room') {
+      return (
+        <RoomTab
+          key={item.id}
+          tab={item.data}
+          isActive={!clientHostedRowOwnsActiveState && runtime.activeGroupTabId === item.unifiedTabId}
+          hasTabsToRight={index < items.length - 1}
+          onActivate={() => {
+            clearClientHostedBrowserRowSelection()
+            useAppStore.getState().activateTab(item.unifiedTabId, { worktreeId })
+          }}
+          onClose={() => {
+            useAppStore.getState().closeUnifiedTab(item.unifiedTabId)
+          }}
         />
       )
     }

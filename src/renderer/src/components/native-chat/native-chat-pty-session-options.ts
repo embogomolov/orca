@@ -1,5 +1,6 @@
 import {
   codexEffortFromChoices,
+  findCatalogOption,
   getAgentSessionOptionCatalog,
   normalizeClaudeSessionOptionValues,
   type CatalogModel
@@ -54,6 +55,7 @@ export type CreateNativeChatPtySessionOptionsArgs = {
   reportedValues?: Record<string, SessionOptionValue> | null
   dispatchCommand: NativeChatSessionOptionDispatchCommand
   restartSession?: (values: Record<string, SessionOptionValue>) => Promise<void> | void
+  restartAgentPickerOptions?: boolean
   onAgentPicker?: () => void
   persistSelection?: PersistSelection
   onDraftValuesChanged?: (values: Record<string, SessionOptionValue>) => void
@@ -110,7 +112,8 @@ export function createNativeChatPtySessionOptions(
     catalog,
     models: activeModels(),
     record,
-    mode: args.mode
+    mode: args.mode,
+    restartAgentPickerOptions: args.restartAgentPickerOptions
   })
   const listeners = new Set<(value: SessionOptionDescriptor[]) => void>()
 
@@ -120,7 +123,8 @@ export function createNativeChatPtySessionOptions(
       catalog,
       models: activeModels(),
       record,
-      mode: args.mode
+      mode: args.mode,
+      restartAgentPickerOptions: args.restartAgentPickerOptions
     })
     for (const listener of listeners) {
       listener(snapshot)
@@ -160,7 +164,14 @@ export function createNativeChatPtySessionOptions(
 
   /** Every persist path — picker applies and typed commands — funnels through here. */
   const persist = (modelId: string | null, optionId: string, value: SessionOptionValue): void => {
-    if (modelId) {
+    const apply =
+      optionId === 'model'
+        ? catalog.modelApply
+        : findCatalogOption(
+            activeModels().find((model) => model.id === modelId),
+            optionId
+          )?.apply
+    if (modelId && (apply?.launchArgs || apply?.composedIntoModel)) {
       void args.persistSelection?.({
         modelId,
         optionId,
@@ -177,6 +188,7 @@ export function createNativeChatPtySessionOptions(
     getRecord: () => record,
     dispatchCommand: args.dispatchCommand,
     restartSession: args.restartSession,
+    restartAgentPickerOptions: args.restartAgentPickerOptions,
     onAgentPicker: args.onAgentPicker,
     persist,
     onDraftValuesChanged: args.onDraftValuesChanged,

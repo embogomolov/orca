@@ -184,6 +184,9 @@ export function createAgentStatusEventApplicator(args: {
     const statusPayloadWithObservation = data.observation
       ? { ...statusPayloadWithProvenance, observation: data.observation }
       : statusPayloadWithProvenance
+    const statusPayloadWithRoomDelivery = data.roomDeliveryId
+      ? { ...statusPayloadWithObservation, roomDeliveryId: data.roomDeliveryId }
+      : statusPayloadWithObservation
     const identity = resolveAgentStatusIdentity({
       existing: existingStatus
         ? {
@@ -221,7 +224,7 @@ export function createAgentStatusEventApplicator(args: {
     const statusWorktreeId = data.worktreeId ?? owningWorktreeId
     const update: AgentStatusUpdate = {
       paneKey,
-      payload: statusPayloadWithObservation,
+      payload: statusPayloadWithRoomDelivery,
       terminalTitle,
       timing: {
         updatedAt: data.receivedAt,
@@ -248,8 +251,15 @@ export function createAgentStatusEventApplicator(args: {
       if (statusWorktreeId && (options?.replay !== true || resolvedPayload.state === 'working')) {
         const notificationPayload =
           typeof data.stateStartedAt === 'number'
-            ? { ...resolvedPayload, stateStartedAt: data.stateStartedAt }
-            : resolvedPayload
+            ? {
+                ...resolvedPayload,
+                stateStartedAt: data.stateStartedAt,
+                ...(data.roomDeliveryId ? { roomDeliveryId: data.roomDeliveryId } : {})
+              }
+            : {
+                ...resolvedPayload,
+                ...(data.roomDeliveryId ? { roomDeliveryId: data.roomDeliveryId } : {})
+              }
         observeAgentHookCompletionForNotification({
           paneKey,
           worktreeId: statusWorktreeId,

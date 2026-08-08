@@ -16,6 +16,7 @@ import {
   type NativeChatLeafRoute
 } from '../native-chat/native-chat-leaf-routing'
 import type { TerminalPaneTitleController } from './use-terminal-pane-title-state'
+import { NATIVE_CHAT_TOGGLE_REQUEST_EVENT } from '../native-chat/native-chat-shortcut'
 
 export function useTerminalPaneChatState(controller: TerminalPaneTitleController) {
   const {
@@ -222,6 +223,35 @@ export function useTerminalPaneChatState(controller: TerminalPaneTitleController
       setTabViewMode(unifiedTabId, 'terminal')
     }
   }, [chatLeafId, setChatLeafId, setTabViewMode, unifiedTabId])
+  useEffect(() => {
+    const handleRequest = (event: Event): void => {
+      const request = event as CustomEvent<{ terminalTabId?: string }>
+      if (request.detail?.terminalTabId !== tabId || !unifiedTabId) {
+        return
+      }
+      const activeLeafId = managerRef.current?.getActivePane()?.leafId
+      if (!activeLeafId) {
+        return
+      }
+      if (effectiveChatViewMode && chatLeafId === activeLeafId) {
+        setChatLeafId(null)
+        setTabViewMode(unifiedTabId, 'terminal')
+      } else {
+        setChatLeafId(activeLeafId)
+        setTabViewMode(unifiedTabId, 'chat')
+      }
+    }
+    window.addEventListener(NATIVE_CHAT_TOGGLE_REQUEST_EVENT, handleRequest)
+    return () => window.removeEventListener(NATIVE_CHAT_TOGGLE_REQUEST_EVENT, handleRequest)
+  }, [
+    chatLeafId,
+    effectiveChatViewMode,
+    managerRef,
+    setChatLeafId,
+    setTabViewMode,
+    tabId,
+    unifiedTabId
+  ])
   const readNativeChatTerminalScreen = useCallback((): string | null => {
     if (!chatLeafId) {
       return null

@@ -270,9 +270,13 @@ export type IpcPtyTransportOptions = {
   onPtySpawn?: (ptyId: string) => void
   /** Rebind an existing pane after its provider replaces the PTY identity. */
   onPtyRebind?: (ptyId: string, replacedPtyId: string) => void
-  onBell?: () => void
-  onAgentBecameIdle?: (title: string) => void
+  onBell?: (meta?: { roomDeliveryId?: string; roomCompletion?: true }) => void
+  onAgentBecameIdle?: (
+    title: string,
+    meta?: { staleWorkingTitleClear?: boolean; roomDeliveryId?: string }
+  ) => void
   onAgentBecameWorking?: () => void
   onAgentExited?: () => void
-  onAgentStatus?: (payload: ParsedAgentStatusPayload) => void
+  onAgentStatus?: (payload: ParsedAgentStatusPayload, meta?: { roomDeliveryId?: string }) => void
+  onProviderSessionResumeFailure?: () => void
 }

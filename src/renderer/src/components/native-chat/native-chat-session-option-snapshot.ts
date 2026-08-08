@@ -27,6 +27,7 @@ export function buildNativeChatSessionOptionSnapshot(args: {
   models: readonly CatalogModel[]
   record: NativeChatSessionOptionRecord
   mode: NativeChatSessionOptionMode
+  restartAgentPickerOptions?: boolean
 }): SessionOptionDescriptor[] {
   return buildSharedSnapshot({
     ...args,

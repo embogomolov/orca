@@ -27,6 +27,8 @@ const NEW_TAB_MENU_TERMINAL_FOCUS_TIMEOUT_MS = 5000
 export type TabBarCreateMenuController = {
   newTabMenuOpen: boolean
   setNewTabMenuOpen: (open: boolean) => void
+  roomSelectorOpen: boolean
+  setRoomSelectorOpen: (open: boolean) => void
   setCreateMenuQuery: (query: string) => void
   createMenuOptions: TabCreateMenuOption[]
   windowsShellEntries: WindowsShellMenuEntry[] | undefined
@@ -85,6 +87,7 @@ export function useTabBarCreateMenuController({
 }): TabBarCreateMenuController {
   // Why: <webview> clicks are out-of-process, so Radix's document-pointerdown outside-click check misses them; use window blur.
   const [newTabMenuOpen, setNewTabMenuOpen] = useState(false)
+  const [roomSelectorOpen, setRoomSelectorOpen] = useState(false)
   const [createMenuQuery, setCreateMenuQuery] = useState('')
   const pendingNewTabMenuFocusRef = useRef<(() => void) | null>(null)
   const pendingNewTabMenuFocusAnimationRef = useRef<number | null>(null)
@@ -167,6 +170,7 @@ export function useTabBarCreateMenuController({
         hasNewBrowser: !terminalOnly && managedBrowserCreationEnabled,
         hasNewMarkdown: !terminalOnly && Boolean(onNewFileTab),
         hasOpenMarkdown: !terminalOnly && Boolean(onOpenFileTab),
+        hasRooms: !terminalOnly,
         hasSimulator:
           !terminalOnly &&
           mobileEmulatorEnabled &&
@@ -217,6 +221,9 @@ export function useTabBarCreateMenuController({
       case 'new-simulator':
       case 'go-to-simulator':
         onNewSimulatorTab?.()
+        break
+      case 'rooms':
+        setRoomSelectorOpen(true)
         break
     }
   }
@@ -291,6 +298,8 @@ export function useTabBarCreateMenuController({
   return {
     newTabMenuOpen,
     setNewTabMenuOpen,
+    roomSelectorOpen,
+    setRoomSelectorOpen,
     setCreateMenuQuery,
     createMenuOptions,
     windowsShellEntries,

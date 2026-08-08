@@ -79,7 +79,8 @@ export function decodeClaudeTranscriptLine(
     role: claudeMessageRole(role, blocks),
     blocks,
     timestamp,
-    source: 'transcript'
+    source: 'transcript',
+    ...(record.isApiErrorMessage === true ? { providerError: true } : {})
   }
 }
 

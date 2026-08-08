@@ -4,7 +4,10 @@ import type { GitFileStatus } from '../../../../shared/git-status-types'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import type { Tab } from '../../../../shared/tab-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { TopLevelView } from '../../../../shared/ui-chrome-types'
 import type { ProjectExecutionRuntimeResolution } from '../../../../shared/project-execution-runtime'
+import { parseWorkspaceKey } from '../../../../shared/workspace-scope'
+import { getRepoIdFromWorktreeId } from '../../../../shared/worktree/id'
 import { useAppStore } from '../../store'
 import { buildStatusMap } from '../right-sidebar/status-display'
 import { useDetectedAgents } from '@/hooks/useDetectedAgents'
@@ -14,6 +17,7 @@ import { getLocalProjectExecutionRuntimeContext } from '@/lib/local-preflight-co
 import { isNativeChatTranscriptLocalReadable } from '@/lib/native-chat-transcript-readability'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 import { useOptionalShortcutLabel, useShortcutLabel } from '@/hooks/useShortcutLabel'
 import {
   getWindowsTerminalCapabilityOwnerKey,
@@ -66,6 +70,10 @@ export type TabBarRuntimeModel = {
   mobileEmulatorEnabled: boolean
   showMobileEmulatorIntroCallout: boolean
   unifiedTabs: readonly Tab[]
+  roomProjectId: string
+  activeView: TopLevelView
+  activeGroupTabId: string | null
+  runtimeTarget: RuntimeClientTarget
   pinTab: (tabId: string) => void
   unpinTab: (tabId: string) => void
   defaultWindowsShell: string
@@ -112,6 +120,13 @@ export function useTabBarRuntimeModel({
     (s) => s.gitStatusByWorktree[worktreeId] ?? EMPTY_GIT_STATUS_ENTRIES
   )
   const unifiedTabs = useAppStore((s) => s.unifiedTabsByWorktree[worktreeId] ?? EMPTY_UNIFIED_TABS)
+  const roomProjectId = useAppStore((s) => {
+    if (parseWorkspaceKey(worktreeId)?.type === 'folder') {
+      return worktreeId
+    }
+    return s.getKnownWorktreeById?.(worktreeId)?.repoId ?? getRepoIdFromWorktreeId(worktreeId)
+  })
+  const activeView = useAppStore((s) => s.activeView)
   const pinTab = useAppStore((s) => s.pinTab)
   const unpinTab = useAppStore((s) => s.unpinTab)
   const activeGroupIdForWorktree = useAppStore((s) => s.activeGroupIdByWorktree[worktreeId])
@@ -222,6 +237,11 @@ export function useTabBarRuntimeModel({
   ])
   const projectRuntimeShellMenuMode = getProjectRuntimeShellMenuMode(localProjectRuntime)
   const resolvedGroupId = groupId ?? activeGroupIdForWorktree ?? worktreeId
+  const activeGroupTabId = useAppStore(
+    (s) =>
+      s.groupsByWorktree?.[worktreeId]?.find((group) => group.id === resolvedGroupId)
+        ?.activeTabId ?? null
+  )
   const statusByRelativePath = useMemo(() => buildStatusMap(gitStatusEntries), [gitStatusEntries])
   const unifiedTabByVisibleId = useMemo(
     () => createUnifiedTabLookup(unifiedTabs, resolvedGroupId),
@@ -259,6 +279,10 @@ export function useTabBarRuntimeModel({
     mobileEmulatorEnabled,
     showMobileEmulatorIntroCallout,
     unifiedTabs,
+    roomProjectId,
+    activeView,
+    activeGroupTabId,
+    runtimeTarget,
     pinTab,
     unpinTab,
     defaultWindowsShell,
