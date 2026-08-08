@@ -19,6 +19,8 @@ import type { NativeChatOptionPickerRequest } from './native-chat-composer-types
 import { NativeChatImageAttachmentPreview } from './NativeChatImageAttachmentPreview'
 import type { NativeChatComposerGoalMode } from './use-native-chat-composer-submit'
 import { translate } from '@/i18n/i18n'
+import type { AgentSessionContextSnapshot } from '../../../../shared/agent-session-context'
+import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 
 export type NativeChatComposerFieldProps = {
   /** Pane identity published to the drop pipeline so a native file drop lands
@@ -61,6 +63,9 @@ export type NativeChatComposerFieldProps = {
   contextUsage?: NativeChatContextUsageSummary | null
   sessionOptionsPickerRequest?: NativeChatOptionPickerRequest | null
   goalMode?: NativeChatComposerGoalMode
+  context?: AgentSessionContextSnapshot
+  canCompact?: boolean
+  onCompact?: () => Promise<void>
 }
 
 export type NativeChatComposerImageAttachment = {
@@ -134,7 +139,10 @@ export function NativeChatComposerField({
   sessionOptionsSnapshot,
   contextUsage,
   sessionOptionsPickerRequest,
-  goalMode
+  goalMode,
+  context = EMPTY_AGENT_SESSION_CONTEXT,
+  canCompact = false,
+  onCompact
 }: NativeChatComposerFieldProps): React.JSX.Element {
   // Value the IME started from, and whether a programmatic clear was dropped on top of it.
   const compositionBaseRef = useRef('')
@@ -299,6 +307,9 @@ export function NativeChatComposerField({
                 contextUsage={contextUsage}
                 sessionOptionsPickerRequest={sessionOptionsPickerRequest}
                 onExitGoalMode={goalMode?.active ? goalMode.exit : undefined}
+                context={context}
+                canCompact={canCompact}
+                onCompact={onCompact}
               />
             </div>
           </div>

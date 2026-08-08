@@ -26,6 +26,7 @@ import { NativeChatDeliveryRetry } from './NativeChatDeliveryRetry'
 import { useStructuredAgentSessionHostExecutionPhase } from './StructuredAgentSessionStatusBridge'
 import { structuredAgentLabel } from '@/lib/structured-agent-session-launch-label'
 import { NativeChatThreadGoalBanner } from './NativeChatThreadGoalBanner'
+import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 
 export function NativeChatStructuredSession(
   props: Omit<NativeChatStructuredViewProps, 'mode'>
@@ -86,6 +87,8 @@ export function NativeChatStructuredSession(
                 : 'ready',
       sessionId: props.sessionId,
       agent: props.agent,
+      context: EMPTY_AGENT_SESSION_CONTEXT,
+      markCompactionRequested: () => {},
       ...(controller.error ? { error: controller.error } : {}),
       hasMore: controller.hasOlder,
       loadingEarlier: controller.loadingOlder,

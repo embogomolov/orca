@@ -6,11 +6,13 @@ import type {
   SessionOptionDescriptor,
   SessionOptionsSurface
 } from '../../../../shared/native-chat-session-options'
-import { NativeChatSessionOptionPickers } from './NativeChatSessionOptionPickers'
 import { NativeChatComposerGoalChip } from './NativeChatComposerGoalChip'
 import { NativeChatContextUsageRing } from './NativeChatContextUsageRing'
 import type { NativeChatContextUsageSummary } from './native-chat-context-usage-summary'
 import type { NativeChatOptionPickerRequest } from './native-chat-composer-types'
+import type { AgentSessionContextSnapshot } from '../../../../shared/agent-session-context'
+import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
+import { AgentSessionControls } from '../agent-session-controls/AgentSessionControls'
 
 export type NativeChatComposerActionsProps = {
   attachDisabled: boolean
@@ -32,6 +34,9 @@ export type NativeChatComposerActionsProps = {
   onExitGoalMode?: () => void
   /** Absent until the session has reported or the transcript can estimate. */
   contextUsage?: NativeChatContextUsageSummary | null
+  context?: AgentSessionContextSnapshot
+  canCompact?: boolean
+  onCompact?: () => Promise<void>
 }
 
 export function NativeChatComposerActions({
@@ -51,7 +56,10 @@ export function NativeChatComposerActions({
   sessionOptionsSnapshot,
   sessionOptionsPickerRequest,
   onExitGoalMode,
-  contextUsage
+  contextUsage,
+  context = EMPTY_AGENT_SESSION_CONTEXT,
+  canCompact = false,
+  onCompact
 }: NativeChatComposerActionsProps): React.JSX.Element {
   const handleCriticalAction = (event: React.MouseEvent<HTMLButtonElement>): void => {
     // A double-click commonly lands after the first send has started and the button has
@@ -93,12 +101,15 @@ export function NativeChatComposerActions({
       </div>
       <div className="ml-auto flex items-center gap-1.5">
         {/* Why: keep session controls beside the actions they affect; the
-        model trigger is ordered last so only the context ring separates it from dictation. */}
-        <NativeChatSessionOptionPickers
+        model trigger is ordered last so it sits directly next to dictation. */}
+        <AgentSessionControls
           surface={sessionOptionsSurface}
           snapshot={sessionOptionsSnapshot}
           isWorking={isWorking}
           pickerRequest={sessionOptionsPickerRequest}
+          context={context}
+          canCompact={canCompact}
+          onCompact={onCompact}
         />
         {contextUsage ? <NativeChatContextUsageRing usage={contextUsage} /> : null}
         <Tooltip>

@@ -4,6 +4,8 @@ import type {
   NativeChatMessage,
   NativeChatTurnLifecycle
 } from '../../shared/native-chat-types'
+import { EMPTY_AGENT_SESSION_CONTEXT } from '../../shared/agent-session-context'
+import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
 import { clearNativeChatTranscriptCache } from '../native-chat/transcript-read-cache'
 import type { ReadTranscriptResult } from '../native-chat/transcript-reader'
 import {
@@ -13,6 +15,10 @@ import {
   type SubscribeNativeChatTranscriptArgs
 } from '../native-chat/transcript-watch'
 import { abortWhenRendererGone } from './renderer-lifetime-abort'
+import {
+  agentSessionContextUsageEqual,
+  readNativeChatSessionContext
+} from '../native-chat/session-context-reader'
 
 // Re-export so existing test imports of `clearNativeChatTranscriptCache` from
 // this module keep working after the cache moved to transcript-read-cache.ts.
@@ -27,22 +33,31 @@ export type NativeChatReadSessionArgs = {
   /** Authoritative transcript path from the agent hook (providerSession), used to
    *  locate the file when the session id no longer names it (recent Claude Code). */
   transcriptPath?: string
+  paneKey?: string
 }
 
 // Why: render and parse only the recent window so long transcripts do not stall
 // either the main process or the message list. Pagination raises this limit.
 const DESKTOP_READ_WINDOW = 300
 
-async function readSession(args: NativeChatReadSessionArgs): Promise<ReadTranscriptResult> {
+async function readSession(
+  args: NativeChatReadSessionArgs
+): Promise<ReadTranscriptResult & { context?: AgentSessionContextSnapshot }> {
   const { agent, sessionId } = args
   // Clamp to a positive window; default to the desktop window for the first page.
   const limit = args.limit && args.limit > 0 ? Math.floor(args.limit) : DESKTOP_READ_WINDOW
-  return readNativeChatTranscriptTail({
-    agent,
-    sessionId,
-    transcriptPath: args.transcriptPath,
-    limit
-  })
+  const [result, context] = await Promise.all([
+    readNativeChatTranscriptTail({
+      agent,
+      sessionId,
+      transcriptPath: args.transcriptPath,
+      limit
+    }),
+    readNativeChatSessionContext(args)
+  ])
+  return 'messages' in result
+    ? { ...result, ...(context.source === 'unavailable' ? {} : { context }) }
+    : result
 }
 
 export type NativeChatSubscribeArgs = {
@@ -53,6 +68,7 @@ export type NativeChatSubscribeArgs = {
   sessionId: string
   /** Authoritative transcript path from the agent hook (providerSession). */
   transcriptPath?: string
+  paneKey?: string
   limit?: number
 }
 
@@ -68,17 +84,20 @@ export type NativeChatAppendedPayload = {
         /** No transcript exists behind this window yet — render it, but do not
          *  treat it as a settled read of the session's history. */
         pending?: boolean
+        context?: AgentSessionContextSnapshot
       }
     | {
         type: 'replacement'
         messages: NativeChatMessage[]
         hasMore: boolean
         lifecycle?: NativeChatTurnLifecycle
+        context?: AgentSessionContextSnapshot
       }
     | {
         type: 'appended'
         messages: NativeChatMessage[]
         lifecycle?: NativeChatTurnLifecycle
+        context?: AgentSessionContextSnapshot
       }
 }
 
@@ -182,13 +201,48 @@ async function handleSubscribe(event: IpcMainEvent, args: NativeChatSubscribeArg
   if (sender.isDestroyed()) {
     return
   }
-  const { subscriptionId, agent, sessionId, transcriptPath } = args
+  const { subscriptionId, agent, sessionId, transcriptPath, paneKey } = args
   const limit = args.limit && args.limit > 0 ? Math.floor(args.limit) : DESKTOP_READ_WINDOW
   // Replace any prior subscription under the same id (session change/resubscribe).
   const pending = beginPendingSubscription(sender.id, subscriptionId)
   const rendererSignal = registerSenderCleanup(sender)
   const canPublish = (): boolean =>
     !sender.isDestroyed() && !rendererSignal.aborted && !pending.controller.signal.aborted
+
+  let context = EMPTY_AGENT_SESSION_CONTEXT
+  const contextReady = readNativeChatSessionContext({
+    agent,
+    sessionId,
+    transcriptPath,
+    paneKey
+  }).then((next) => {
+    context = next
+  })
+  const refreshContext = async (): Promise<void> => {
+    const next = await readNativeChatSessionContext({
+      agent,
+      sessionId,
+      transcriptPath,
+      paneKey,
+      current: context
+    })
+    if (!canPublish() || agentSessionContextUsageEqual(context, next)) {
+      return
+    }
+    context = next
+    sender.send('nativeChat:appended', {
+      subscriptionId,
+      frame: {
+        type: 'appended',
+        messages: [],
+        ...(context.source === 'unavailable' ? {} : { context })
+      }
+    } satisfies NativeChatAppendedPayload)
+  }
+  let contextRefresh = Promise.resolve()
+  const scheduleContextRefresh = (): void => {
+    contextRefresh = contextRefresh.then(refreshContext).catch(() => undefined)
+  }
 
   const subscribeArgs: SubscribeNativeChatTranscriptArgs = {
     agent,
@@ -220,7 +274,8 @@ async function handleSubscribe(event: IpcMainEvent, args: NativeChatSubscribeArg
           messages,
           hasMore,
           ...(error ? { error } : {}),
-          ...(lifecycle ? { lifecycle } : {})
+          ...(lifecycle ? { lifecycle } : {}),
+          ...(context.source === 'unavailable' ? {} : { context })
         }
       }
       sender.send('nativeChat:appended', payload)
@@ -235,7 +290,8 @@ async function handleSubscribe(event: IpcMainEvent, args: NativeChatSubscribeArg
           type: 'replacement',
           messages,
           hasMore,
-          ...(lifecycle ? { lifecycle } : {})
+          ...(lifecycle ? { lifecycle } : {}),
+          ...(context.source === 'unavailable' ? {} : { context })
         }
       } satisfies NativeChatAppendedPayload)
     },
@@ -248,15 +304,19 @@ async function handleSubscribe(event: IpcMainEvent, args: NativeChatSubscribeArg
         frame: {
           type: 'appended',
           messages,
-          ...(lifecycle ? { lifecycle } : {})
+          ...(lifecycle ? { lifecycle } : {}),
+          ...(context.source === 'unavailable' ? {} : { context })
         }
       }
       sender.send('nativeChat:appended', payload)
-    }
+      scheduleContextRefresh()
+    },
+    onOpaqueAppend: scheduleContextRefresh
   }
   let subscription: NativeChatTranscriptSubscription
   try {
     subscription = await subscribeNativeChatTranscript(subscribeArgs, pending.controller.signal)
+    await contextReady
   } catch {
     takePendingSubscription(sender.id, subscriptionId, pending)
     return
