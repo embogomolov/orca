@@ -91,7 +91,13 @@ function codexResponseItem(
     payload.type === 'local_shell_call' ||
     payload.type === 'custom_tool_call'
   ) {
-    const name = extractString(payload.name) ?? 'tool'
+    const name =
+      extractString(payload.name) ?? (payload.type === 'local_shell_call' ? 'shell' : 'tool')
+    // Why: Codex records the orchestration wrapper as custom `exec`; native
+    // Pre/PostToolUse hooks provide the real nested operations instead.
+    if (payload.type === 'custom_tool_call' && name === 'exec') {
+      return null
+    }
     const callId = extractString(payload.call_id)
     return {
       id,
@@ -103,7 +109,10 @@ function codexResponseItem(
       source: 'transcript'
     }
   }
-  if (payload.type === 'function_call_output' || payload.type === 'custom_tool_call_output') {
+  if (payload.type === 'custom_tool_call_output') {
+    return null
+  }
+  if (payload.type === 'function_call_output') {
     return {
       id,
       role: 'tool',

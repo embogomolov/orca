@@ -224,7 +224,8 @@ function upsertItem(
     // Provider history may normalize text or omit local attachments from the original send.
     body: submitted ? existing.body : next.body,
     sequence: existing.sequence,
-    observedAt: existing.observedAt
+    observedAt: existing.observedAt,
+    updatedAt: next.observedAt
   })
   state.tombstones.delete(itemId)
 }
