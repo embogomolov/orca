@@ -129,14 +129,22 @@ export function applyNativeChatReportedSessionOptions(
     return false
   }
   const modelChanged = record.model?.value !== modelId
+  // A dispatched selection is newer than lagging provider telemetry. Wait for
+  // that provider to report the selected value instead of rolling the UI back.
+  if (modelChanged && record.model?.source === 'dispatched') {
+    return false
+  }
   let changed = modelChanged || record.model?.source !== 'reported'
   record.model = { value: modelId, source: 'reported' }
-  const modelValues = modelChanged ? {} : { ...record.valuesByModel[modelId] }
+  const modelValues = { ...record.valuesByModel[modelId] }
   for (const [id, value] of Object.entries(values)) {
     if (id === 'model') {
       continue
     }
     const current = modelValues[id]
+    if (current?.source === 'dispatched' && current.value !== value) {
+      continue
+    }
     if (current?.value !== value || current.source !== 'reported') {
       changed = true
     }

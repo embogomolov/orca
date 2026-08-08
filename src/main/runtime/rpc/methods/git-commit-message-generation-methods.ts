@@ -81,7 +81,8 @@ export const GIT_COMMIT_MESSAGE_GENERATION_METHODS: RpcMethod[] = [
           ? {
               agentCmdOverrides: params.agentCmdOverrides as GlobalSettings['agentCmdOverrides']
             }
-          : {}
+          : {},
+        params.includeSessionDefaults
       )
   }),
   defineMethod({

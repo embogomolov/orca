@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Why: launch, resume, and draft plans apply identical provider options. */
 import { isShellProcess } from './agent-detection'
 import type { SleepingAgentLaunchConfig } from './agent-session-resume'
 import {
@@ -10,6 +11,7 @@ import {
 import { TUI_AGENT_CONFIG } from './tui-agent-config'
 import type { StartupCommandDelivery } from './codex-startup-delivery'
 import { buildSleepingAgentLaunchConfig } from './sleeping-agent-launch-config'
+import { getAgentSessionOptionCatalog } from './agent-session-option-catalog'
 import { planHermesStartupQuery } from './hermes-startup-query'
 import { inlineAgentDraftFitsPlatform } from './agent-draft-platform-limit'
 import type { TuiAgent } from './tui-agent'
@@ -17,6 +19,16 @@ import type { SessionOptionValue } from './native-chat-session-options'
 import { resolveAgentLaunchCommand } from './tui-agent-launch-command'
 
 export { buildAgentResumeStartupPlan } from './tui-agent-resume-startup'
+
+/** Keeps process-local options in cold restores; session-persisted options stay out. */
+function sleepingAgentCommand(
+  agent: TuiAgent,
+  baseCommand: { command: string; commandWithoutSessionOptions: string }
+): string {
+  return getAgentSessionOptionCatalog(agent)?.capturesOptionsInLaunchCommand
+    ? baseCommand.command
+    : baseCommand.commandWithoutSessionOptions
+}
 
 export type AgentStartupPlan = {
   agent: TuiAgent
@@ -72,9 +84,7 @@ export function buildAgentStartupPlan(args: {
   }
   const launchConfig = buildSleepingAgentLaunchConfig({
     ...args,
-    // Why: picker flags are a one-time launch choice; a resumed provider
-    // session restores its own state and must retain only explicit user args.
-    agentCommand: baseCommand.commandWithoutSessionOptions
+    agentCommand: sleepingAgentCommand(agent, baseCommand)
   })
 
   if (!trimmedPrompt) {
@@ -224,8 +234,7 @@ export function buildAgentDraftLaunchPlan(args: {
   }
   const launchConfig = buildSleepingAgentLaunchConfig({
     ...args,
-    // Why: see the new-session path above — resume must not replay picker flags.
-    agentCommand: baseCommand.commandWithoutSessionOptions
+    agentCommand: sleepingAgentCommand(agent, baseCommand)
   })
   let plan: AgentDraftLaunchPlan | null = null
   if (config.draftPromptFlag) {

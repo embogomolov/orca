@@ -114,7 +114,12 @@ describe('native chat PTY session options', () => {
 
     const effortResult = await surface.setOption('effort', 'high')
     expect(dispatch).toHaveBeenCalledWith('/effort high')
-    expect(effortResult.snapshot.map(({ id }) => id)).toEqual(['model', 'effort', 'fastMode'])
+    expect(effortResult.snapshot.map(({ id }) => id)).toEqual([
+      'model',
+      'effort',
+      'contextWindow',
+      'fastMode'
+    ])
     expect(effortResult.snapshot.find(({ id }) => id === 'effort')).toMatchObject({
       valueSource: 'dispatched',
       kind: { currentValue: 'high' }
@@ -146,16 +151,23 @@ describe('native chat PTY session options', () => {
     })!
     expect(surface.getSnapshot()[0]?.action).toBeUndefined()
 
-    const result = await surface.setOption('model', 'fable')
+    const result = await surface.setOption('model', 'opus')
 
-    expect(dispatch).toHaveBeenCalledWith('/model fable', {
+    expect(dispatch).toHaveBeenCalledWith('/model opus', {
       detectAgentInteraction: 'claude-model-switch-confirmation',
-      expectedChoiceLabel: 'Fable'
+      expectedChoiceLabel: 'Opus'
     })
     expect(onAgentPicker).not.toHaveBeenCalled()
     expect(result.snapshot[0]).toMatchObject({
-      valueSource: 'dispatched',
-      kind: { currentValue: 'fable' }
+      valueSource: 'applied',
+      kind: { currentValue: 'opus' }
+    })
+    expect(result.snapshot.find(({ id }) => id === 'effort')).toMatchObject({
+      kind: { currentValue: 'high' }
+    })
+    expect(result.snapshot.find(({ id }) => id === 'contextWindow')).toMatchObject({
+      valueSource: 'applied',
+      kind: { currentValue: 'standard' }
     })
   })
 
@@ -187,9 +199,34 @@ describe('native chat PTY session options', () => {
     expect(onAgentPicker).not.toHaveBeenCalled()
   })
 
-  it('stays native and clears stale truth when the switch cannot be verified', async () => {
+  it('reveals the terminal only when Claude requires model-switch interaction', async () => {
+    seedNativeChatAppliedSessionOptions('pty-1', 'claude', { model: 'sonnet' })
+    const dispatch = vi.fn().mockResolvedValue({ outcome: 'interaction-required' })
+    const onAgentPicker = vi.fn()
+    const surface = createNativeChatPtySessionOptions({
+      agent: 'claude',
+      scopeKey: 'pty-1',
+      mode: 'live',
+      dispatchCommand: dispatch,
+      onAgentPicker
+    })!
+
+    const result = await surface.setOption('model', 'haiku')
+
+    expect(dispatch).toHaveBeenCalledWith('/model haiku', {
+      detectAgentInteraction: 'claude-model-switch-confirmation',
+      expectedChoiceLabel: 'Haiku'
+    })
+    expect(onAgentPicker).toHaveBeenCalledOnce()
+    expect(result.snapshot[0]).toMatchObject({
+      valueSource: 'applied',
+      kind: { currentValue: 'sonnet' }
+    })
+  })
+
+  it('keeps confirmed truth when the switch cannot be verified', async () => {
     seedNativeChatAppliedSessionOptions('pty-1', 'claude', {
-      model: 'fable',
+      model: 'opus',
       effort: 'high'
     })
     const persist = vi.fn()
@@ -207,8 +244,10 @@ describe('native chat PTY session options', () => {
       'Could not verify the model change; open the terminal to check.'
     )
 
-    expect(surface.getSnapshot()).toHaveLength(1)
-    expect(surface.getSnapshot()[0]).toMatchObject({ valueSource: 'unknown' })
+    expect(surface.getSnapshot()[0]).toMatchObject({
+      valueSource: 'applied',
+      kind: { currentValue: 'opus' }
+    })
     expect(persist).not.toHaveBeenCalled()
     expect(onAgentPicker).not.toHaveBeenCalled()
   })

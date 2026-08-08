@@ -64,6 +64,7 @@ export function NativeChatResolvedView({
   terminalTabId,
   ownsTabWideLaunchDraft,
   onSwitchToTerminal,
+  restartSession,
   readTerminalScreen,
   contextMenuActions,
   orchestrationDispatchStatus
@@ -100,6 +101,7 @@ export function NativeChatResolvedView({
   // The agent's in-progress reply preview (hook), shown as a live streaming
   // bubble while it works — before the completed turn flushes to the transcript.
   const hookPreview = useAppStore((s) => s.agentStatusByPaneKey[paneKey]?.lastAssistantMessage)
+  const reportedModel = useAppStore((s) => s.agentStatusByPaneKey[paneKey]?.model ?? null)
   // Tool stdout/errors ride the same field for status-card previews; they are not the reply.
   const hookPreviewIsToolOutput = useAppStore(
     (s) => s.agentStatusByPaneKey[paneKey]?.lastAssistantMessageIsToolOutput === true
@@ -400,6 +402,11 @@ export function NativeChatResolvedView({
           paneKey={paneKey}
           targetPtyId={targetPtyId}
           agent={agent}
+          reportedModel={session.context.model ?? reportedModel}
+          reportedEffort={session.context.effort ?? null}
+          context={session.context}
+          onCompactionRequested={session.markCompactionRequested}
+          restartSession={restartSession}
           canSend={canSend}
           isWorking={isWorking}
           onStop={stopAgent}

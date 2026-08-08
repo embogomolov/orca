@@ -272,7 +272,8 @@ export class RuntimeGitGenerationCommands {
   async discoverRuntimeCommitMessageModels(
     worktreeSelector: string,
     agentId: string,
-    settingsOverride?: Pick<RuntimeCommitMessageSettingsOverride, 'agentCmdOverrides'>
+    settingsOverride?: Pick<RuntimeCommitMessageSettingsOverride, 'agentCmdOverrides'>,
+    includeSessionDefaults?: boolean
   ): Promise<DiscoverCommitMessageModelsResult> {
     const target = await this.host.resolveRuntimeGitTarget(worktreeSelector)
     const typedAgentId = agentId as TuiAgent
@@ -303,8 +304,11 @@ export class RuntimeGitGenerationCommands {
     return localOptions.wslDistro
       ? discoverCommitMessageModelsLocal(typedAgentId, localEnv.env, agentCommandOverride, {
           cwd: target.worktree.path,
-          wslDistro: localOptions.wslDistro
+          wslDistro: localOptions.wslDistro,
+          includeSessionDefaults
         })
-      : discoverCommitMessageModelsLocal(typedAgentId, localEnv.env, agentCommandOverride)
+      : discoverCommitMessageModelsLocal(typedAgentId, localEnv.env, agentCommandOverride, {
+          includeSessionDefaults
+        })
   }
 }

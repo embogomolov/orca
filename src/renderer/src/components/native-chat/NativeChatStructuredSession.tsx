@@ -22,6 +22,7 @@ import { useStructuredAgentSession } from './use-structured-agent-session'
 import { translate } from '@/i18n/i18n'
 import { NativeChatOrchestrationPausedNotice } from './NativeChatOrchestrationPausedNotice'
 import { useNativeChatPasteBridge } from './use-native-chat-paste-bridge'
+import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 
 function encodeQuestionAnswer(questionId: string, answer: string): string {
   return `${encodeURIComponent(questionId)}:${encodeURIComponent(answer)}`
@@ -64,6 +65,8 @@ export function NativeChatStructuredSession(props: {
                 : 'ready',
       sessionId: props.sessionId,
       agent: props.agent,
+      context: EMPTY_AGENT_SESSION_CONTEXT,
+      markCompactionRequested: () => {},
       ...(controller.error ? { error: controller.error } : {}),
       hasMore: controller.hasOlder,
       loadingEarlier: controller.loadingOlder,
