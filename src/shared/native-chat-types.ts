@@ -221,6 +221,8 @@ export type NativeChatMessage = AgentJournalProducerLinkage & {
   /** Set only by the tool fold, on a row that absorbed later tool rows: the newest
    *  absorbed row's journal position. The row still sorts by its own. */
   foldedJournalPosition?: AgentJournalPosition
+  /** Provider-authored API failure, not assistant speech. */
+  providerError?: true
 }
 
 export const NATIVE_CHAT_TURN_LIFECYCLE_STATES = ['working', 'completed', 'interrupted'] as const

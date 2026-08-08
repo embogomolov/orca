@@ -56,6 +56,7 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
           request.promptDelivery ?? null,
           request.agentArgs ?? null,
           request.agentArgs === undefined ? 'host-default' : 'client-override',
+          request.extraAgentArgs ?? null,
           request.launchPreferences?.model ?? null,
           request.launchPreferences?.effort ?? null,
           request.launchPreferences?.mode ?? null,
@@ -133,6 +134,7 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
             request.promptDelivery ?? null,
             request.agentArgs ?? null,
             request.agentArgs === undefined ? 'host-default' : 'client-override',
+            request.extraAgentArgs ?? null,
             request.launchPreferences?.model ?? null,
             request.launchPreferences?.effort ?? null,
             request.launchPreferences?.mode ?? null,
@@ -159,6 +161,7 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
         ...(request.agentArgs !== undefined ? { agentArgs: request.agentArgs } : {}),
         sessionOptions: this.toAgentSessionOptions(request.launchPreferences)
       })
+      startupArgs.agentArgs = this.appendExtraAgentLaunchArgs(startupArgs.agentArgs, request.extraAgentArgs)
       const startup =
         request.promptDelivery === 'draft'
           ? buildAgentDraftLaunchPlan({ ...startupArgs, draft: request.prompt ?? '' })

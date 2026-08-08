@@ -709,6 +709,11 @@ describe('NativeChatComposer', () => {
             id: 'effort',
             valueSource: 'reported',
             kind: expect.objectContaining({ currentValue: 'medium' })
+          }),
+          expect.objectContaining({
+            id: 'contextWindow',
+            valueSource: 'reported',
+            kind: expect.objectContaining({ currentValue: 'standard' })
           })
         ])
       )

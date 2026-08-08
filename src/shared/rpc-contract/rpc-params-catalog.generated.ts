@@ -39,6 +39,7 @@ import { AgentLaunch, AgentLaunchReplay } from './agent-launch-params'
 import { CreateAgentSessionParams, EnsureAgentSessionParams } from './agent-session-params'
 import {
   AiVaultListSessionsParams,
+  AiVaultListSubagentSessionsParams,
   AiVaultPrepareSessionResumeParams,
   AiVaultSessionTitlesParams
 } from './ai-vault-params'
@@ -605,6 +606,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'agentTeams.prepareLaunch': AgentTeamsPrepareLaunch,
   'agentTeams.tmuxCompat': AgentTeamsTmuxCompat,
   'aiVault.listSessions': AiVaultListSessionsParams,
+  'aiVault.listSubagentSessions': AiVaultListSubagentSessionsParams,
   'aiVault.prepareSessionResume': AiVaultPrepareSessionResumeParams,
   'aiVault.resolveSessionTitles': AiVaultSessionTitlesParams,
   'aiVault.searchSessions': AiVaultSearchRequestSchema,
@@ -1199,7 +1201,44 @@ export const RPC_PARAMS_BY_METHOD = {
 export const RPC_METHODS_WITHOUT_SHARED_PARAMS: readonly string[] = [
   'emulator.install',
   'orchestration.send',
-  'orchestration.taskUpdate'
+  'orchestration.taskUpdate',
+  'rooms.archive.export.read',
+  'rooms.archive.export.start',
+  'rooms.archive.import.append',
+  'rooms.archive.import.finish',
+  'rooms.archive.import.start',
+  'rooms.archive.transfer.cancel',
+  'rooms.attachments.download.cancel',
+  'rooms.attachments.download.read',
+  'rooms.attachments.download.start',
+  'rooms.attachments.upload.append',
+  'rooms.attachments.upload.cancel',
+  'rooms.attachments.upload.finish',
+  'rooms.attachments.upload.start',
+  'rooms.create',
+  'rooms.deliveries.retry',
+  'rooms.list',
+  'rooms.messages.delete',
+  'rooms.messages.list',
+  'rooms.messages.send',
+  'rooms.messages.update',
+  'rooms.participants.add',
+  'rooms.participants.attachable',
+  'rooms.participants.compact',
+  'rooms.participants.configure',
+  'rooms.participants.control',
+  'rooms.participants.remove',
+  'rooms.participants.reveal',
+  'rooms.participants.update',
+  'rooms.pins.remove',
+  'rooms.pins.set',
+  'rooms.read',
+  'rooms.roles.delete',
+  'rooms.roles.save',
+  'rooms.snapshot',
+  'rooms.subscribe',
+  'rooms.unsubscribe',
+  'rooms.update'
 ]
 
 export type RpcMethodName = keyof typeof RPC_PARAMS_BY_METHOD

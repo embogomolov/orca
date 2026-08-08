@@ -137,7 +137,8 @@ export function decodeClaudeTranscriptLine(
     role: claudeMessageRole(role, blocks),
     blocks: role === 'user' ? blocks.map(unwrapClaudePastedContentBlock) : blocks,
     timestamp,
-    source: 'transcript'
+    source: 'transcript',
+    ...(record.isApiErrorMessage === true ? { providerError: true } : {})
   }
 }
 

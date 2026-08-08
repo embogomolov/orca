@@ -1,25 +1,36 @@
 import { basename, dirname, join } from 'node:path'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import { open, stat } from 'node:fs/promises'
 import type { AgentProviderSessionMetadata } from '../../shared/agent-session-resume'
 import type { AgentType } from '../../shared/agent-status-types'
 import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
 import { EMPTY_AGENT_SESSION_CONTEXT } from '../../shared/agent-session-context'
 import type { ClaudeStatusLineRateLimits } from '../../shared/claude-statusline-rate-limits'
+import { parseClaudeSessionOptionsRecord } from './claude-session-options'
+import { parseAgentSessionOptionsRecord } from './codex-session-options'
 import { resolveSessionFilePath } from './session-file-resolver'
+
+export { parseClaudeSessionOptionsRecord } from './claude-session-options'
+export { parseAgentSessionOptionsRecord } from './codex-session-options'
 
 const CONTEXT_TAIL_BYTES = 4 * 1024 * 1024
 const STATUSLINE_CONTEXT_CACHE_LIMIT = 1024
 const contextByPaneKey = new Map<string, AgentSessionContextSnapshot>()
 
 type ContextUsage = { usedTokens: number; maxTokens: number | null }
-type SessionOptions = { model?: string; effort?: string; recordedAt: number | null }
+type SessionOptions = {
+  model?: string
+  effort?: string
+  fastMode?: boolean
+  recordedAt: number | null
+}
 
 function finiteNonNegative(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
 }
 
 function object(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+  return isRecord(value) ? value : null
 }
 
 export function parseAgentSessionContextRecord(
@@ -63,39 +74,6 @@ export function parseAgentSessionContextRecord(
   }
 }
 
-export function parseAgentSessionOptionsRecord(
-  agent: AgentType,
-  line: string
-): SessionOptions | null {
-  if (agent !== 'codex') {
-    return null
-  }
-  let record: Record<string, unknown> | null
-  try {
-    record = object(JSON.parse(line))
-  } catch {
-    return null
-  }
-  const payload = object(record?.payload)
-  // Current rollouts put turn_context at the record level; older ones nested
-  // the type inside the payload. Accept both.
-  if (!payload || (record?.type !== 'turn_context' && payload.type !== 'turn_context')) {
-    return null
-  }
-  const model = typeof payload.model === 'string' ? payload.model.trim() : ''
-  const effort = typeof payload.effort === 'string' ? payload.effort.trim() : ''
-  if (!model && !effort) {
-    return null
-  }
-  const timestamp =
-    typeof record?.timestamp === 'string' ? Date.parse(record.timestamp) : Number.NaN
-  return {
-    ...(model ? { model } : {}),
-    ...(effort ? { effort } : {}),
-    recordedAt: Number.isFinite(timestamp) ? timestamp : null
-  }
-}
-
 export async function readAgentSessionContext(
   agent: AgentType,
   providerSession: AgentProviderSessionMetadata,
@@ -132,8 +110,20 @@ export async function readAgentSessionContext(
   for (let index = lines.length - 1; index >= 0; index--) {
     const line = lines[index] ?? ''
     usage ??= parseAgentSessionContextRecord(agent, line)
-    options ??= parseAgentSessionOptionsRecord(agent, line)
-    if (usage && (agent !== 'codex' || options)) {
+    const parsedOptions =
+      parseAgentSessionOptionsRecord(agent, line) ?? parseClaudeSessionOptionsRecord(agent, line)
+    if (parsedOptions) {
+      const currentOptions = options
+      options = currentOptions
+        ? {
+            ...parsedOptions,
+            ...currentOptions,
+            recordedAt: currentOptions.recordedAt ?? parsedOptions.recordedAt
+          }
+        : parsedOptions
+    }
+    const reportsFastMode = agent === 'codex' || agent === 'claude' || agent === 'openclaude'
+    if (usage && (!reportsFastMode || options?.fastMode !== undefined)) {
       break
     }
   }
@@ -143,14 +133,19 @@ export async function readAgentSessionContext(
     options !== null &&
     (current.observedAt === null ||
       (options.recordedAt !== null && options.recordedAt > current.observedAt))
-  const optionValues =
-    optionsFresh && options
-      ? {
-          ...(options.model ? { model: options.model } : {}),
-          ...(options.effort ? { effort: options.effort } : {})
-        }
-      : {}
-  if (usage || optionsFresh) {
+  const fastModeBackfill = options?.fastMode !== undefined && typeof current.fastMode !== 'boolean'
+  const optionValues = options
+    ? {
+        ...(optionsFresh && options.model ? { model: options.model } : {}),
+        ...(optionsFresh && options.effort ? { effort: options.effort } : {}),
+        ...(optionsFresh || fastModeBackfill
+          ? options.fastMode === undefined
+            ? {}
+            : { fastMode: options.fastMode }
+          : {})
+      }
+    : {}
+  if (usage || optionsFresh || fastModeBackfill) {
     const usedTokens = usage?.usedTokens ?? current.usedTokens
     const maxTokens = usage?.maxTokens ?? current.maxTokens
     const usedPercent =
@@ -295,6 +290,7 @@ export function agentSessionContextUsageEqual(
     left.usedTokens === right.usedTokens &&
     left.model === right.model &&
     left.effort === right.effort &&
+    left.fastMode === right.fastMode &&
     left.maxTokens === right.maxTokens &&
     left.remainingTokens === right.remainingTokens &&
     left.usedPercent === right.usedPercent &&
