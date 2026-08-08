@@ -738,6 +738,9 @@ function codesignArgs(identity, targetPath) {
 }
 
 function findInstalledMacSigningIdentity(keychainFile) {
+  if (process.env.CSC_IDENTITY_AUTO_DISCOVERY === 'false') {
+    return null
+  }
   try {
     const output = execFileSync(
       'security',
