@@ -336,6 +336,8 @@ export type AgentJournalRenderItem = AgentJournalProducerLinkage & {
   body: AgentJournalItemBody
   sequence: number
   observedAt: number
+  /** Timestamp of the latest revision; omitted until the item is revised. */
+  updatedAt?: number
   /** Set when the row was appended by crash reconciliation rather than live. */
   recovered?: true
   /** When crash reconciliation wrote this revision; present exactly when `recovered` is. */

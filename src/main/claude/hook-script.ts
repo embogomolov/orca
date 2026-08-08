@@ -18,10 +18,12 @@ import {
 export function getManagedScript(
   target: 'local' | 'posix' = 'local',
   options: {
+    agent?: 'claude' | 'openclaude'
     skipWhenDevinImportsClaude?: boolean
     skipWhenGrokImportsClaude?: boolean
   } = {}
 ): string {
+  const agent = options.agent ?? 'claude'
   if (target === 'local' && process.platform === 'win32') {
     return [
       '@echo off',
@@ -46,7 +48,10 @@ export function getManagedScript(
           ]
         : []),
       // Why: use curl.exe to avoid an extra PowerShell startup per hook.
-      buildWindowsAgentHookCurlPostCommand('claude'),
+      buildWindowsAgentHookCurlPostCommand('claude').replace(
+        '--data-urlencode "payload@-"',
+        `--data-urlencode "agent=${agent}" --data-urlencode "payload@-"`
+      ),
       'exit /b 0',
       ...buildWindowsHookStdinDrainEpilogue(),
       ''
@@ -84,7 +89,7 @@ export function getManagedScript(
     '  exit 0',
     'fi',
     // Why: keep full hook JSON off the command line and avoid IDS-friendly URL-encoded paths.
-    ...buildPosixAgentHookPostCommand('claude').map((line, index, lines) =>
+    ...buildPosixAgentHookPostCommand('claude', { agent }).map((line, index, lines) =>
       index === lines.length - 1 ? `${line} >/dev/null 2>&1 || spool_hook_event` : line
     ),
     'exit 0',
