@@ -11,6 +11,11 @@ export const AI_VAULT_SCOPE_PATH_MAX_LENGTH = 4096
 
 export const AI_VAULT_LIMIT_MAX = 2000
 
+export const AiVaultListSubagentSessionsParams = z.object({
+  agent: z.enum(['claude', 'openclaude', 'codex']),
+  parentFilePath: z.string().min(1).max(AI_VAULT_SCOPE_PATH_MAX_LENGTH)
+})
+
 export const executionHostIdSchema = z.string().transform((value, ctx): `runtime:${string}` => {
   const parsed = parseExecutionHostId(value)
   if (parsed?.kind === 'runtime') {
