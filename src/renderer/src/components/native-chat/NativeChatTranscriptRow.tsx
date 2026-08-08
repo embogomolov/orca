@@ -9,6 +9,7 @@ import { NativeChatTurnDiffRollup } from './NativeChatTurnDiffRollup'
 import { NativeChatSubagentSectionHead } from './NativeChatSubagentSectionHead'
 import { NativeChatSubagentEntries } from './NativeChatSubagentRun'
 import type { NativeChatSubagentDisclosure } from './native-chat-subagent-sections'
+import { AgentSubagentTurnLink } from '../agent-subagents/AgentSubagentContext'
 import type { NativeChatTaskListPredecessors } from './native-chat-task-list-history'
 import type { NativeChatTranscriptSlot } from './native-chat-transcript-slots'
 import type { NativeChatDiffReveal, NativeChatDiffTarget } from './native-chat-turn-diffs'
@@ -22,6 +23,8 @@ export type NativeChatTranscriptRowContext = {
   expandedTurnIds: ReadonlySet<string>
   /** Keyed by message id: the user messages that did not go through, each with its own words. */
   deliveryNotices?: ReadonlyMap<string, NativeChatDeliveryNotice>
+  failedDeliveryMessageIds?: ReadonlySet<string>
+  subagentSourceKey?: string
   allowFileUriLinks: boolean
   runtimeContext?: RuntimeFileOperationArgs | null
   onLinkClick?: CommentMarkdownLinkClickHandler
@@ -115,6 +118,17 @@ export const NativeChatTranscriptRow = memo(function NativeChatTranscriptRow({
         />
       )}
       {slot.statusAbove ? null : statusRow}
+      {status && context.subagentSourceKey ? (
+        <AgentSubagentTurnLink
+          sourceKey={context.subagentSourceKey}
+          startedAt={status.startedAt}
+          completedAt={
+            status.startedAt == null || status.workedSeconds == null
+              ? null
+              : status.startedAt + status.workedSeconds * 1_000
+          }
+        />
+      ) : null}
       {turnDiff ? (
         <NativeChatTurnDiffRollup diff={turnDiff} onReveal={context.onRevealDiff} />
       ) : null}

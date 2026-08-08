@@ -33,6 +33,7 @@ import { structuredAgentSessionDeliveryNotices } from './structured-agent-sessio
 import type { AgentJournalSubmission } from '../../../../shared/agent-session-journal-types'
 
 const NO_SUBMISSIONS: readonly AgentJournalSubmission[] = []
+import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 
 export function NativeChatStructuredSession(
   props: Omit<NativeChatStructuredViewProps, 'mode'>
@@ -99,6 +100,8 @@ export function NativeChatStructuredSession(
                 : 'ready',
       sessionId: props.sessionId,
       agent: props.agent,
+      context: EMPTY_AGENT_SESSION_CONTEXT,
+      markCompactionRequested: () => {},
       ...(controller.error ? { error: controller.error } : {}),
       hasMore: controller.hasOlder,
       loadingEarlier: controller.loadingOlder,

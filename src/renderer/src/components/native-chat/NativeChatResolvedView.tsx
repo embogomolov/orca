@@ -46,8 +46,6 @@ import { LinkActionPopover } from '@/components/link-actions/LinkActionPopover'
 import { useNativeChatLinkActions } from './use-native-chat-link-actions'
 import type { NativeChatResolvedViewProps } from './native-chat-view-types'
 import { useNativeChatFileLinkContext } from './use-native-chat-file-link-context'
-import { matchNativeChatSplitShortcut } from './native-chat-split-shortcut'
-import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { formatShortcutLabel } from '@/hooks/useShortcutLabel'
 
 /** Renders the bridge UI after NativeChatSessionGate resolves its agent session. */
@@ -62,6 +60,7 @@ export function NativeChatResolvedView({
   terminalTabId,
   ownsTabWideLaunchDraft,
   onSwitchToTerminal,
+  restartSession,
   readTerminalScreen,
   contextMenuActions
 }: NativeChatResolvedViewProps): React.JSX.Element {
@@ -98,6 +97,7 @@ export function NativeChatResolvedView({
   // The agent's in-progress reply preview (hook), shown as a live streaming
   // bubble while it works — before the completed turn flushes to the transcript.
   const hookPreview = useAppStore((s) => s.agentStatusByPaneKey[paneKey]?.lastAssistantMessage)
+  const reportedModel = useAppStore((s) => s.agentStatusByPaneKey[paneKey]?.model ?? null)
   // Tool stdout/errors ride the same field for status-card previews; they are not the reply.
   const hookPreviewIsToolOutput = useAppStore(
     (s) => s.agentStatusByPaneKey[paneKey]?.lastAssistantMessageIsToolOutput === true
@@ -389,6 +389,11 @@ export function NativeChatResolvedView({
           paneKey={paneKey}
           targetPtyId={targetPtyId}
           agent={agent}
+          reportedModel={session.context.model ?? reportedModel}
+          reportedEffort={session.context.effort ?? null}
+          context={session.context}
+          onCompactionRequested={session.markCompactionRequested}
+          restartSession={restartSession}
           canSend={canSend}
           isWorking={isWorking}
           onStop={stopAgent}

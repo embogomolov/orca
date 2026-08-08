@@ -82,6 +82,10 @@ export function NativeChatMessageList({
   settledTurns,
   deliveryNotices,
   awaitingInput = null,
+  failedDeliveryMessageIds,
+  subagentSourceKey,
+  showTurnStatus = true,
+  showLiveTurnActivity = true,
   turnActivity,
   runtimeContext
 }: {
@@ -108,6 +112,12 @@ export function NativeChatMessageList({
   deliveryNotices?: ReadonlyMap<string, NativeChatDeliveryNotice>
   /** Set while the turn waits on the reader; the live activity line yields to it. */
   awaitingInput?: NativeChatAwaitingInput | null
+  failedDeliveryMessageIds?: ReadonlySet<string>
+  subagentSourceKey?: string
+  /** Turn timing and disclosure are available on structured agent sessions. */
+  showTurnStatus?: boolean
+  /** Whether the active turn's foreground activity row should be visible. */
+  showLiveTurnActivity?: boolean
   turnActivity?: NativeChatTurnActivity | null
   runtimeContext?: RuntimeFileOperationArgs | null
 }): React.JSX.Element {
@@ -334,6 +344,8 @@ export function NativeChatMessageList({
       taskListPredecessors,
       expandedTurnIds,
       deliveryNotices,
+      failedDeliveryMessageIds,
+      subagentSourceKey,
       allowFileUriLinks,
       runtimeContext,
       onLinkClick,
@@ -347,6 +359,8 @@ export function NativeChatMessageList({
       expandSignal,
       expandedTurnIds,
       deliveryNotices,
+      failedDeliveryMessageIds,
+      subagentSourceKey,
       onLinkClick,
       revealDiff,
       revealedDiff,

@@ -18,7 +18,7 @@ import { useNativeChatComposerHandle } from './use-native-chat-composer-handle'
 import { useNativeChatExternalAttachments } from './use-native-chat-external-attachments'
 import { useNativeChatComposerKeyDown } from './use-native-chat-composer-keydown'
 import { useNativeChatSendLifecycle } from './use-native-chat-send-lifecycle'
-import { useNativeChatSessionOptions } from './use-native-chat-session-options'
+import { useNativeChatComposerSessionControl } from './use-native-chat-composer-session-control'
 import { useNativeChatFileAttachmentActions } from './use-native-chat-file-attachment-actions'
 import { useNativeChatDictationActions } from './use-native-chat-dictation-actions'
 import { useNativeChatSessionOptionCommand } from './use-native-chat-session-option-command'
@@ -56,6 +56,11 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       paneKey,
       targetPtyId,
       agent,
+      reportedModel,
+      reportedEffort,
+      context,
+      onCompactionRequested,
+      restartSession,
       canSend = true,
       isWorking = false,
       onStop,
@@ -234,19 +239,26 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
         setHistory
       })
 
-    const { surface: ptySessionOptionsSurface, snapshot: ptySessionOptionsSnapshot } =
-      useNativeChatSessionOptions({
-        agent,
-        terminalTabId,
-        targetPtyId,
-        dispatchCommand: dispatchSessionOptionCommand,
-        onAgentPicker: onSwitchToTerminal,
-        readTerminalScreen,
-        paneKey
-      })
-    const sessionOptionsSurface = structuredTransport?.optionsSurface ?? ptySessionOptionsSurface
+    const sessionControl = useNativeChatComposerSessionControl({
+      agent,
+      commands: agentCommands,
+      terminalTabId,
+      targetPtyId,
+      dispatchCommand: dispatchSessionOptionCommand,
+      restartSession,
+      reportedModel,
+      reportedEffort,
+      context,
+      onCompactionRequested,
+      onAgentPicker: onSwitchToTerminal,
+      readTerminalScreen,
+      paneKey
+    })
     const contextUsageSummary = useNativeChatContextUsageSummary(structuredTransport)
-    const sessionOptionsSnapshot = structuredTransport?.optionSnapshot ?? ptySessionOptionsSnapshot
+    const sessionOptionsSurface =
+      structuredTransport?.optionsSurface ?? sessionControl.sessionOptionsSurface
+    const sessionOptionsSnapshot =
+      structuredTransport?.optionSnapshot ?? sessionControl.sessionOptionsSnapshot
 
     const sendStructured = useNativeChatStructuredComposerSend({
       agent,
@@ -274,7 +286,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       onOptimisticSend,
       optimisticSendOutcome,
       onSlashCommand,
-      sessionOptionsSurface: ptySessionOptionsSurface,
+      sessionOptionsSurface: sessionControl.sessionOptionsSurface,
       terminalTabId,
       trackPendingSend,
       setHistory,
@@ -310,7 +322,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       isDispatchingSessionOption,
       resolveTarget,
       onSlashCommand,
-      sessionOptionsSurface: ptySessionOptionsSurface,
+      sessionOptionsSurface: sessionControl.sessionOptionsSurface,
       trackPendingSend,
       setHistory,
       setDraft,
@@ -418,6 +430,9 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
         sessionOptionsSnapshot={sessionOptionsSnapshot}
         contextUsage={contextUsageSummary}
         sessionOptionsPickerRequest={structuredTransport?.optionPickerRequest ?? null}
+        context={sessionControl.context}
+        canCompact={sessionControl.canCompact}
+        onCompact={sessionControl.onCompact}
       />
     )
   }
