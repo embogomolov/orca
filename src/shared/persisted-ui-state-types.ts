@@ -34,6 +34,7 @@ export type PersistedUIState = {
   rightSidebarTab: RightSidebarTab
   rightSidebarExplorerView: RightSidebarExplorerView
   rightSidebarWidth: number
+  subagentSheetWidth?: number
   markdownTocPanelWidth?: number
   combinedDiffFileTreeWidth?: number
   groupBy: 'none' | 'workspace-status' | 'repo' | 'pr-status'

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, ChevronRight, SquareTerminal, Wrench } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
+import { nativeChatToolLabel } from '../../../../shared/native-chat-tool-name'
 import {
   isToolCallBlock,
   isToolResultBlock,
@@ -78,7 +79,7 @@ function ToolLine({
   let inputHasDetail = false
 
   if (isToolCallBlock(block)) {
-    name = block.name
+    name = nativeChatToolLabel(block.name)
     const inputDisplay = createToolInputDisplay(block.input)
     preview = inputDisplay.label
     inputHasDetail = inputDisplay.hasDetail

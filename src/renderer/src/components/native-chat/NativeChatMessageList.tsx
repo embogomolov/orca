@@ -259,6 +259,20 @@ export function NativeChatMessageList({
       return currentTurnKey
     })
   }, [messages])
+  const turnMessagesByKey = useMemo(() => {
+    const byKey = new Map<string, NativeChatMessage[]>()
+    let key: string | undefined
+    for (const message of messages) {
+      if (message.role === 'user') {
+        key = message.id
+        byKey.set(key, [])
+      }
+      if (key) {
+        byKey.get(key)?.push(message)
+      }
+    }
+    return byKey
+  }, [messages])
   const turnStatuses = useNativeChatTurnStatus({
     messages,
     latestUserIndex,
@@ -429,6 +443,7 @@ export function NativeChatMessageList({
                             ? null
                             : status.startedAt + status.workedSeconds * 1_000
                         }
+                        messages={turnKey ? turnMessagesByKey.get(turnKey) : undefined}
                       />
                     ) : null}
                   </>
