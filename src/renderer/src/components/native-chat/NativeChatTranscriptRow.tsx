@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import type { NativeChatMessage } from '../../../../shared/native-chat-types'
 import type { CommentMarkdownLinkClickHandler } from '@/components/sidebar/CommentMarkdown'
 import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
 import { MessageRow } from './NativeChatMessageRow'
@@ -20,6 +21,7 @@ export type NativeChatTranscriptRowContext = {
   expandedTurnIds: ReadonlySet<string>
   failedDeliveryMessageIds?: ReadonlySet<string>
   subagentSourceKey?: string
+  turnMessagesByKey: ReadonlyMap<string, NativeChatMessage[]>
   allowFileUriLinks: boolean
   runtimeContext?: RuntimeFileOperationArgs | null
   onLinkClick?: CommentMarkdownLinkClickHandler
@@ -82,6 +84,7 @@ export const NativeChatTranscriptRow = memo(function NativeChatTranscriptRow({
       {status && context.subagentSourceKey ? (
         <AgentSubagentTurnLink
           sourceKey={context.subagentSourceKey}
+          messages={turnKey ? context.turnMessagesByKey.get(turnKey) : undefined}
           startedAt={status.startedAt}
           completedAt={
             status.startedAt == null || status.workedSeconds == null
