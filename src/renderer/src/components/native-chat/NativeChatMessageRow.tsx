@@ -90,6 +90,7 @@ export const MessageRow = memo(function MessageRow({
   const isReasoning = message.role === 'reasoning'
   const isSystem = message.role === 'system'
   const providerFrame = message.blocks.find((block) => block.type === 'text' && block.providerFrame)
+  const isSubagentTask = message.subagentEvent?.kind === 'task'
 
   const scrollToTop = useCallback(() => {
     if (rowRef.current) {
@@ -205,6 +206,17 @@ export const MessageRow = memo(function MessageRow({
             ) : null}
           </div>
         ) : null}
+      </div>
+    )
+  }
+
+  if (isSubagentTask) {
+    return (
+      <div
+        ref={rowRef}
+        className="w-fit rounded-md border border-border bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground"
+      >
+        {markdown}
       </div>
     )
   }

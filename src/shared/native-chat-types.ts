@@ -94,6 +94,7 @@ export type NativeChatEditPatch = {
 /** The result returned to the agent for a prior tool call. */
 export type NativeChatToolResultBlock = {
   type: 'tool-result'
+  callId?: string
   output: string
   isError?: boolean
   /** The call this result answers, when the producer knows it; otherwise pairing is positional. */
@@ -223,6 +224,12 @@ export type NativeChatMessage = AgentJournalProducerLinkage & {
   foldedJournalPosition?: AgentJournalPosition
   /** Provider-authored API failure, not assistant speech. */
   providerError?: true
+  /** Codex multi-agent transport metadata. Empty transport records stay
+   *  invisible outside the dedicated subagent transcript projection. */
+  subagentEvent?:
+    | { kind: 'turn-boundary'; triggerTurn: boolean }
+    | { kind: 'agent-message'; author: string | null; recipient: string | null }
+    | { kind: 'task'; parentIdentity: string }
 }
 
 export const NATIVE_CHAT_TURN_LIFECYCLE_STATES = ['working', 'completed', 'interrupted'] as const

@@ -4,6 +4,7 @@ import type { CommentMarkdownLinkClickHandler } from '@/components/sidebar/Comme
 import { translate } from '@/i18n/i18n'
 import type { NativeChatLiveSession } from './use-native-chat-live-session'
 import { useNativeChatTranscriptProjection } from './use-native-chat-transcript-projection'
+import type { NativeChatMessage } from '../../../../shared/native-chat-types'
 import { structuredQuestionTranscript } from './structured-agent-question-projection'
 import { nativeChatTaskListState } from './native-chat-task-list-state'
 import { nativeChatTaskListPredecessors } from './native-chat-task-list-history'
@@ -177,6 +178,20 @@ export function NativeChatMessageList({
     () => (journalItems ? isStructuredAgentSessionThinking(journalItems) : false),
     [journalItems]
   )
+  const turnMessagesByKey = useMemo(() => {
+    const byKey = new Map<string, NativeChatMessage[]>()
+    let key: string | undefined
+    for (const message of messages) {
+      if (message.role === 'user') {
+        key = message.id
+        byKey.set(key, [])
+      }
+      if (key) {
+        byKey.get(key)?.push(message)
+      }
+    }
+    return byKey
+  }, [messages])
   const turnStatuses = useNativeChatTurnStatus({
     turnKeys,
     liveTurnKey,
@@ -346,6 +361,7 @@ export function NativeChatMessageList({
       deliveryNotices,
       failedDeliveryMessageIds,
       subagentSourceKey,
+      turnMessagesByKey,
       allowFileUriLinks,
       runtimeContext,
       onLinkClick,
@@ -361,6 +377,7 @@ export function NativeChatMessageList({
       deliveryNotices,
       failedDeliveryMessageIds,
       subagentSourceKey,
+      turnMessagesByKey,
       onLinkClick,
       revealDiff,
       revealedDiff,
