@@ -1,19 +1,13 @@
-/* eslint-disable max-lines -- Why: shared room harness lifecycle stays in one adapter. */
 import { randomBytes } from 'node:crypto'
 import type {
   RoomAttachment,
-  RoomAttachableAgent,
   RoomContextSnapshot,
-  RoomEvent,
   RoomHarnessAgent,
   RoomProviderSession
 } from '../../../shared/rooms'
 import type {
   AgentLaunchPreferences,
-  RuntimeCreateAgentSessionRequest,
-  RuntimeCreateAgentSessionResult,
-  RuntimeEnsureAgentSessionRequest,
-  RuntimeEnsureAgentSessionResult
+  RuntimeCreateAgentSessionResult
 } from '../../../shared/agent-session-host-authority'
 import type {
   RuntimeTerminalAgentStatus,
@@ -22,142 +16,29 @@ import type {
   RuntimeTerminalWait
 } from '../../../shared/runtime-types'
 import type { AgentHookEventPayload } from '../../../shared/agent-hook-listener'
-import type { NativeChatMessage } from '../../../shared/native-chat-types'
 import {
   readNativeChatTranscriptTail,
-  subscribeNativeChatTranscript,
   type NativeChatTranscriptSubscription
 } from '../../native-chat/transcript-watch'
 import { readRoomContext, readRoomTranscriptMtime } from './context-reader'
-import {
-  currentTurnMessages,
-  roomHarnessStatusEvent,
-  transcriptLifecycleEvent,
-  turnUserMessage,
-  type RoomHarnessLifecycleEvent
-} from './harness-lifecycle'
+import { roomHarnessStatusEvent, type RoomHarnessLifecycleEvent } from './harness-lifecycle'
+import type {
+  RoomHarnessAdapter,
+  RoomHarnessBinding,
+  RoomHarnessReadResult,
+  RoomHarnessRuntime,
+  RoomHarnessSubscriptionCallbacks
+} from './harness-adapter-types'
+import { subscribeRoomHarnessTranscript } from './harness-transcript-subscription'
 
 export { transcriptLifecycleEvent } from './harness-lifecycle'
 export type { RoomHarnessActivityKind, RoomHarnessLifecycleEvent } from './harness-lifecycle'
-
-export type RoomHarnessBinding = {
-  worktreeId: string
-  terminalHandle: string
-  paneKey: string
-  providerSession: RoomProviderSession | null
-  disposition?: 'created' | 'adopted' | 'attached'
-}
-
-export type RoomHarnessRuntime = {
-  createAgentSession(
-    request: RuntimeCreateAgentSessionRequest
-  ): Promise<RuntimeCreateAgentSessionResult>
-  ensureAgentSession(
-    request: RuntimeEnsureAgentSessionRequest
-  ): Promise<RuntimeEnsureAgentSessionResult>
-  sendTerminalAgentPrompt(
-    handle: string,
-    prompt: string,
-    options?: { clearInput?: boolean; imagePaths?: readonly string[] }
-  ): Promise<RuntimeTerminalSend>
-  sendTerminal?(
-    handle: string,
-    action: { text?: string; enter?: boolean; interrupt?: boolean }
-  ): Promise<RuntimeTerminalSend>
-  waitForTerminalAgentInputReady(handle: string, agent: RoomHarnessAgent): Promise<boolean>
-  compactTerminalAgentSession(handle: string): Promise<RuntimeTerminalSend>
-  getTerminalAgentStatus(
-    handle: string,
-    options?: { confirmForeground?: boolean }
-  ): Promise<RuntimeTerminalAgentStatus>
-  /** Stable identity of the live process behind the handle; changes on every (re)start. */
-  getTerminalProcessIncarnation(handle: string): string | null
-  /** `force` bypasses the room-participant view-close guard: room-owned stops
-   *  (remove, reconfigure) must actually kill the process. */
-  closeTerminal(handle: string, options?: { force?: boolean }): Promise<RuntimeTerminalClose>
-  waitForTerminal(
-    handle: string,
-    options?: { condition?: 'exit' | 'tui-idle'; timeoutMs?: number }
-  ): Promise<RuntimeTerminalWait>
-  focusTerminal?(
-    handle: string,
-    options?: { navigateHost?: boolean; viewMode?: 'terminal' | 'chat' }
-  ): Promise<unknown>
-  /** Push the participant's session identity into the shared agent-status stream
-   *  so Chat UI/Terminal resolve the same providerSession/transcript the room owns. */
-  publishRoomAgentProviderSession?(
-    handle: string,
-    agent: RoomHarnessAgent,
-    providerSession: RoomProviderSession
-  ): void
-  emitRoomEvent?(roomId: string, event: RoomEvent): void
-  listRoomAttachableAgents(worktreeId: string): Promise<RoomAttachableAgent[]>
-  resolveRoomHistoricalSession(
-    worktreeId: string,
-    agent: RoomHarnessAgent,
-    historyId: string
-  ): Promise<RoomProviderSession>
-  stageRoomAttachment(
-    worktreeId: string,
-    terminalHandle: string,
-    attachment: Pick<RoomAttachment, 'id' | 'fileName' | 'localPath'>
-  ): Promise<string>
-}
-
-export type RoomHarnessReadResult =
-  | { messages: NativeChatMessage[]; hasMore: boolean; beforeOffset: number }
-  | { error: string; notFound?: true }
-
-type RoomHarnessSubscriptionCallbacks = {
-  onSnapshot: (messages: NativeChatMessage[]) => void
-  onEvent: (event: RoomHarnessLifecycleEvent) => void
-  onOpaqueAppend: () => void
-}
-
-export type RoomHarnessAdapter = {
-  readonly agent: RoomHarnessAgent
-  launch(worktreeId: string): Promise<RoomHarnessBinding>
-  attach(binding: RoomHarnessBinding): Promise<RoomHarnessBinding>
-  locate(binding: RoomHarnessBinding): Promise<RoomHarnessBinding | null>
-  read(binding: RoomHarnessBinding, limit?: number): Promise<RoomHarnessReadResult>
-  send(
-    binding: RoomHarnessBinding,
-    prompt: string,
-    options?: { clearInput?: boolean; imagePaths?: readonly string[] }
-  ): Promise<RuntimeTerminalSend>
-  prepareControl?(binding: RoomHarnessBinding, command: string): Promise<void>
-  stop(binding: RoomHarnessBinding): Promise<RuntimeTerminalClose>
-  resume(worktreeId: string, historyId: string): Promise<RoomHarnessBinding>
-  restore(
-    binding: RoomHarnessBinding,
-    preferences?: AgentLaunchPreferences
-  ): Promise<RoomHarnessBinding>
-  reconfigure(
-    binding: RoomHarnessBinding,
-    preferences: AgentLaunchPreferences
-  ): Promise<RoomHarnessBinding>
-  status(binding: RoomHarnessBinding): Promise<RuntimeTerminalAgentStatus>
-  incarnation(binding: RoomHarnessBinding): string | null
-  /** Resolves via the runtime's title-transition waiter once the TUI is idle. */
-  awaitReady(binding: RoomHarnessBinding): Promise<RuntimeTerminalWait>
-  /** Resolves only after the agent's composer is mounted and accepts input. */
-  awaitInputReady(binding: RoomHarnessBinding): Promise<boolean>
-  context(binding: RoomHarnessBinding, current: RoomContextSnapshot): Promise<RoomContextSnapshot>
-  /** Conversation-source idle evidence: mtime of the provider transcript. */
-  lastTranscriptActivityAt(binding: RoomHarnessBinding): Promise<number | null>
-  compact(binding: RoomHarnessBinding): Promise<RuntimeTerminalSend>
-  stageAttachment(
-    binding: RoomHarnessBinding,
-    attachment: Pick<RoomAttachment, 'id' | 'fileName' | 'localPath'>
-  ): Promise<string>
-  statusEvent(
-    event: AgentHookEventPayload & { receivedAt: number }
-  ): RoomHarnessLifecycleEvent | null
-  subscribe(
-    binding: RoomHarnessBinding,
-    callbacks: RoomHarnessSubscriptionCallbacks
-  ): Promise<NativeChatTranscriptSubscription>
-}
+export type {
+  RoomHarnessAdapter,
+  RoomHarnessBinding,
+  RoomHarnessReadResult,
+  RoomHarnessRuntime
+} from './harness-adapter-types'
 
 /** Nobody watches a room pane, so any interactive CLI nudge deadlocks its
  *  deliveries (probe honestly reports 'permission'). Codex pops a mid-session
@@ -412,48 +293,7 @@ export class PtyRoomHarnessAdapter implements RoomHarnessAdapter {
     binding: RoomHarnessBinding,
     callbacks: RoomHarnessSubscriptionCallbacks
   ): Promise<NativeChatTranscriptSubscription> {
-    const session = binding.providerSession
-    if (!session) {
-      return Promise.resolve({ watching: false, unsubscribe: () => {} })
-    }
-    return subscribeNativeChatTranscript({
-      agent: this.agent,
-      sessionId: session.id,
-      transcriptPath: session.transcriptPath,
-      initialLimit: 200,
-      onInitialSnapshot: (messages, _hasMore, _beforeOffset, _error, lifecycle) => {
-        callbacks.onSnapshot(messages)
-        // The current-turn slice drops the user row, so re-derive it from the full tail.
-        const event = transcriptLifecycleEvent(
-          currentTurnMessages(messages),
-          lifecycle,
-          true,
-          turnUserMessage(messages)
-        )
-        if (event) {
-          callbacks.onEvent(event)
-        }
-      },
-      onReplace: (messages, _hasMore, _beforeOffset, lifecycle) => {
-        callbacks.onSnapshot(messages)
-        const event = transcriptLifecycleEvent(
-          currentTurnMessages(messages),
-          lifecycle,
-          true,
-          turnUserMessage(messages)
-        )
-        if (event) {
-          callbacks.onEvent(event)
-        }
-      },
-      onAppend: (messages, lifecycle) => {
-        const event = transcriptLifecycleEvent(messages, lifecycle)
-        if (event) {
-          callbacks.onEvent(event)
-        }
-      },
-      onOpaqueAppend: callbacks.onOpaqueAppend
-    })
+    return subscribeRoomHarnessTranscript(this.agent, binding, callbacks)
   }
 
   private binding(

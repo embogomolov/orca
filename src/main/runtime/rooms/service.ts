@@ -124,9 +124,11 @@ export class RoomService {
           // One unrecoverable agent must not block activating the rest of the room.
           try {
             const reconciled = await this.participantController.reconcile(participant)
-            this.publishParticipantSession(reconciled)
-            await this.transcriptBridge.ensure(reconciled)
-            await this.transcriptBridge.refreshContext(reconciled)
+            if (reconciled.state !== 'sleeping' && reconciled.state !== 'offline') {
+              this.publishParticipantSession(reconciled)
+              await this.transcriptBridge.ensure(reconciled)
+              await this.transcriptBridge.refreshContext(reconciled)
+            }
           } catch {}
         })
     )
@@ -226,21 +228,23 @@ export class RoomService {
   }
 
   async revealParticipant(id: string, viewMode: 'terminal' | 'chat'): Promise<void> {
-    const participant = this.db.participants.get(id)
-    if (!participant.terminalHandle || !this.focusTerminal) {
+    if (!this.focusTerminal) {
       throw new Error('room_participant_not_ready')
     }
-    this.publishParticipantSession(participant)
+    const participant = await this.participantController.ensureReady(id)
+    if (!participant.terminalHandle) {
+      throw new Error('room_participant_not_ready')
+    }
     await this.focusTerminal(participant.terminalHandle, { viewMode })
+    this.publishParticipantSession(participant, true)
   }
 
-  private publishParticipantSession({
-    terminalHandle,
-    agent,
-    providerSession
-  }: RoomParticipant): void {
+  private publishParticipantSession(
+    { terminalHandle, agent, providerSession }: RoomParticipant,
+    force = false
+  ): void {
     if (terminalHandle && agent && providerSession) {
-      this.publishAgentSession?.(terminalHandle, agent, providerSession)
+      this.publishAgentSession?.(terminalHandle, agent, providerSession, force)
     }
   }
 

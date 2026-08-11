@@ -206,7 +206,8 @@ export class OrcaRuntimeWithRooms extends OrcaRuntimeWithResolveWaiter {
   publishRoomAgentProviderSession(
     handle: string,
     agent: string,
-    providerSession: AgentProviderSessionMetadata
+    providerSession: AgentProviderSessionMetadata,
+    force = false
   ): void {
     const paneKey = this.getTerminalPaneKey(handle)
     const pty = this.getLivePtyForHandle(handle)
@@ -215,7 +216,7 @@ export class OrcaRuntimeWithRooms extends OrcaRuntimeWithResolveWaiter {
     }
     const rows = this.getAgentProviderSessionRowsForPaneFn?.(paneKey) ?? []
     const known = rows.find((row) => row.providerSession?.id === providerSession.id)
-    if (known?.providerSession?.transcriptPath === providerSession.transcriptPath) {
+    if (!force && known?.providerSession?.transcriptPath === providerSession.transcriptPath) {
       return
     }
     const state = rows[0]?.state ?? 'done'

@@ -43,13 +43,61 @@ function runtime(): RoomHarnessRuntime {
 }
 
 describe('RoomService archive lifecycle', () => {
-  it('restores persisted room agents when terminal handles changed after restart', async () => {
+  it('wakes a sleeping participant before explicitly revealing its chat', async () => {
+    const harness = runtime()
+    harness.focusTerminal = vi.fn(async () => undefined)
+    harness.publishRoomAgentProviderSession = vi.fn()
+    const service = new RoomService(':memory:', harness)
+    const room = service.createRoom({ projectId: 'project-1', name: 'Research' }).room
+    const providerSession = { key: 'session_id' as const, id: 'session-1' }
+    const participant = service.db.participants.add({
+      roomId: room.id,
+      identity: 'codex',
+      displayName: 'Codex',
+      agent: 'codex',
+      worktreeId: 'worktree-1',
+      providerSession
+    })
+    const ensureReady = vi.spyOn(service.participantController, 'ensureReady').mockResolvedValue({
+      ...participant,
+      state: 'online',
+      paneKey: 'tab:codex',
+      terminalHandle: 'term-codex'
+    })
+
+    await service.revealParticipant(participant.id, 'chat')
+
+    expect(ensureReady).toHaveBeenCalledWith(participant.id)
+    expect(harness.focusTerminal).toHaveBeenCalledWith('term-codex', { viewMode: 'chat' })
+    expect(harness.publishRoomAgentProviderSession).toHaveBeenCalledWith(
+      'term-codex',
+      'codex',
+      providerSession,
+      true
+    )
+    expect(vi.mocked(harness.focusTerminal).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(harness.publishRoomAgentProviderSession).mock.invocationCallOrder[0]
+    )
+    service.close()
+  })
+
+  it('reattaches a live persisted room agent without waking it', async () => {
     const harness = runtime()
     harness.getTerminalAgentStatus = vi
       .fn()
       .mockRejectedValueOnce(new Error('terminal_handle_stale'))
       .mockResolvedValue({ handle: 'term-new', isRunningAgent: true, status: 'idle' })
-    harness.ensureAgentSession = vi.fn(async () => ensuredSession('term-new', 'tab:new', 'adopted'))
+    harness.ensureAgentSession = vi.fn()
+    harness.listRoomAttachableAgents = vi.fn(async () => [
+      {
+        agent: 'codex' as const,
+        title: 'Codex',
+        worktreeId: 'worktree-1',
+        terminalHandle: 'term-new',
+        paneKey: 'tab:new',
+        providerSession: { key: 'session_id' as const, id: 'session-1' }
+      }
+    ])
     const service = new RoomService(':memory:', harness)
     const room = service.createRoom({
       projectId: 'project-1',
@@ -75,26 +123,9 @@ describe('RoomService archive lifecycle', () => {
       roleRevision: ''
     })
 
-    harness.waitForTerminal = vi.fn(async () => {
-      throw new Error('timeout')
-    })
-
     await service.activateRoom(room.id)
 
-    expect(harness.ensureAgentSession).toHaveBeenCalledWith({
-      kind: 'explicit',
-      worktree: 'id:worktree-1',
-      agent: 'codex',
-      providerSession,
-      // Interactive codex nudges deadlock an unwatched room pane.
-      extraAgentArgs:
-        '-c notice.hide_rate_limit_model_nudge=true -c check_for_update_on_startup=false',
-      launchPreferences: undefined,
-      presentation: 'background'
-    })
-    // Unknown incarnation history (pre-migration rows, transient nulls) keeps
-    // the legacy trust: no readiness proof, no configuration resend.
-    expect(harness.waitForTerminal).not.toHaveBeenCalled()
+    expect(harness.ensureAgentSession).not.toHaveBeenCalled()
     expect(service.db.participants.get(participant.id)).toMatchObject({
       terminalHandle: 'term-new',
       paneKey: 'tab:new',
@@ -109,18 +140,10 @@ describe('RoomService archive lifecycle', () => {
     service.close()
   })
 
-  it('re-proves readiness without resending config when the same provider session restarts', async () => {
+  it('marks a missing persisted room agent sleeping without waking it', async () => {
     const harness = runtime()
-    harness.getTerminalProcessIncarnation = () => 'pty:new'
-    harness.getTerminalAgentStatus = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('terminal_handle_stale'))
-      // The restarted process is alive but stays busy: readiness needs the waiter.
-      .mockResolvedValue({ handle: 'term-new', isRunningAgent: true, status: 'working' })
-    harness.ensureAgentSession = vi.fn(async () => ensuredSession('term-new', 'tab:new', 'adopted'))
-    harness.waitForTerminal = vi.fn(async () => {
-      throw new Error('timeout')
-    })
+    harness.getTerminalAgentStatus = vi.fn().mockRejectedValue(new Error('terminal_handle_stale'))
+    harness.ensureAgentSession = vi.fn()
     const service = new RoomService(':memory:', harness)
     const room = service.createRoom({
       projectId: 'project-1',
@@ -136,8 +159,7 @@ describe('RoomService archive lifecycle', () => {
       worktreeId: 'worktree-1',
       paneKey: 'tab:old',
       terminalHandle: 'term-old',
-      providerSession,
-      processIncarnation: 'pty:old'
+      providerSession
     })
     service.db.deliveryConfiguration.commit(participant.id, {
       providerSessionKey: providerSession.key,
@@ -148,13 +170,10 @@ describe('RoomService archive lifecycle', () => {
 
     await service.activateRoom(room.id)
 
-    // Known-old vs known-new incarnation is a proven restart, so the bounded
-    // waiter runs once. The resumed provider session already owns its context.
-    expect(harness.waitForTerminal).toHaveBeenCalledTimes(1)
+    expect(harness.ensureAgentSession).not.toHaveBeenCalled()
     expect(service.db.participants.get(participant.id)).toMatchObject({
-      terminalHandle: 'term-new',
-      state: 'online',
-      processIncarnation: 'pty:new'
+      terminalHandle: 'term-old',
+      state: 'sleeping'
     })
     const { configuration } = service.db.deliveryConfiguration.pending({
       participant: service.db.participants.get(participant.id),
@@ -246,7 +265,7 @@ describe('RoomService archive lifecycle', () => {
       providerSession: { key: 'session_id', id: 'session-1' }
     })
 
-    await service.activateRoom(room.id)
+    await service.participantController.ensureReady(participant.id)
 
     expect(harness.closeTerminal).toHaveBeenCalledWith('term-zombie', { force: true })
     expect(service.db.participants.get(participant.id)).toMatchObject({
@@ -312,7 +331,7 @@ describe('RoomService archive lifecycle', () => {
       roleRevision: ''
     })
 
-    await service.activateRoom(room.id)
+    await service.participantController.ensureReady(participant.id)
 
     expect(service.db.participants.get(participant.id)).toMatchObject({
       terminalHandle: 'term-new',
@@ -381,7 +400,10 @@ describe('RoomService archive lifecycle', () => {
       context: { ...EMPTY_ROOM_CONTEXT, model: 'claude-opus-5[1m]', effort: 'high' }
     })
 
-    await service.activateRoom(room.id)
+    await Promise.all([
+      service.participantController.ensureReady(codex.id),
+      service.participantController.ensureReady(claude.id)
+    ])
 
     const requests = vi
       .mocked(harness.ensureAgentSession)
@@ -428,7 +450,7 @@ describe('RoomService archive lifecycle', () => {
       terminalHandle: 'term-old'
     })
 
-    await service.activateRoom(room.id)
+    await service.participantController.ensureReady(participant.id)
 
     expect(harness.createAgentSession).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -492,7 +514,7 @@ describe('RoomService archive lifecycle', () => {
     })
 
     try {
-      const activation = service.activateRoom(room.id)
+      const activation = service.participantController.ensureReady(participant.id)
       await vi.waitFor(() => {
         expect(service.db.participants.get(participant.id).state).toBe('starting')
       })

@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useContext, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertCircle, MessagesSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -24,11 +25,13 @@ import {
   AgentSubagentProvider,
   type AgentSubagentSource
 } from '../agent-subagents/AgentSubagentProvider'
+import { RoomInspectorPortalContext } from './room-inspector-portal'
 
 const EMPTY_SUBAGENTS = [] as const
 
 export default function RoomsPage(): React.JSX.Element {
   useTranslation()
+  const inspectorTarget = useContext(RoomInspectorPortalContext)
   const activeRepoId = useAppStore((state) => state.activeRepoId)
   const activeWorkspaceKey = useAppStore((state) => state.activeWorkspaceKey)
   const activeWorktreeId = useAppStore((state) => state.activeWorktreeId)
@@ -233,7 +236,12 @@ export default function RoomsPage(): React.JSX.Element {
             <RoomComposer data={data} reply={reply} onReplyChange={setReply} />
           )}
         </section>
-        <RoomInspector data={data} onAddAgent={() => setAddAgentOpen(true)} />
+        {inspectorTarget
+          ? createPortal(
+              <RoomInspector data={data} onAddAgent={() => setAddAgentOpen(true)} />,
+              inspectorTarget
+            )
+          : null}
         <RoomAddAgentDialog
           open={addAgentOpen}
           onOpenChange={setAddAgentOpen}

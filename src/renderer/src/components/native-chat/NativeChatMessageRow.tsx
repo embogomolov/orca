@@ -15,6 +15,7 @@ import { splitNativeChatBlocks } from './native-chat-tool-fold'
 import { isNativeChatPastedImagePath } from './native-chat-image-paste'
 import { NativeChatToolRun } from './NativeChatToolRun'
 import { NativeChatCopyButton } from './NativeChatCopyButton'
+import { isLiteralRoomTransportText } from './native-chat-room-transport'
 
 function proseToMarkdown(blocks: NativeChatBlock[]): string {
   return blocks
@@ -104,6 +105,7 @@ export function NativeChatMessageRow({
   const isReasoning = message.role === 'reasoning'
   const isSystem = message.role === 'system'
   const isSubagentTask = message.subagentEvent?.kind === 'task'
+  const renderTransportLiterally = isLiteralRoomTransportText(markdown)
 
   const scrollToTop = useCallback(() => {
     if (rowRef.current) {
@@ -122,13 +124,17 @@ export function NativeChatMessageRow({
           {markdown ? (
             <>
               <ImageAttachmentRefs blocks={prose} />
-              <CommentMarkdown
-                content={markdown}
-                variant="document"
-                className="text-sm"
-                onLinkClick={onLinkClick}
-                allowFileUriLinks={allowFileUriLinks}
-              />
+              {renderTransportLiterally ? (
+                <div className="whitespace-pre-wrap break-words font-mono text-xs">{markdown}</div>
+              ) : (
+                <CommentMarkdown
+                  content={markdown}
+                  variant="document"
+                  className="text-sm"
+                  onLinkClick={onLinkClick}
+                  allowFileUriLinks={allowFileUriLinks}
+                />
+              )}
             </>
           ) : (
             <ImageAttachmentRefs blocks={prose} />
@@ -177,13 +183,17 @@ export function NativeChatMessageRow({
       ) : null}
       <ImageAttachmentRefs blocks={prose} />
       {markdown ? (
-        <CommentMarkdown
-          content={markdown}
-          variant="document"
-          className="text-sm"
-          onLinkClick={onLinkClick}
-          allowFileUriLinks={allowFileUriLinks}
-        />
+        renderTransportLiterally ? (
+          <div className="whitespace-pre-wrap break-words font-mono text-xs">{markdown}</div>
+        ) : (
+          <CommentMarkdown
+            content={markdown}
+            variant="document"
+            className="text-sm"
+            onLinkClick={onLinkClick}
+            allowFileUriLinks={allowFileUriLinks}
+          />
+        )
       ) : null}
       {tools.length > 0 ? <NativeChatToolRun blocks={tools} expandSignal={expandSignal} /> : null}
     </div>

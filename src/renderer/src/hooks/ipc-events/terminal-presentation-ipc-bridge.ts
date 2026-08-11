@@ -133,6 +133,9 @@ export function registerTerminalPresentationIpcBridge(unsubs: (() => void)[]): v
             store.revealWorktreeInSidebar(worktreeId)
             focusTerminalInitiatedTab(tab.id, leafId, worktreeId)
           }
+          if (reusedTab && viewMode) {
+            store.setTabViewMode(tab.id, viewMode)
+          }
           // Why: only stamp the runtime title on fresh tabs; reused tabs may have a user customTitle it would overwrite on focus.
           if (title && !reusedTab) {
             store.setTabCustomTitle(tab.id, title, { recordInteraction: false })
