@@ -246,6 +246,13 @@ export default function TabGroupPanel({
             data-contextual-tour-target="workspace-agent-terminal-tip"
           />
         ) : null}
+        {isVisible && activeTab?.contentType === 'room' ? (
+          <div className="absolute inset-0 flex min-h-0 min-w-0">
+            <Suspense fallback={null}>
+              <RoomsPage key={activeTab.entityId} roomId={activeTab.entityId} />
+            </Suspense>
+          </div>
+        ) : null}
         {activeTab &&
           activeTab.contentType !== 'terminal' &&
           activeTab.contentType !== 'agent-session' &&
@@ -273,14 +280,6 @@ export default function TabGroupPanel({
               </Suspense>
             </div>
           )}
-
-        {isVisible && activeTab?.contentType === 'room' ? (
-          <div className="absolute inset-0 flex min-h-0 min-w-0">
-            <Suspense fallback={null}>
-              <RoomsPage />
-            </Suspense>
-          </div>
-        ) : null}
 
         {/* Why: terminal/browser/simulator/structured-chat panes render at the worktree level; tab activation only changes overlay visibility and never remounts a live surface. */}
       </div>

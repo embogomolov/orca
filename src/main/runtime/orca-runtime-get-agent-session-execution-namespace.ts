@@ -175,6 +175,8 @@ export class OrcaRuntimeWithGetAgentSessionExecutionNamespace extends OrcaRuntim
       presentation: request.presentation ?? 'background',
       tabId: request.placement?.tabId,
       leafId: request.placement?.leafId,
+      persistHostSessionBinding: request.persistHostSessionBinding ?? true,
+      ...(request.surfaceOwner === false ? { surfaceOwner: false } : {}),
       agentSessionClaim: claim,
       signal: _caller.signal
     })

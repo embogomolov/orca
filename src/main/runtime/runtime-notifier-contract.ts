@@ -61,6 +61,7 @@ export type RuntimeNotifier = {
       activate?: boolean
       presentation?: RuntimeTerminalPresentation
       surfaceOwner?: false
+      preserveSessionOnClose?: boolean
       tabId?: string
       leafId?: string
       splitFromLeafId?: string
@@ -76,6 +77,7 @@ export type RuntimeNotifier = {
     | Promise<{ tabId: string; title?: string | null; identity?: TerminalRevealIdentity }>
     | { tabId: string; title?: string | null; identity?: TerminalRevealIdentity }
     | void
+  hideRoomAgentStatusFromRenderer?(paneKey: string): void
   resolveLegacyWorkerTerminalRecovery?(
     paneKey: string,
     resolution: 'adopted' | 'exited' | 'rolled_back',
@@ -126,7 +128,7 @@ export type RuntimeNotifier = {
     content: string
   ): Promise<RuntimeMarkdownSaveTabResult>
   /** Closes the whole tab. */
-  closeTerminal(tabId: string): void
+  closeTerminal(tabId: string, options?: { preserveSessionOnClose?: boolean }): void
   /** Drops one split pane main already closed; never closes its tab. */
   closeTerminalPane?(tabId: string, leafId: string): void
   closeTerminalTab?(

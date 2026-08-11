@@ -27,6 +27,7 @@ import type {
   NativeChatSubagentRosterState
 } from './native-chat-subagent-sections'
 import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
+import { literalRoomTransportText } from './native-chat-room-transport'
 
 /** What a user message says under it when it did not go through, with its own Retry when the
  *  surface can send it again. */
@@ -91,6 +92,8 @@ export const MessageRow = memo(function MessageRow({
   const isSystem = message.role === 'system'
   const providerFrame = message.blocks.find((block) => block.type === 'text' && block.providerFrame)
   const isSubagentTask = message.subagentEvent?.kind === 'task'
+  const literalTransport = literalRoomTransportText(markdown)
+  const renderedText = literalTransport ?? markdown
 
   const scrollToTop = useCallback(() => {
     if (rowRef.current) {
@@ -149,21 +152,25 @@ export const MessageRow = memo(function MessageRow({
         {/* User turns get a distinct muted fill (not the card/canvas color) so
             the prompt reads apart from the assistant's body copy. */}
         <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-muted px-3.5 py-2.5 text-sm text-foreground">
-          {markdown ? (
+          {renderedText ? (
             <>
               <NativeChatImageAttachments
                 blocks={prose}
                 runtimeContext={runtimeContext}
                 enablePreview={runtimeContext !== undefined}
               />
-              <CommentMarkdown
-                content={markdown}
-                variant="document"
-                className="text-sm"
-                renderCodeBlock={NativeChatCodeBlock}
-                onLinkClick={onLinkClick}
-                allowFileUriLinks={allowFileUriLinks}
-              />
+              {literalTransport !== null ? (
+                <div className="whitespace-pre-wrap break-words">{renderedText}</div>
+              ) : (
+                <CommentMarkdown
+                  content={renderedText}
+                  variant="document"
+                  className="text-sm"
+                  renderCodeBlock={NativeChatCodeBlock}
+                  onLinkClick={onLinkClick}
+                  allowFileUriLinks={allowFileUriLinks}
+                />
+              )}
             </>
           ) : (
             <NativeChatImageAttachments
@@ -223,7 +230,7 @@ export const MessageRow = memo(function MessageRow({
 
   // Plain assistant prose is the copyable unit; reasoning/system asides stay
   // chrome-free. Controls reveal on hover/keyboard focus and stay visible on touch.
-  const showControls = !isReasoning && !isSystem && markdown.length > 0
+  const showControls = !isReasoning && !isSystem && renderedText.length > 0
 
   return (
     <div
@@ -240,9 +247,12 @@ export const MessageRow = memo(function MessageRow({
         runtimeContext={runtimeContext}
         enablePreview={runtimeContext !== undefined}
       />
-      {markdown ? (
+      {renderedText ? (
+        literalTransport !== null ? (
+          <div className="whitespace-pre-wrap break-words">{renderedText}</div>
+        ) : (
         <CommentMarkdown
-          content={markdown}
+          content={renderedText}
           variant="document"
           className="text-sm"
           renderCodeBlock={NativeChatCodeBlock}
@@ -250,6 +260,7 @@ export const MessageRow = memo(function MessageRow({
           allowFileUriLinks={allowFileUriLinks}
           linkifyFilePaths={onLinkClick !== undefined}
         />
+        )
       ) : null}
       {tools.length > 0 || subagentGroups.length > 0 || backgroundTasks.length > 0 ? (
         <NativeChatToolRun
@@ -271,7 +282,7 @@ export const MessageRow = memo(function MessageRow({
       ) : null}
       {showControls ? (
         <NativeChatAgentControls
-          markdown={markdown}
+          markdown={renderedText}
           timestamp={message.timestamp}
           onScrollToTop={scrollToTop}
           className={cn(

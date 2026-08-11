@@ -53,11 +53,14 @@ export const uiClipboardAndWindowControlsApi = {
   respondMobileMarkdownRequest: (response: RuntimeMobileMarkdownResponse): void => {
     ipcRenderer.send('ui:mobileMarkdownResponse', response)
   },
-  onCloseTerminal: (callback: (target: TerminalSurfaceCloseTarget) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, target: TerminalSurfaceCloseTarget) =>
+  onCloseTerminal: (callback: (target: TerminalSurfaceCloseTarget & { preserveSessionOnClose?: boolean }) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, target: TerminalSurfaceCloseTarget & { preserveSessionOnClose?: boolean }) =>
       callback(target)
     ipcRenderer.on('ui:closeTerminal', listener)
     return () => ipcRenderer.removeListener('ui:closeTerminal', listener)
+  },
+  notifyTerminalSurfaceClosed: (tabId: string): void => {
+    ipcRenderer.send('ui:terminalSurfaceClosed', { tabId })
   },
   onTerminalTabCloseRequest: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, request: Parameters<typeof callback>[0]) =>
