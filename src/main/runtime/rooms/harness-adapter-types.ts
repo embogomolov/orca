@@ -64,6 +64,8 @@ export type RoomHarnessRuntime = {
     handle: string,
     options?: { navigateHost?: boolean; viewMode?: 'terminal' | 'chat' }
   ): Promise<unknown>
+  hasPersistedTerminalSurface?(worktreeId: string, paneKey: string): boolean
+  hideRoomAgentStatusFromRenderer?(paneKey: string): void
   publishRoomAgentProviderSession?(
     handle: string,
     agent: RoomHarnessAgent,

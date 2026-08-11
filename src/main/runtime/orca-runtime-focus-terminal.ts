@@ -89,6 +89,9 @@ export class OrcaRuntimeWithFocusTerminal extends OrcaRuntimeWithWaitForLeafPtyI
               : {}),
             ...(live.pty.launchToken ? { launchToken: live.pty.launchToken } : {}),
             ...(live.pty.launchAgent ? { launchAgent: live.pty.launchAgent } : {}),
+            ...(this.shouldPreserveTerminalSessionOnClose?.(handle)
+              ? { preserveSessionOnClose: true }
+              : {}),
             ...(live.pty.tabId !== null ? { tabId: live.pty.tabId } : {}),
             ...(parsedPaneKey ? { leafId: parsedPaneKey.leafId } : {})
           })

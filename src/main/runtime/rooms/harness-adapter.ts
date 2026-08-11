@@ -1,14 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import type {
-  RoomAttachment,
-  RoomContextSnapshot,
-  RoomHarnessAgent,
-  RoomProviderSession
-} from '../../../shared/rooms'
-import type {
-  AgentLaunchPreferences,
-  RuntimeCreateAgentSessionResult
-} from '../../../shared/agent-session-host-authority'
+import type { RoomAttachment, RoomContextSnapshot, RoomHarnessAgent } from '../../../shared/rooms'
+import type { AgentLaunchPreferences } from '../../../shared/agent-session-host-authority'
 import type {
   RuntimeTerminalAgentStatus,
   RuntimeTerminalClose,
@@ -30,6 +22,9 @@ import type {
   RoomHarnessSubscriptionCallbacks
 } from './harness-adapter-types'
 import { subscribeRoomHarnessTranscript } from './harness-transcript-subscription'
+import { resolveRoomTerminalRestorationSurface } from './room-terminal-restoration-surface'
+import { roomHarnessBindingFromTerminal } from './participant-harness-binding'
+import { ensureLiveRoomHarnessSession, ROOM_AGENT_EXTRA_ARGS } from './room-harness-session-launch'
 
 export { transcriptLifecycleEvent } from './harness-lifecycle'
 export type { RoomHarnessActivityKind, RoomHarnessLifecycleEvent } from './harness-lifecycle'
@@ -39,15 +34,6 @@ export type {
   RoomHarnessReadResult,
   RoomHarnessRuntime
 } from './harness-adapter-types'
-
-/** Nobody watches a room pane, so any interactive CLI nudge deadlocks its
- *  deliveries (probe honestly reports 'permission'). Codex pops a mid-session
- *  rate-limit model-switch modal — where Enter silently switches the model —
- *  and a startup update prompt; both are suppressed by documented config keys
- *  (unknown keys are tolerated by older CLIs, verified against the binary). */
-const ROOM_AGENT_EXTRA_ARGS: Partial<Record<RoomHarnessAgent, string>> = {
-  codex: '-c notice.hide_rate_limit_model_nudge=true -c check_for_update_on_startup=false'
-}
 
 export class PtyRoomHarnessAdapter implements RoomHarnessAdapter {
   constructor(
@@ -59,6 +45,15 @@ export class PtyRoomHarnessAdapter implements RoomHarnessAdapter {
     worktreeId: string,
     preferences?: AgentLaunchPreferences
   ): Promise<RoomHarnessBinding> {
+    return this.launchAt(worktreeId, preferences)
+  }
+
+  private async launchAt(
+    worktreeId: string,
+    preferences?: AgentLaunchPreferences,
+    paneKey = ''
+  ): Promise<RoomHarnessBinding> {
+    const surface = resolveRoomTerminalRestorationSurface(this.runtime, worktreeId, paneKey)
     const result = await this.runtime.createAgentSession({
       clientOperationId: `${Date.now()}-${randomBytes(16).toString('hex')}`,
       worktree: `id:${worktreeId}`,
@@ -66,9 +61,12 @@ export class PtyRoomHarnessAdapter implements RoomHarnessAdapter {
       extraAgentArgs: ROOM_AGENT_EXTRA_ARGS[this.agent],
       launchPreferences: preferences,
       presentation: 'background',
-      viewMode: 'chat'
+      viewMode: 'chat',
+      ...(surface.placement ? { placement: surface.placement } : {}),
+      surfaceOwner: false,
+      persistHostSessionBinding: surface.persisted
     })
-    return this.binding(worktreeId, result.terminal, null, 'created')
+    return roomHarnessBindingFromTerminal(worktreeId, result.terminal, null, 'created')
   }
 
   async attach(binding: RoomHarnessBinding): Promise<RoomHarnessBinding> {
@@ -174,49 +172,25 @@ export class PtyRoomHarnessAdapter implements RoomHarnessAdapter {
       return current
     }
     if (!binding.providerSession) {
-      return this.launch(binding.worktreeId, preferences)
+      return this.launchAt(binding.worktreeId, preferences, binding.paneKey)
     }
-    return this.ensureLiveSession(binding.worktreeId, binding.providerSession, preferences)
-  }
-
-  /** Provider-session claims outlive their process: ensureAgentSession happily
-   *  adopts a pane where the agent already died and only a shell remains. Any
-   *  adoption must prove a live agent process; dead claim holders are killed
-   *  and the session is re-ensured until it relaunches for real. */
-  private async ensureLiveSession(
-    worktreeId: string,
-    providerSession: NonNullable<RoomHarnessBinding['providerSession']>,
-    preferences?: AgentLaunchPreferences
-  ): Promise<RoomHarnessBinding> {
-    // Bounded by the realistic number of stale claim holders per thread.
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const result = await this.runtime.ensureAgentSession({
-        kind: 'explicit',
-        worktree: `id:${worktreeId}`,
-        agent: this.agent,
-        providerSession,
-        extraAgentArgs: ROOM_AGENT_EXTRA_ARGS[this.agent],
-        launchPreferences: preferences,
-        presentation: 'background'
-      })
-      if (result.disposition !== 'adopted') {
-        return this.binding(worktreeId, result.terminal, providerSession, 'created')
-      }
-      const status = await this.runtime
-        .getTerminalAgentStatus(result.terminal.handle, { confirmForeground: true })
-        .catch(() => null)
-      if (status?.isRunningAgent) {
-        return this.binding(worktreeId, result.terminal, providerSession, 'adopted')
-      }
-      await this.runtime.closeTerminal(result.terminal.handle, { force: true }).catch(() => {})
-    }
-    throw new Error('room_agent_session_unrecoverable')
+    return ensureLiveRoomHarnessSession({
+      agent: this.agent,
+      runtime: this.runtime,
+      binding,
+      preferences
+    })
   }
 
   async reconfigure(
     binding: RoomHarnessBinding,
     preferences: AgentLaunchPreferences
   ): Promise<RoomHarnessBinding> {
+    const surface = resolveRoomTerminalRestorationSurface(
+      this.runtime,
+      binding.worktreeId,
+      binding.paneKey
+    )
     // A stale handle (hibernated participant) means the process is already gone.
     await this.stop(binding).catch(() => {})
     if (!binding.providerSession) {
@@ -227,15 +201,20 @@ export class PtyRoomHarnessAdapter implements RoomHarnessAdapter {
         extraAgentArgs: ROOM_AGENT_EXTRA_ARGS[this.agent],
         launchPreferences: preferences,
         presentation: 'background',
-        viewMode: 'chat'
+        viewMode: 'chat',
+        ...(surface.placement ? { placement: surface.placement } : {}),
+        surfaceOwner: false,
+        persistHostSessionBinding: surface.persisted
       })
-      return this.binding(binding.worktreeId, result.terminal, null, 'created')
+      return roomHarnessBindingFromTerminal(binding.worktreeId, result.terminal, null, 'created')
     }
-    const ensured = await this.ensureLiveSession(
-      binding.worktreeId,
-      binding.providerSession,
-      preferences
-    )
+    const ensured = await ensureLiveRoomHarnessSession({
+      agent: this.agent,
+      runtime: this.runtime,
+      binding,
+      preferences,
+      surface
+    })
     // Reconfiguration always requires readiness proof.
     return { ...ensured, disposition: 'created' }
   }
@@ -294,24 +273,6 @@ export class PtyRoomHarnessAdapter implements RoomHarnessAdapter {
     callbacks: RoomHarnessSubscriptionCallbacks
   ): Promise<NativeChatTranscriptSubscription> {
     return subscribeRoomHarnessTranscript(this.agent, binding, callbacks)
-  }
-
-  private binding(
-    worktreeId: string,
-    terminal: RuntimeCreateAgentSessionResult['terminal'],
-    providerSession: RoomProviderSession | null,
-    disposition: RoomHarnessBinding['disposition']
-  ): RoomHarnessBinding {
-    if (!terminal.paneKey) {
-      throw new Error('room_agent_pane_unavailable')
-    }
-    return {
-      worktreeId,
-      terminalHandle: terminal.handle,
-      paneKey: terminal.paneKey,
-      providerSession,
-      disposition
-    }
   }
 }
 

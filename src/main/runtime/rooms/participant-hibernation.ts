@@ -1,7 +1,10 @@
 import type { RoomEvent, RoomHarnessAgent, RoomParticipant } from '../../../shared/rooms'
 import type { RoomDatabase } from './database'
 import type { RoomHarnessAdapter, RoomHarnessBinding } from './harness-adapter'
-import { roomParticipantHarnessBinding } from './participant-harness-binding'
+import {
+  hideRoomParticipantRendererStatus,
+  roomParticipantHarnessBinding
+} from './participant-harness-binding'
 
 export const ROOM_AGENT_IDLE_SLEEP_MS = 30 * 60 * 1000
 
@@ -10,6 +13,7 @@ export async function hibernateIdleRoomParticipants(args: {
   adapters: Record<RoomHarnessAgent, RoomHarnessAdapter>
   restoring: ReadonlyMap<string, Promise<RoomParticipant>>
   emit: (roomId: string, event: RoomEvent) => void
+  hideRendererStatus?: (paneKey: string) => void
   now: number
 }): Promise<void> {
   for (const participant of args.db.participants.listIdleAgents(
@@ -46,6 +50,7 @@ async function hibernateParticipant(
       paneKey: located.paneKey,
       ...(located.providerSession ? { providerSession: located.providerSession } : {})
     })
+    hideRoomParticipantRendererStatus(participant, args.hideRendererStatus)
     status = await adapter.status(located)
   }
   if (status.isRunningAgent) {
@@ -67,7 +72,10 @@ export function markRoomParticipantSleeping(
   emit: (roomId: string, event: RoomEvent) => void,
   participant: RoomParticipant
 ): RoomParticipant {
-  const updated = db.participants.update(participant.id, { state: 'sleeping' })
+  const updated = db.participants.update(participant.id, {
+    state: 'sleeping',
+    terminalSurfaceVisible: false
+  })
   emit(updated.roomId, { type: 'participant.updated', participant: updated })
   return updated
 }

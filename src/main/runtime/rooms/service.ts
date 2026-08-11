@@ -40,12 +40,14 @@ export class RoomService {
   private readonly messageController: RoomMessageController
   private readonly listAttachable: RoomHarnessRuntime['listRoomAttachableAgents']
   private readonly focusTerminal: RoomHarnessRuntime['focusTerminal']
+  private readonly hideRendererStatus: RoomHarnessRuntime['hideRoomAgentStatusFromRenderer']
   private readonly publishAgentSession: RoomHarnessRuntime['publishRoomAgentProviderSession']
 
   constructor(path: string, runtime: RoomHarnessRuntime) {
     this.events = new RoomEventBus(runtime.emitRoomEvent?.bind(runtime))
     this.listAttachable = runtime.listRoomAttachableAgents.bind(runtime)
     this.focusTerminal = runtime.focusTerminal?.bind(runtime)
+    this.hideRendererStatus = runtime.hideRoomAgentStatusFromRenderer?.bind(runtime)
     this.publishAgentSession = runtime.publishRoomAgentProviderSession?.bind(runtime)
     this.db = new RoomDatabase(path)
     this.archiveTransfers = new RoomArchiveTransferStore(new RoomArchive(this.db))
@@ -67,7 +69,8 @@ export class RoomService {
       this.db,
       this.adapters,
       this.transcriptBridge,
-      (roomId, event) => this.emitEvent(roomId, event)
+      (roomId, event) => this.emitEvent(roomId, event),
+      this.hideRendererStatus
     )
     this.deliveryWorker = new RoomDeliveryWorker(
       this.db,
@@ -236,7 +239,23 @@ export class RoomService {
       throw new Error('room_participant_not_ready')
     }
     await this.focusTerminal(participant.terminalHandle, { viewMode })
-    this.publishParticipantSession(participant, true)
+    const revealed = this.db.participants.update(participant.id, {
+      terminalHandle: participant.terminalHandle,
+      paneKey: participant.paneKey,
+      providerSession: participant.providerSession,
+      terminalSurfaceVisible: true
+    })
+    this.publishParticipantSession(revealed, true)
+  }
+
+  hideParticipantTerminal(handle: string): void {
+    const participant = this.db.participants.findByTerminalHandle(handle)
+    if (participant?.terminalSurfaceVisible) {
+      const hidden = this.db.participants.update(participant.id, { terminalSurfaceVisible: false })
+      if (hidden.paneKey) {
+        this.hideRendererStatus?.(hidden.paneKey)
+      }
+  }
   }
 
   private publishParticipantSession(

@@ -9,8 +9,12 @@ import {
   hibernateIdleRoomParticipants,
   markRoomParticipantSleeping
 } from './participant-hibernation'
-import { roomParticipantHarnessBinding } from './participant-harness-binding'
+import {
+  hideRoomParticipantRendererStatus,
+  roomParticipantHarnessBinding
+} from './participant-harness-binding'
 import { roomParticipantRestartPreferences } from './participant-restart-preferences'
+import { waitForRoomParticipantReady } from './participant-readiness'
 import { RoomParticipantSessionControls } from './participant-session-controls'
 import { RoomParticipantMembership } from './participant-membership'
 import {
@@ -19,9 +23,8 @@ import {
   updateRoomParticipantStatus
 } from './participant-status'
 
-/** An idle harness process costs hundreds of MB; a sleeping participant is a DB
- *  row. The provider thread, model/effort and worktree persist, so the existing
- *  restore path wakes the agent on the next delivery. */
+/** An idle harness process costs hundreds of MB; a sleeping participant is a DB row.
+ *  Provider thread, preferences and worktree persist until the next delivery. */
 export { ROOM_AGENT_IDLE_SLEEP_MS } from './participant-hibernation'
 
 const HIBERNATION_SWEEP_MS = 5 * 60 * 1000
@@ -38,13 +41,15 @@ export class RoomParticipantController {
     private readonly db: RoomDatabase,
     private readonly adapters: Record<RoomHarnessAgent, RoomHarnessAdapter>,
     private readonly transcriptBridge: RoomTranscriptBridge,
-    private readonly emit: (roomId: string, event: RoomEvent) => void
+    private readonly emit: (roomId: string, event: RoomEvent) => void,
+    private readonly hideRendererStatus?: (paneKey: string) => void
   ) {
     this.membership = new RoomParticipantMembership(
       db,
       adapters,
       transcriptBridge,
       emit,
+      hideRendererStatus,
       (participant, requireInputReady) => this.waitUntilReady(participant, requireInputReady)
     )
     this.sessionControls = new RoomParticipantSessionControls(
@@ -52,16 +57,16 @@ export class RoomParticipantController {
       adapters,
       transcriptBridge,
       emit,
+      hideRendererStatus,
       (id) => this.ensureReady(id),
       (participant, requireInputReady) => this.waitUntilReady(participant, requireInputReady)
     )
   }
 
   startHibernationSweep(): void {
-    this.hibernationTimer = setInterval(
-      () => void this.hibernateIdle().catch(() => {}),
-      HIBERNATION_SWEEP_MS
-    )
+    this.hibernationTimer = setInterval(() => {
+      void this.hibernateIdle().catch(() => {})
+    }, HIBERNATION_SWEEP_MS)
     this.hibernationTimer.unref?.()
   }
 
@@ -155,6 +160,7 @@ export class RoomParticipantController {
           paneKey: located.paneKey,
           ...(located.providerSession ? { providerSession: located.providerSession } : {})
         })
+        hideRoomParticipantRendererStatus(participant, this.hideRendererStatus)
         const status = await adapter.status(located).catch(() => null)
         if (!status) {
           return updateRoomParticipantStatus(
@@ -189,6 +195,7 @@ export class RoomParticipantController {
       adapters: this.adapters,
       restoring: this.restoring,
       emit: this.emit,
+      hideRendererStatus: this.hideRendererStatus,
       now
     })
   }
@@ -205,8 +212,11 @@ export class RoomParticipantController {
     let current = this.db.participants.update(participant.id, { state: 'starting' })
     this.emit(current.roomId, { type: 'participant.updated', participant: current })
     try {
+      const canResume =
+        !binding.providerSession ||
+        this.db.providerMessages.hasObservedSession(participant.id, binding.providerSession.id)
       const restored = await adapter.restore(
-        binding,
+        canResume ? binding : { ...binding, providerSession: null },
         roomParticipantRestartPreferences(participant)
       )
       const incarnation = adapter.incarnation(restored)
@@ -225,6 +235,7 @@ export class RoomParticipantController {
         // Never erase a known incarnation with a transient null.
         ...(incarnation !== null ? { processIncarnation: incarnation } : {})
       })
+      hideRoomParticipantRendererStatus(current, this.hideRendererStatus)
       this.emit(current.roomId, { type: 'participant.updated', participant: current })
       await this.transcriptBridge.ensure(current)
       if (!restarted) {
@@ -271,62 +282,16 @@ export class RoomParticipantController {
     ingestRoomParticipantClaudeStatusLine(this.db, this.emit, event)
   }
 
-  /** Fresh processes also prove their composer is mounted before idle can authorize input. */
   private async waitUntilReady(
     participant: RoomParticipant,
     requireInputReady = false
   ): Promise<RoomParticipant> {
-    const adapter = participant.agent ? this.adapters[participant.agent] : null
-    const binding = roomParticipantHarnessBinding(participant)
-    if (!adapter || !binding) {
-      throw new Error('room_agent_not_attached')
-    }
-    const inputReady = !requireInputReady || (await adapter.awaitInputReady(binding))
-    // Present evidence first: an already-idle agent must not wait for a
-    // transition that will never fire again.
-    const current = await adapter.status(binding).catch(() => null)
-    if (current?.isRunningAgent) {
-      if (current.status === 'permission') {
-        throw new Error('room_agent_permission')
-      }
-      if (current.status === 'idle') {
-        if (!inputReady && !(await adapter.awaitInputReady(binding))) {
-          throw new Error('room_agent_not_ready')
-        }
-        return updateRoomParticipantStatus(
-          this.db,
-          this.adapters,
-          this.emit,
-          participant,
-          true,
-          current.status
-        )
-      }
-      if (current.status === null && (inputReady || (await adapter.awaitInputReady(binding)))) {
-        return updateRoomParticipantStatus(
-          this.db,
-          this.adapters,
-          this.emit,
-          participant,
-          true,
-          current.status
-        )
-      }
-    }
-    const wait = await adapter.awaitReady(binding)
-    if (!wait.satisfied) {
-      throw new Error(wait.blockedReason ? 'room_agent_permission' : 'room_agent_not_ready')
-    }
-    if (!inputReady && !(await adapter.awaitInputReady(binding))) {
-      throw new Error('room_agent_not_ready')
-    }
-    const status = await adapter.status(binding)
-    if (!status.isRunningAgent || (status.status !== null && status.status !== 'idle')) {
-      if (status.status === 'permission') {
-        throw new Error('room_agent_permission')
-      }
-      throw new Error('room_agent_not_ready')
-    }
-    return updateRoomParticipantStatus(this.db, this.adapters, this.emit, participant, true, 'idle')
+    return waitForRoomParticipantReady(
+      this.db,
+      this.adapters,
+      this.emit,
+      participant,
+      requireInputReady
+    )
   }
 }

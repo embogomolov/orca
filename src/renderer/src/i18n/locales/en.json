@@ -16801,7 +16801,13 @@
       },
       "structuredSessionCloseFailed": "Could not close this Codex chat",
       "structuredSessionLaunchFailed": "Could not open Codex chat",
-      "structuredSessionCloseFailedDescription": "The terminal stayed open so the provider remains recoverable."
+      "structuredSessionCloseFailedDescription": "The terminal stayed open so the provider remains recoverable.",
+      "context": {
+        "unavailable": "Context unavailable",
+        "used": "{{value0}} tokens used",
+        "summary": "{{value0}}% used · {{value1}} / {{value2}} tokens · {{value3}} free",
+        "compact": "Compact context"
+      }
     },
     "tab": {
       "bar": {
@@ -17369,7 +17375,8 @@
       "description": "Description",
       "name": "Name",
       "back": "Back",
-      "archived": "Archived"
+      "archived": "Archived",
+      "loading": "Loading…"
     },
     "archive": {
       "preparingExport": "Preparing room archive…",
@@ -17392,10 +17399,19 @@
       "attachFile": "Attach file",
       "dictate": "Dictate",
       "continueSuggestion": "/continue · resume a paused agent loop",
-      "allAgentsSuggestion": "@all · all agents"
+      "allAgentsSuggestion": "@all · all agents",
+      "uploadProgressShort": "Uploading… {{percent}}%",
+      "removeNamedAttachment": "Remove {{fileName}}",
+      "removeRecipient": "Remove {{recipient}}",
+      "configureDictation": "Configure voice transcription in Settings",
+      "allowMicrophone": "Allow microphone access in System Settings",
+      "stopDictation": "Stop dictation",
+      "startDictation": "Start dictation",
+      "imagePasteFailed": "Image paste failed."
     },
     "inspector": {
-      "pins": "Pins"
+      "pins": "Pins",
+      "room": "Room"
     },
     "feed": {
       "selectChannel": "Select a channel",
@@ -17416,7 +17432,10 @@
     },
     "attachment": {
       "downloading": "Downloading {{fileName}}…",
-      "saved": "Attachment saved"
+      "saved": "Attachment saved",
+      "download": "Download",
+      "zoom": "Zoom",
+      "zoomToFit": "Zoom to fit"
     },
     "header": {
       "defaultTopic": "Multi-agent room"
@@ -17444,7 +17463,21 @@
       "web": "Searching the web",
       "working": "Working",
       "failed": "Failed",
-      "interrupted": "Interrupted"
+      "interrupted": "Interrupted",
+      "more": "+{{count}} more",
+      "showStack": "Show {{count}} activity updates",
+      "collapseStack": "Collapse activities",
+      "workedFor": "Worked for {{duration}}",
+      "changesCaptured": "Changes captured during the agent turn.",
+      "coordinatedSubagents": "Coordinated subagents",
+      "editedFilesAndRanCommands": "Edited files and ran commands",
+      "editedFiles": "Edited files",
+      "ranCommands": "Ran commands",
+      "readFilesAndSearchedCode": "Read files and searched code",
+      "readFiles": "Read files",
+      "searchedCode": "Searched code",
+      "searchedWeb": "Searched the web",
+      "usedTools": "Used tools"
     },
     "people": {
       "participants": "Participants",
@@ -17460,7 +17493,11 @@
       "deleteRole": "Delete role",
       "noPrompt": "No prompt",
       "roleName": "Role name",
-      "roleInstructions": "Instructions for this role"
+      "roleInstructions": "Instructions for this role",
+      "openChat": "Open chat view",
+      "openTerminal": "Open terminal view",
+      "resumeInRoom": "Resume in room",
+      "pauseInRoom": "Pause in room"
     },
     "pins": {
       "empty": "No pinned messages",
@@ -17488,7 +17525,40 @@
     "selector": {
       "title": "Choose a room",
       "description": "Switch rooms or create a new workspace for agents.",
+      "search": "Search rooms…",
+      "noMatches": "No matching rooms",
       "newRoom": "New room name"
+    },
+    "tabs": {
+      "close": "Close room tab"
+    },
+    "menu": {
+      "label": "Rooms",
+      "keywordRoom": "room",
+      "keywordMultiAgent": "multi-agent"
+    }
+  },
+  "agentSubagents": {
+    "turn": {
+      "count": "{{count}} subagents"
+    },
+    "description": "Open a child transcript without leaving the parent conversation.",
+    "label": "Subagents",
+    "forAgent": "@{{identity}} subagents",
+    "active": "Active",
+    "done": "Done",
+    "readOnlyTranscript": "Read-only transcript",
+    "transcriptStarting": "Transcript starting…",
+    "loading": "Loading…",
+    "none": "None",
+    "transcriptDescription": "@{{identity}} · Read-only subagent transcript",
+    "nested": "Nested agents",
+    "messageCount": "{{count}} messages"
+  },
+  "agentSessionControls": {
+    "customModel": {
+      "label": "Custom model",
+      "placeholder": "Custom model…"
     }
   }
 }

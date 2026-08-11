@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { useEffect, useId, useState, useSyncExternalStore } from 'react'
+import { translate } from '@/i18n/i18n'
 import type {
   SessionOptionDescriptor,
   SessionOptionsSurface
@@ -109,8 +110,8 @@ export function CustomModelInput(props: {
           }
         }}
         disabled={props.pending}
-        aria-label="Custom model"
-        placeholder="Custom model…"
+        aria-label={translate('agentSessionControls.customModel.label', 'Custom model')}
+        placeholder={translate('agentSessionControls.customModel.placeholder', 'Custom model…')}
         className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground focus:border-ring disabled:opacity-50"
       />
     </div>

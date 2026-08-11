@@ -3,7 +3,10 @@ import type { AgentLaunchPreferences } from '../../../shared/agent-session-host-
 import type { RoomEvent, RoomHarnessAgent, RoomParticipant } from '../../../shared/rooms'
 import type { RoomDatabase } from './database'
 import type { RoomHarnessAdapter, RoomHarnessBinding } from './harness-adapter'
-import { roomParticipantHarnessBinding } from './participant-harness-binding'
+import {
+  hideRoomParticipantRendererStatus,
+  roomParticipantHarnessBinding
+} from './participant-harness-binding'
 import type { RoomTranscriptBridge } from './transcript-bridge'
 
 const CONTROL_CONFIRMATION_TIMEOUT_MS = 10_000
@@ -15,6 +18,7 @@ export class RoomParticipantSessionControls {
     private readonly adapters: Record<RoomHarnessAgent, RoomHarnessAdapter>,
     private readonly transcriptBridge: RoomTranscriptBridge,
     private readonly emit: (roomId: string, event: RoomEvent) => void,
+    private readonly hideRendererStatus: ((paneKey: string) => void) | undefined,
     private readonly ensureReady: (id: string) => Promise<RoomParticipant>,
     private readonly waitUntilReady: (
       participant: RoomParticipant,
@@ -117,6 +121,7 @@ export class RoomParticipantSessionControls {
           observedAt: Date.now()
         }
       })
+      hideRoomParticipantRendererStatus(participant, this.hideRendererStatus)
       this.emit(participant.roomId, { type: 'participant.updated', participant })
       await this.transcriptBridge.ensure(participant)
       return await this.waitUntilReady(participant, true)

@@ -29,7 +29,7 @@ import { RoomInspectorPortalContext } from './room-inspector-portal'
 
 const EMPTY_SUBAGENTS = [] as const
 
-export default function RoomsPage(): React.JSX.Element {
+export default function RoomsPage({ roomId }: { roomId: string }): React.JSX.Element {
   useTranslation()
   const inspectorTarget = useContext(RoomInspectorPortalContext)
   const activeRepoId = useAppStore((state) => state.activeRepoId)
@@ -69,7 +69,7 @@ export default function RoomsPage(): React.JSX.Element {
       ),
     [settings, worktreeOwner?.runtimeOwnerEnvironmentId]
   )
-  const data = useRoomData(target, projectId)
+  const data = useRoomData(target, projectId, roomId)
   const participants = useMemo(
     () => data.snapshot?.participants ?? [],
     [data.snapshot?.participants]

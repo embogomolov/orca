@@ -2,7 +2,10 @@ import type { RoomEvent, RoomHarnessAgent, RoomParticipant } from '../../../shar
 import { getRepoIdFromWorktreeId } from '../../../shared/worktree/id'
 import type { RoomDatabase } from './database'
 import type { RoomHarnessAdapter, RoomHarnessBinding } from './harness-adapter'
-import { roomParticipantHarnessBinding } from './participant-harness-binding'
+import {
+  hideRoomParticipantRendererStatus,
+  roomParticipantHarnessBinding
+} from './participant-harness-binding'
 import type { RoomTranscriptBridge } from './transcript-bridge'
 
 export type RoomParticipantConnection =
@@ -21,6 +24,7 @@ export class RoomParticipantMembership {
     private readonly adapters: Record<RoomHarnessAgent, RoomHarnessAdapter>,
     private readonly transcriptBridge: RoomTranscriptBridge,
     private readonly emit: (roomId: string, event: RoomEvent) => void,
+    private readonly hideRendererStatus: ((paneKey: string) => void) | undefined,
     private readonly waitUntilReady: (
       participant: RoomParticipant,
       requireInputReady?: boolean
@@ -58,8 +62,10 @@ export class RoomParticipantMembership {
         paneKey: binding.paneKey,
         terminalHandle: binding.terminalHandle,
         providerSession: binding.providerSession,
-        processIncarnation: adapter.incarnation(binding)
+        processIncarnation: adapter.incarnation(binding),
+        terminalSurfaceVisible: input.connection.kind === 'attach'
       })
+      hideRoomParticipantRendererStatus(participant, this.hideRendererStatus)
       participant = this.db.participants.update(participant.id, { state: 'starting' })
       this.emit(input.roomId, { type: 'participant.updated', participant })
       await this.transcriptBridge.ensure(participant)

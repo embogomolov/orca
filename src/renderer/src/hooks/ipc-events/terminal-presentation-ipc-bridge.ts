@@ -39,6 +39,7 @@ export function registerTerminalPresentationIpcBridge(unsubs: (() => void)[]): v
         focus,
         presentation,
         surfaceOwner,
+        preserveSessionOnClose,
         tabId,
         leafId,
         splitFromLeafId,
@@ -102,6 +103,7 @@ export function registerTerminalPresentationIpcBridge(unsubs: (() => void)[]): v
                       }
                     : {}),
                   ...(cwd ? { startupCwd: cwd } : {}),
+                  ...(preserveSessionOnClose ? { preserveSessionOnClose: true } : {}),
                   // Why: CLI-spawned PTYs bake the pane key into env; adopt the same tab id so hook-event attribution keeps working.
                   ...(tabId !== undefined ? { id: tabId } : {})
                 })
@@ -135,6 +137,9 @@ export function registerTerminalPresentationIpcBridge(unsubs: (() => void)[]): v
           }
           if (reusedTab && viewMode) {
             store.setTabViewMode(tab.id, viewMode)
+          }
+          if (preserveSessionOnClose) {
+            store.setTabPreserveSessionOnClose(worktreeId, tab.id)
           }
           // Why: only stamp the runtime title on fresh tabs; reused tabs may have a user customTitle it would overwrite on focus.
           if (title && !reusedTab) {

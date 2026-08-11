@@ -68,7 +68,9 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
           request.presentation ?? null,
           request.placement?.tabId ?? null,
           request.placement?.leafId ?? null,
-          request.viewMode ?? null
+          request.viewMode ?? null,
+          request.surfaceOwner ?? null,
+          request.persistHostSessionBinding ?? null
         ])
       )
       .digest('base64url')
@@ -145,7 +147,9 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
             request.presentation ?? null,
             request.placement?.tabId ?? null,
             request.placement?.leafId ?? null,
-            request.viewMode ?? null
+            request.viewMode ?? null,
+            request.surfaceOwner ?? null,
+            request.persistHostSessionBinding ?? null
           ])
         )
         .digest('base64url')
@@ -225,6 +229,8 @@ export class OrcaRuntimeWithCreateAgentSession extends OrcaRuntimeWithGetAgentSe
           leafId: operationLeafId,
           preAllocatedHandle: operationHandle,
           viewMode: request.viewMode,
+          persistHostSessionBinding: request.persistHostSessionBinding ?? true,
+          ...(request.surfaceOwner === false ? { surfaceOwner: false } : {}),
           agentSessionCreateOperationId: executionOperationId,
           signal: caller.signal,
           onPtySpawnCommitted: () => {

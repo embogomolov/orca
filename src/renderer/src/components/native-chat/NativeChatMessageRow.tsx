@@ -15,7 +15,7 @@ import { splitNativeChatBlocks } from './native-chat-tool-fold'
 import { isNativeChatPastedImagePath } from './native-chat-image-paste'
 import { NativeChatToolRun } from './NativeChatToolRun'
 import { NativeChatCopyButton } from './NativeChatCopyButton'
-import { isLiteralRoomTransportText } from './native-chat-room-transport'
+import { literalRoomTransportText } from './native-chat-room-transport'
 
 function proseToMarkdown(blocks: NativeChatBlock[]): string {
   return blocks
@@ -105,7 +105,8 @@ export function NativeChatMessageRow({
   const isReasoning = message.role === 'reasoning'
   const isSystem = message.role === 'system'
   const isSubagentTask = message.subagentEvent?.kind === 'task'
-  const renderTransportLiterally = isLiteralRoomTransportText(markdown)
+  const literalTransport = literalRoomTransportText(markdown)
+  const renderedText = literalTransport ?? markdown
 
   const scrollToTop = useCallback(() => {
     if (rowRef.current) {
@@ -121,14 +122,14 @@ export function NativeChatMessageRow({
     return (
       <div ref={rowRef} className="flex flex-col items-end gap-0.5">
         <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-muted px-3.5 py-2.5 text-sm text-foreground">
-          {markdown ? (
+          {renderedText ? (
             <>
               <ImageAttachmentRefs blocks={prose} />
-              {renderTransportLiterally ? (
-                <div className="whitespace-pre-wrap break-words font-mono text-xs">{markdown}</div>
+              {literalTransport !== null ? (
+                <div className="whitespace-pre-wrap break-words">{renderedText}</div>
               ) : (
                 <CommentMarkdown
-                  content={markdown}
+                  content={renderedText}
                   variant="document"
                   className="text-sm"
                   onLinkClick={onLinkClick}
@@ -163,7 +164,7 @@ export function NativeChatMessageRow({
     )
   }
 
-  const showControls = !isReasoning && !isSystem && markdown.length > 0
+  const showControls = !isReasoning && !isSystem && renderedText.length > 0
 
   return (
     <div
@@ -176,18 +177,18 @@ export function NativeChatMessageRow({
     >
       {showControls ? (
         <AgentControls
-          markdown={markdown}
+          markdown={renderedText}
           onScrollToTop={scrollToTop}
           className="absolute -top-8 right-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
         />
       ) : null}
       <ImageAttachmentRefs blocks={prose} />
-      {markdown ? (
-        renderTransportLiterally ? (
-          <div className="whitespace-pre-wrap break-words font-mono text-xs">{markdown}</div>
+      {renderedText ? (
+        literalTransport !== null ? (
+          <div className="whitespace-pre-wrap break-words">{renderedText}</div>
         ) : (
           <CommentMarkdown
-            content={markdown}
+            content={renderedText}
             variant="document"
             className="text-sm"
             onLinkClick={onLinkClick}

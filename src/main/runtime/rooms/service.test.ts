@@ -43,9 +43,43 @@ function runtime(): RoomHarnessRuntime {
 }
 
 describe('RoomService archive lifecycle', () => {
+  it('removes a newly launched hidden participant from renderer recovery state', async () => {
+    const harness = runtime()
+    harness.createAgentSession = vi.fn(async () => ({
+      terminal: {
+        handle: 'term-hidden',
+        paneKey: 'tab-hidden:leaf-hidden',
+        worktreeId: 'worktree-1',
+        title: null
+      },
+      disposition: 'created' as const
+    }))
+    harness.getTerminalAgentStatus = vi.fn(async (handle) => ({
+      handle,
+      isRunningAgent: true,
+      status: 'idle' as const
+    }))
+    harness.hideRoomAgentStatusFromRenderer = vi.fn()
+    const service = new RoomService(':memory:', harness)
+    const room = service.createRoom({ projectId: 'worktree-1', name: 'Research' }).room
+
+    const participant = await service.addParticipant({
+      roomId: room.id,
+      identity: 'codex',
+      displayName: 'Codex',
+      agent: 'codex',
+      connection: { kind: 'launch', worktreeId: 'worktree-1' }
+    })
+
+    expect(participant.terminalSurfaceVisible).toBe(false)
+    expect(harness.hideRoomAgentStatusFromRenderer).toHaveBeenCalledWith('tab-hidden:leaf-hidden')
+    service.close()
+  })
+
   it('wakes a sleeping participant before explicitly revealing its chat', async () => {
     const harness = runtime()
     harness.focusTerminal = vi.fn(async () => undefined)
+    harness.hideRoomAgentStatusFromRenderer = vi.fn()
     harness.publishRoomAgentProviderSession = vi.fn()
     const service = new RoomService(':memory:', harness)
     const room = service.createRoom({ projectId: 'project-1', name: 'Research' }).room
@@ -78,6 +112,10 @@ describe('RoomService archive lifecycle', () => {
     expect(vi.mocked(harness.focusTerminal).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(harness.publishRoomAgentProviderSession).mock.invocationCallOrder[0]
     )
+    expect(service.db.participants.get(participant.id).terminalSurfaceVisible).toBe(true)
+    service.hideParticipantTerminal('term-codex')
+    expect(service.db.participants.get(participant.id).terminalSurfaceVisible).toBe(false)
+    expect(harness.hideRoomAgentStatusFromRenderer).toHaveBeenCalledWith('tab:codex')
     service.close()
   })
 
@@ -87,6 +125,7 @@ describe('RoomService archive lifecycle', () => {
       .fn()
       .mockRejectedValueOnce(new Error('terminal_handle_stale'))
       .mockResolvedValue({ handle: 'term-new', isRunningAgent: true, status: 'idle' })
+    harness.hideRoomAgentStatusFromRenderer = vi.fn()
     harness.ensureAgentSession = vi.fn()
     harness.listRoomAttachableAgents = vi.fn(async () => [
       {
@@ -131,6 +170,7 @@ describe('RoomService archive lifecycle', () => {
       paneKey: 'tab:new',
       state: 'online'
     })
+    expect(harness.hideRoomAgentStatusFromRenderer).toHaveBeenCalledWith('tab:new')
     const { configuration } = service.db.deliveryConfiguration.pending({
       participant: service.db.participants.get(participant.id),
       room: service.db.core.get(room.id),
@@ -264,6 +304,7 @@ describe('RoomService archive lifecycle', () => {
       terminalHandle: 'term-old',
       providerSession: { key: 'session_id', id: 'session-1' }
     })
+    service.db.providerMessages.observeSnapshot(participant.id, 'session-1', ['message-1'])
 
     await service.participantController.ensureReady(participant.id)
 
@@ -324,6 +365,7 @@ describe('RoomService archive lifecycle', () => {
       providerSession,
       processIncarnation: 'pty:7'
     })
+    service.db.providerMessages.observeSnapshot(participant.id, 'session-1', ['message-1'])
     service.db.deliveryConfiguration.commit(participant.id, {
       providerSessionKey: providerSession.key,
       providerSessionId: providerSession.id,
@@ -386,6 +428,7 @@ describe('RoomService archive lifecycle', () => {
         fastMode: true
       }
     })
+    service.db.providerMessages.observeSnapshot(codex.id, 'session-codex', ['message-codex'])
     const claude = service.db.participants.add({
       roomId: room.id,
       identity: 'claude',
@@ -399,6 +442,7 @@ describe('RoomService archive lifecycle', () => {
     service.db.participants.update(claude.id, {
       context: { ...EMPTY_ROOM_CONTEXT, model: 'claude-opus-5[1m]', effort: 'high' }
     })
+    service.db.providerMessages.observeSnapshot(claude.id, 'session-claude', ['message-claude'])
 
     await Promise.all([
       service.participantController.ensureReady(codex.id),
