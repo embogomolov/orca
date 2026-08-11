@@ -126,6 +126,9 @@ export type RuntimeEnsureAgentSessionRequest =
       launchPreferences?: AgentLaunchPreferences
       presentation?: RuntimeTerminalPresentation
       placement?: { tabId?: string; leafId?: string }
+      /** Trusted host-only launches can keep a live PTY outside user tab surfaces. */
+      surfaceOwner?: false
+      persistHostSessionBinding?: boolean
     }
 
 export type RuntimeEnsureAgentSessionResult = {
@@ -149,6 +152,9 @@ export type RuntimeCreateAgentSessionRequest = {
   presentation?: RuntimeTerminalPresentation
   placement?: { tabId?: string; leafId?: string }
   viewMode?: 'terminal' | 'chat'
+  /** Trusted host-only launches can keep a live PTY outside user tab surfaces. */
+  surfaceOwner?: false
+  persistHostSessionBinding?: boolean
 }
 
 export type RuntimeCreateAgentSessionResult = {

@@ -126,6 +126,7 @@ export type RuntimeTerminalAgentStatusEvent = {
    *  reader can rejoin it to the terminal after the pane key moved. */
   terminalHandle?: string
   providerSession?: AgentProviderSessionMetadata
+  force?: boolean
   payload: ParsedAgentStatusPayload
 }
 
