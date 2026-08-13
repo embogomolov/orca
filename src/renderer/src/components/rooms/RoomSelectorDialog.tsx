@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Archive, Check, Plus } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -56,8 +56,7 @@ export function RoomSelectorDialog({
     setLoading(true)
     setError(null)
     void roomRpc<{ rooms: Room[] }>(target, 'rooms.list', {
-      projectId,
-      includeArchived: true
+      projectId
     }).then(
       ({ rooms: listed }) => {
         if (!disposed) {
@@ -127,14 +126,14 @@ export function RoomSelectorDialog({
             )}
           </DialogDescription>
         </DialogHeader>
-        <Command className="min-h-0 flex-1 border border-border bg-background">
+        <Command bordered className="min-h-0 flex-1">
           <CommandInput
             autoFocus
             value={query}
             onValueChange={setQuery}
             placeholder={translate('rooms.selector.search', 'Search rooms…')}
           />
-          <CommandList className="min-h-0 max-h-none flex-1 p-1 [&_[cmdk-list-sizer]]:space-y-2">
+          <CommandList variant="cards" className="min-h-0 max-h-none flex-1">
             {loading ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 {translate('rooms.common.loading', 'Loading…')}
@@ -156,23 +155,14 @@ export function RoomSelectorDialog({
                       value={room.id}
                       keywords={[room.name, room.description]}
                       onSelect={() => openRoom(room)}
-                      className={cn(
-                        'items-start gap-3 rounded-lg border p-3 text-left transition-colors',
-                        selected
-                          ? 'border-primary/50 bg-accent'
-                          : 'border-border hover:border-foreground/30 hover:bg-accent/40'
-                      )}
+                      variant="card"
+                      current={selected}
+                      className="items-start text-left"
                     >
                       <Check className={cn('mt-0.5 size-4 shrink-0', !selected && 'invisible')} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="truncate text-sm font-medium">{room.name}</span>
-                          {room.archivedAt ? (
-                            <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-                              <Archive className="size-3" />
-                              {translate('rooms.common.archived', 'Archived')}
-                            </span>
-                          ) : null}
                         </div>
                         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                           {room.description ||

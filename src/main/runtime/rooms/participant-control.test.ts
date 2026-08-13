@@ -25,7 +25,8 @@ function runtime(): RoomHarnessRuntime {
       status: 'running',
       exitCode: null
     }),
-    listRoomAttachableAgents: async () => [],
+    listRoomRunningAgents: async () => [],
+    listRoomExistingAgents: async () => [],
     resolveRoomHistoricalSession: unused,
     stageRoomAttachment: unused
   }
@@ -60,7 +61,9 @@ describe('room participant controls', () => {
       const updated = await service.controlParticipant(participant.id, '/fast')
 
       expect(updated.terminalHandle).toBe('term-codex')
-      expect(harness.sendTerminalAgentPrompt).toHaveBeenCalledWith('term-codex', '/fast')
+      expect(harness.sendTerminalAgentPrompt).toHaveBeenCalledWith('term-codex', '/fast', {
+        inputKind: 'driving'
+      })
       expect(harness.createAgentSession).not.toHaveBeenCalled()
       expect(harness.ensureAgentSession).not.toHaveBeenCalled()
       expect(harness.closeTerminal).not.toHaveBeenCalled()
@@ -123,7 +126,9 @@ describe('room participant controls', () => {
       const updated = await service.controlParticipant(participant.id, '/fast')
 
       expect(updated.terminalHandle).toBe('term-new')
-      expect(harness.sendTerminalAgentPrompt).toHaveBeenCalledWith('term-new', '/fast')
+      expect(harness.sendTerminalAgentPrompt).toHaveBeenCalledWith('term-new', '/fast', {
+        inputKind: 'driving'
+      })
       expect(harness.closeTerminal).not.toHaveBeenCalled()
     } finally {
       service.close()
@@ -167,7 +172,9 @@ describe('room participant controls', () => {
     expect(harness.getTerminalAgentStatus).toHaveBeenCalledWith('term-claude', {
       confirmForeground: true
     })
-    expect(harness.sendTerminalAgentPrompt).toHaveBeenCalledWith('term-claude', '/effort xhigh')
+    expect(harness.sendTerminalAgentPrompt).toHaveBeenCalledWith('term-claude', '/effort xhigh', {
+      inputKind: 'driving'
+    })
     service.ingestAgentStatus({
       paneKey: participant.paneKey!,
       connectionId: null,
@@ -248,8 +255,14 @@ describe('room participant controls', () => {
       const updated = await service.controlParticipant(participant.id, '/fast off')
 
       expect(updated.context.fastMode).toBe(false)
-      expect(harness.sendTerminal).toHaveBeenCalledWith('term-claude', { text: '\x1b' })
-      expect(harness.sendTerminalAgentPrompt).toHaveBeenCalledWith('term-claude', '/fast off')
+      expect(harness.sendTerminal).toHaveBeenCalledWith(
+        'term-claude',
+        { text: '\x1b' },
+        { inputKind: 'driving' }
+      )
+      expect(harness.sendTerminalAgentPrompt).toHaveBeenCalledWith('term-claude', '/fast off', {
+        inputKind: 'driving'
+      })
       expect(harness.closeTerminal).not.toHaveBeenCalled()
     } finally {
       service.close()

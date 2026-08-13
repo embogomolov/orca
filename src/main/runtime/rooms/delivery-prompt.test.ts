@@ -1,5 +1,6 @@
+import { roomParticipantFixture } from '../../../shared/rooms.test-fixture'
 import { describe, expect, it } from 'vitest'
-import type { RoomMessage, RoomParticipant } from '../../../shared/rooms'
+import type { RoomMessage } from '../../../shared/rooms'
 import { formatRoomDeliveryPrompt } from './delivery-prompt'
 
 const message = (overrides: Partial<RoomMessage> = {}): RoomMessage => ({
@@ -24,33 +25,34 @@ const message = (overrides: Partial<RoomMessage> = {}): RoomMessage => ({
 })
 
 const participants = [
-  { id: 'user', identity: 'user', displayName: 'You', actorKind: 'user' },
-  {
+  roomParticipantFixture({ id: 'user', identity: 'user', displayName: 'You', actorKind: 'user' }),
+  roomParticipantFixture({
     id: 'codex',
     identity: 'codex',
     displayName: 'Codex',
     actorKind: 'agent',
     participation: 'active'
-  },
-  {
+  }),
+  roomParticipantFixture({
     id: 'claude',
     identity: 'claude',
     displayName: 'Claude',
     actorKind: 'agent',
     participation: 'active'
-  },
-  {
+  }),
+  roomParticipantFixture({
     id: 'paused',
     identity: 'gemini',
     displayName: 'Gemini',
     actorKind: 'agent',
     participation: 'paused'
-  }
-] as RoomParticipant[]
+  })
+]
 
 function prompt(overrides: Partial<Parameters<typeof formatRoomDeliveryPrompt>[0]> = {}): string {
   return formatRoomDeliveryPrompt({
     deliveryId: 'delivery-1',
+    attempt: 1,
     response: 'required',
     roomName: 'Research',
     message: message(),
@@ -69,7 +71,7 @@ describe('room delivery prompt', () => {
       configuration: { description: 'Compare the evidence.' }
     })
 
-    expect(result).toContain('<orca-room-delivery id="delivery-1" response="required">')
+    expect(result).toContain('<orca-room-delivery id="delivery-1" response="required" attempt="1">')
     expect(result).toContain('A reply is required.')
     expect(result).toContain('using only identities from ["claude"]')
     expect(result).not.toContain('room-context-ref')
