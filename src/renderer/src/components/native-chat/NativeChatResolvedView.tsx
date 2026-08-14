@@ -53,6 +53,7 @@ import { useNativeChatLinkActions } from './use-native-chat-link-actions'
 import type { NativeChatResolvedViewProps } from './native-chat-view-types'
 import { useNativeChatFileLinkContext } from './use-native-chat-file-link-context'
 import { formatShortcutLabel } from '@/hooks/useShortcutLabel'
+import { nativeChatImageLoadContext } from './native-chat-image-load-context'
 
 /** Renders the bridge UI after NativeChatSessionGate resolves its agent session. */
 export function NativeChatResolvedView({
@@ -127,6 +128,7 @@ export function NativeChatResolvedView({
   // replaces the composer.
   const questionAnswerInputRef = useRef<HTMLInputElement>(null)
   const fileLinkContext = useNativeChatFileLinkContext(terminalTabId)
+  const imageLoadContext = nativeChatImageLoadContext(fileLinkContext)
   const pasteClipboardIntoComposer = useNativeChatPasteBridge({
     rootRef,
     composerRef,
@@ -387,6 +389,7 @@ export function NativeChatResolvedView({
             onLinkClick={onLinkClick}
             allowFileUriLinks={fileLinkContext !== null}
             failedDeliveryMessageIds={failedLaunchPromptMessageIds}
+            imageLoadContext={imageLoadContext}
           />
         )}
       </div>

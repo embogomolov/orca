@@ -23,6 +23,7 @@ import {
 import type { NativeChatDiffReveal } from './native-chat-turn-diffs'
 import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
 import { literalRoomTransportText } from './native-chat-room-transport'
+import type { NativeChatImageLoadContext } from './NativeChatImageAttachments'
 
 /** One message: its prose first, then a collapsible run folding all of the
  *  turn's tool activity. Monochrome per STYLEGUIDE: user prompts read as a
@@ -43,7 +44,8 @@ export const MessageRow = memo(function MessageRow({
   deliveryFailed = false,
   structuredActivityUi = true,
   folded = false,
-  runtimeContext
+  runtimeContext,
+  imageLoadContext
 }: {
   message: NativeChatMessage
   previousTodoWrite?: NativeChatToolCallBlock
@@ -62,6 +64,7 @@ export const MessageRow = memo(function MessageRow({
   /** Behind a folded turn: the row keeps only what outlives the turn. */
   folded?: boolean
   runtimeContext?: RuntimeFileOperationArgs | null
+  imageLoadContext?: NativeChatImageLoadContext
 }): React.JSX.Element | null {
   const rowRef = useRef<HTMLDivElement | null>(null)
   // One pass per block set, shared with the list that decides whether this row
@@ -139,7 +142,7 @@ export const MessageRow = memo(function MessageRow({
                 blocks={prose}
                 runtimeContext={runtimeContext}
                 enablePreview={runtimeContext !== undefined}
-              />
+               loadContext={imageLoadContext} />
               {literalTransport !== null ? (
                 <div className="whitespace-pre-wrap break-words">{renderedText}</div>
               ) : (
@@ -158,7 +161,7 @@ export const MessageRow = memo(function MessageRow({
               blocks={prose}
               runtimeContext={runtimeContext}
               enablePreview={runtimeContext !== undefined}
-            />
+             loadContext={imageLoadContext} />
           )}
         </div>
         {message.sentAs === 'goal' ? (
@@ -216,7 +219,7 @@ export const MessageRow = memo(function MessageRow({
         blocks={prose}
         runtimeContext={runtimeContext}
         enablePreview={runtimeContext !== undefined}
-      />
+       loadContext={imageLoadContext} />
       {renderedText ? (
         literalTransport !== null ? (
           <div className="whitespace-pre-wrap break-words">{renderedText}</div>
