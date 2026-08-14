@@ -55,6 +55,24 @@ function boundJournalPromptBody(
     ...body,
     question: boundPromptText(body.question),
     options: boundPromptOptions(body.options),
+    ...(body.questions
+      ? {
+          questions: body.questions.slice(0, MAX_JOURNAL_PROMPT_OPTIONS).map((question) => ({
+            ...question,
+            id: boundPromptIdentifier(question.id),
+            header: boundPromptText(question.header),
+            question: boundPromptText(question.question),
+            ...(question.options
+              ? {
+                  options: question.options.slice(0, MAX_JOURNAL_PROMPT_OPTIONS).map((option) => ({
+                    label: boundPromptText(option.label),
+                    ...(option.description ? { description: boundPromptText(option.description) } : {})
+                  }))
+                }
+              : {})
+          }))
+        }
+      : {}),
     ...(body.freeTextQuestionId
       ? { freeTextQuestionId: boundPromptIdentifier(body.freeTextQuestionId) }
       : {})

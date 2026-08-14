@@ -170,16 +170,39 @@ export function NativeChatStructuredSession(props: {
       {prompt && questionBody ? (
         <NativeChatQuestionCard
           prompt={{
-            questions: [
-              {
-                question: questionBody.question,
-                multiSelect: false,
-                options: questionBody.options.map((option) => ({ label: option.label }))
-              }
-            ]
+            questions:
+              questionBody.questions?.map((question) => ({
+                ...question,
+                multiSelect: question.multiSelect ?? false,
+                options: question.options ?? []
+              })) ?? [
+                {
+                  question: questionBody.question,
+                  multiSelect: false,
+                  options: questionBody.options.map((option) => ({ label: option.label }))
+                }
+              ]
           }}
-          allowOther={Boolean(questionBody.freeTextQuestionId)}
+          allowOther={
+            questionBody.questions?.some((question) => question.allowOther) ??
+            Boolean(questionBody.freeTextQuestionId)
+          }
           onAnswer={(answers) => {
+            if (questionBody.questions) {
+              const values = Object.fromEntries(
+                questionBody.questions.map((question, questionIndex) => {
+                  const selection = answers[questionIndex]
+                  const picked = (selection?.indices ?? []).flatMap((optionIndex) => {
+                    const label = question.options?.[optionIndex]?.label
+                    return label ? [label] : []
+                  })
+                  const other = selection?.other?.trim()
+                  return [question.id, other ? [...picked, other] : picked]
+                })
+              )
+              void controller.respond(prompt, `answers:${JSON.stringify(values)}`)
+              return
+            }
             const index = answers[0]?.indices[0]
             const other = answers[0]?.other?.trim()
             const optionId =

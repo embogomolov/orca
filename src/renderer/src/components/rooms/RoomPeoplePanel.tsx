@@ -25,6 +25,7 @@ import { RoomPanelEmpty, RoomPanelSection } from './RoomPanelSection'
 import { RoomParticipantEditDialog } from './RoomParticipantEditDialog'
 import type { RoomData } from './use-room-data'
 import { showRoomActionError } from './room-action-error'
+import { activateStructuredAgentSessionById } from '@/lib/structured-agent-session-tab-activation'
 
 export function PeoplePanel({
   data,
@@ -123,25 +124,37 @@ export function PeoplePanel({
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onSelect={() =>
+                      onSelect={() => {
+                        if (
+                          participant.providerSession?.transport === 'machine' &&
+                          participant.worktreeId
+                        ) {
+                          activateStructuredAgentSessionById({
+                            worktreeId: participant.worktreeId,
+                            sessionId: participant.providerSession.id
+                          })
+                          return
+                        }
                         void roomRpc(data.target, 'rooms.participants.reveal', {
                           participantId: participant.id,
                           viewMode: 'chat'
                         }).catch(showRoomActionError)
-                      }
+                      }}
                     >
                       <MessageSquare /> {translate('rooms.people.openChat', 'Open chat view')}
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        void roomRpc(data.target, 'rooms.participants.reveal', {
-                          participantId: participant.id,
-                          viewMode: 'terminal'
-                        }).catch(showRoomActionError)
-                      }
-                    >
-                      <Terminal /> {translate('rooms.people.openTerminal', 'Open terminal view')}
-                    </DropdownMenuItem>
+                    {participant.providerSession?.transport !== 'machine' ? (
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          void roomRpc(data.target, 'rooms.participants.reveal', {
+                            participantId: participant.id,
+                            viewMode: 'terminal'
+                          }).catch(showRoomActionError)
+                        }
+                      >
+                        <Terminal /> {translate('rooms.people.openTerminal', 'Open terminal view')}
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem
                       onSelect={() =>
                         void roomRpc(data.target, 'rooms.participants.update', {

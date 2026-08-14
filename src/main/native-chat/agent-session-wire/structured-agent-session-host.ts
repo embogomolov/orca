@@ -294,6 +294,16 @@ export class StructuredAgentSessionHost {
   readOptions = (sessionId: string): Promise<AgentSessionOptionsResult> =>
     readStructuredAgentSessionOptions(this.mutationContext(), sessionId)
 
+  readContext = (sessionId: string) => {
+    this.requireSession(sessionId)
+    return this.deps.adapter.readContext?.(sessionId) ?? null
+  }
+
+  readConfiguration = (sessionId: string) => {
+    this.requireSession(sessionId)
+    return this.deps.adapter.readConfiguration?.(sessionId) ?? null
+  }
+
   async handoffStatus(sessionId: string): Promise<AgentSessionHandoffStatus> {
     this.requireSession(sessionId)
     return this.serialize(sessionId, () =>

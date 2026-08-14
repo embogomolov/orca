@@ -267,7 +267,7 @@ describe('AgentSessionControls', () => {
     expect(screen.getByText('Context window')).not.toBeNull()
   })
 
-  it('names a lone unknown effort control explicitly', () => {
+  it('does not put an unknown effort value in the pill', () => {
     render(
       <AgentSessionControls
         surface={surface}
@@ -280,8 +280,8 @@ describe('AgentSessionControls', () => {
     )
 
     expect(
-      screen.getByRole('button', { name: 'Opus 4.8 Effort. Context unavailable' }).textContent
-    ).toContain('Effort')
+      screen.getByRole('button', { name: 'Opus 4.8. Context unavailable' }).textContent
+    ).not.toContain('Effort')
   })
 
   it('keeps session details inspectable while the agent is working', () => {
@@ -308,9 +308,7 @@ describe('AgentSessionControls', () => {
         isWorking={false}
       />
     )
-    const unknownTrigger = screen.getByRole('button', {
-      name: 'Model Effort. Context unavailable'
-    })
+    const unknownTrigger = screen.getByRole('button', { name: 'Model. Context unavailable' })
     expect(unknownTrigger.textContent).not.toContain('Model: Model')
     expect(unknownTrigger.textContent).not.toContain('Effort: Effort')
 

@@ -4,6 +4,7 @@ import type { RoomDatabase } from './database'
 import type { RoomHarnessAdapter, RoomHarnessBinding } from './harness-adapter'
 import {
   hideRoomParticipantRendererStatus,
+  roomParticipantFieldsFromBinding,
   roomParticipantHarnessBinding
 } from './participant-harness-binding'
 import type { RoomTranscriptBridge } from './transcript-bridge'
@@ -39,6 +40,8 @@ export class RoomParticipantMembership {
     agent: RoomHarnessAgent
     roleId?: string | null
     connection: RoomParticipantConnection
+    machineStreaming?: boolean
+    trusted?: boolean
   }): Promise<RoomParticipant> {
     const room = this.db.core.get(input.roomId)
     if (room.worktreeId && room.worktreeId !== input.connection.worktreeId) {
@@ -48,7 +51,10 @@ export class RoomParticipantMembership {
       throw new Error('room_worktree_project_mismatch')
     }
     const adapter = this.adapters[input.agent]
-    const binding = await this.connect(adapter, input.connection)
+    const binding = await this.connect(adapter, input.connection, {
+      machineStreaming: input.machineStreaming,
+      trusted: input.trusted
+    })
     let added: RoomParticipant | null = null
     try {
       let participant = this.db.participants.add({
@@ -57,12 +63,10 @@ export class RoomParticipantMembership {
         displayName: input.displayName,
         agent: input.agent,
         roleId: input.roleId,
-        worktreeId: binding.worktreeId,
-        paneKey: binding.paneKey,
-        terminalHandle: binding.terminalHandle,
-        providerSession: binding.providerSession,
+        ...roomParticipantFieldsFromBinding(binding),
         processIncarnation: adapter.incarnation(binding),
-        terminalSurfaceVisible: binding.terminalSurfaceVisible === true
+        terminalSurfaceVisible:
+          binding.transport !== 'machine' && binding.terminalSurfaceVisible === true
       })
       added = participant
       hideRoomParticipantRendererStatus(participant, this.hideRendererStatus)
@@ -76,10 +80,7 @@ export class RoomParticipantMembership {
         this.db.participants.remove(added.id)
         this.emit(added.roomId, { type: 'participant.removed', participantId: added.id })
       }
-      if (
-        binding.disposition === 'created' &&
-        !this.db.participants.findOwner({ ...binding, agent: input.agent })
-      ) {
+      if (binding.disposition === 'created' && !this.bindingOwned(binding, input.agent)) {
         await adapter.stop(binding).catch(() => {})
       }
       throw error
@@ -99,11 +100,25 @@ export class RoomParticipantMembership {
 
   private async connect(
     adapter: RoomHarnessAdapter,
-    connection: RoomParticipantConnection
+    connection: RoomParticipantConnection,
+    options: { machineStreaming?: boolean; trusted?: boolean }
   ): Promise<RoomHarnessBinding> {
     if (connection.kind === 'new') {
-      return adapter.launch(connection.worktreeId)
+      return adapter.launch(connection.worktreeId, options)
     }
     return adapter.connectExisting(connection)
+  }
+
+  private bindingOwned(binding: RoomHarnessBinding, agent: RoomHarnessAgent): boolean {
+    return (
+      this.db.participants.findOwner({
+        agent,
+        worktreeId: binding.worktreeId,
+        providerSession: binding.providerSession,
+        ...(binding.transport !== 'machine'
+          ? { paneKey: binding.paneKey, terminalHandle: binding.terminalHandle }
+          : {})
+      }) !== null
+    )
   }
 }

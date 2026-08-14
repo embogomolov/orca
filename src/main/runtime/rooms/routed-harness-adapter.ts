@@ -1,0 +1,152 @@
+import type { AgentHookEventPayload } from '../../../shared/agent-hook-listener'
+import type { AgentLaunchPreferences } from '../../../shared/agent-session-host-authority'
+import { isStructuredMachineAgent } from '../../../shared/structured-agent-provider'
+import type { RoomAttachment, RoomContextSnapshot, RoomHarnessAgent } from '../../../shared/rooms'
+import { PtyRoomHarnessAdapter } from './harness-adapter'
+import type {
+  RoomHarnessAdapter,
+  RoomHarnessBinding,
+  RoomHarnessLaunchOptions,
+  RoomHarnessRuntime,
+  RoomHarnessSubscriptionCallbacks
+} from './harness-adapter-types'
+import { MachineRoomHarnessAdapter } from './machine-harness-adapter'
+
+class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
+  private readonly machine: MachineRoomHarnessAdapter | null
+
+  constructor(
+    readonly agent: RoomHarnessAgent,
+    runtime: RoomHarnessRuntime,
+    private readonly terminal = new PtyRoomHarnessAdapter(agent, runtime)
+  ) {
+    this.machine = isStructuredMachineAgent(agent)
+      ? new MachineRoomHarnessAdapter(agent, runtime)
+      : null
+  }
+
+  async launch(
+    worktreeId: string,
+    options?: RoomHarnessLaunchOptions
+  ): Promise<RoomHarnessBinding> {
+    if (
+      options?.machineStreaming &&
+      this.machine &&
+      (this.agent !== 'claude' || options.trusted === true)
+    ) {
+      return this.machine.launch(worktreeId, options)
+    }
+    return this.terminal.launch(worktreeId, options?.preferences)
+  }
+
+  connectExisting(input: Parameters<RoomHarnessAdapter['connectExisting']>[0]) {
+    return this.terminal.connectExisting(input)
+  }
+
+  locate(binding: RoomHarnessBinding) {
+    return this.forBinding(binding).locate(binding)
+  }
+
+  read(binding: RoomHarnessBinding, limit?: number) {
+    return this.forBinding(binding).read(binding, limit)
+  }
+
+  send(
+    binding: RoomHarnessBinding,
+    prompt: string,
+    options?: Parameters<RoomHarnessAdapter['send']>[2]
+  ) {
+    return this.forBinding(binding).send(binding, prompt, options)
+  }
+
+  interrupt(binding: RoomHarnessBinding) {
+    return this.forBinding(binding).interrupt(binding)
+  }
+
+  prepareControl(binding: RoomHarnessBinding, command: string): Promise<void> {
+    if (binding.transport === 'machine') {
+      throw new Error('room_agent_control_unsupported')
+    }
+    return this.terminal.prepareControl(binding, command)
+  }
+
+  stop(binding: RoomHarnessBinding) {
+    return this.forBinding(binding).stop(binding)
+  }
+
+  restore(binding: RoomHarnessBinding, preferences?: AgentLaunchPreferences) {
+    return binding.transport === 'machine'
+      ? this.machine!.restore(binding)
+      : this.terminal.restore(binding, preferences)
+  }
+
+  reconfigure(binding: RoomHarnessBinding, preferences: AgentLaunchPreferences) {
+    return binding.transport === 'machine'
+      ? this.machine!.reconfigure(binding, preferences)
+      : this.terminal.reconfigure(binding, preferences)
+  }
+
+  status(binding: RoomHarnessBinding) {
+    return this.forBinding(binding).status(binding)
+  }
+
+  incarnation(binding: RoomHarnessBinding): string | null {
+    return binding.transport === 'machine'
+      ? this.machine!.incarnation()
+      : this.terminal.incarnation(binding)
+  }
+
+  awaitReady(binding: RoomHarnessBinding) {
+    return this.forBinding(binding).awaitReady(binding)
+  }
+
+  awaitInputReady(binding: RoomHarnessBinding) {
+    return this.forBinding(binding).awaitInputReady(binding)
+  }
+
+  context(binding: RoomHarnessBinding, current: RoomContextSnapshot) {
+    return this.forBinding(binding).context(binding, current)
+  }
+
+  lastTranscriptActivityAt(binding: RoomHarnessBinding) {
+    return this.forBinding(binding).lastTranscriptActivityAt(binding)
+  }
+
+  compact(binding: RoomHarnessBinding) {
+    if (binding.transport === 'machine') {
+      return this.machine!.compact(binding)
+    }
+    return this.terminal.compact(binding)
+  }
+
+  stageAttachment(
+    binding: RoomHarnessBinding,
+    attachment: Pick<RoomAttachment, 'id' | 'fileName' | 'localPath'>
+  ) {
+    return this.forBinding(binding).stageAttachment(binding, attachment)
+  }
+
+  statusEvent(event: AgentHookEventPayload & { receivedAt: number }) {
+    return this.terminal.statusEvent(event)
+  }
+
+  subscribe(binding: RoomHarnessBinding, callbacks: RoomHarnessSubscriptionCallbacks) {
+    return this.forBinding(binding).subscribe(binding, callbacks)
+  }
+
+  private forBinding(binding: RoomHarnessBinding): RoomHarnessAdapter {
+    return (binding.transport === 'machine' ? this.machine : this.terminal) as RoomHarnessAdapter
+  }
+}
+
+export function createRoomHarnessAdapters(
+  runtime: RoomHarnessRuntime
+): Record<RoomHarnessAgent, RoomHarnessAdapter> {
+  return {
+    claude: new RoutedRoomHarnessAdapter('claude', runtime),
+    openclaude: new RoutedRoomHarnessAdapter('openclaude', runtime),
+    codex: new RoutedRoomHarnessAdapter('codex', runtime),
+    grok: new RoutedRoomHarnessAdapter('grok', runtime),
+    omp: new RoutedRoomHarnessAdapter('omp', runtime)
+  }
+}

@@ -32,7 +32,7 @@ export type AgentSessionExecutionLocation = {
 
 /** Account root pinned at launch by the account selector, so a resume cannot drift to another login. */
 export type AgentSessionAccountHome = {
-  variable: 'CLAUDE_CONFIG_DIR' | 'CODEX_HOME'
+  variable: 'CLAUDE_CONFIG_DIR' | 'CODEX_HOME' | 'HOME'
   /** Host-resolved absolute path in the execution host's own path syntax. */
   path: string
 }
@@ -216,7 +216,9 @@ function isAgentSessionAccountHome(value: unknown): value is AgentSessionAccount
   }
   const home = value as Partial<AgentSessionAccountHome>
   return (
-    (home.variable === 'CLAUDE_CONFIG_DIR' || home.variable === 'CODEX_HOME') &&
+    (home.variable === 'CLAUDE_CONFIG_DIR' ||
+      home.variable === 'CODEX_HOME' ||
+      home.variable === 'HOME') &&
     isBoundedString(home.path, MAX_PATH_LENGTH)
   )
 }
@@ -331,7 +333,7 @@ export function isAgentSessionRecord(value: unknown): value is AgentSessionRecor
     record.schemaVersion === AGENT_SESSION_RECORD_SCHEMA_VERSION &&
     isAgentSessionId(record.sessionId) &&
     isAgentSessionExecutionLocation(record.location) &&
-    (record.provider === 'claude' || record.provider === 'codex') &&
+    (record.provider === 'claude' || record.provider === 'codex' || record.provider === 'acp') &&
     isAgentSessionProviderHandleChain(record.providerHandleChain) &&
     isAgentSessionAccountHome(record.accountHome) &&
     (record.options === undefined || isAgentSessionOptions(record.options)) &&

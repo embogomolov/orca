@@ -217,9 +217,10 @@ export class OrcaRuntimeWithRooms extends OrcaRuntimeWithResolveWaiter {
 
   async stageRoomAttachment(
     worktreeId: string,
-    terminalHandle: string,
+    terminalHandle: string | undefined,
     attachment: Pick<RoomAttachment, 'id' | 'fileName' | 'localPath'>
   ): Promise<string> {
+    if (!terminalHandle) return attachment.localPath
     const ptyId = this.getTerminalAgentStatusPtyId(terminalHandle)
     const pty = this.ptysById.get(ptyId)
     if (!pty || !runtimeWorktreeIdsEqual(pty.worktreeId, worktreeId)) {

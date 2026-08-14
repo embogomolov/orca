@@ -65,6 +65,18 @@ const Block = z.union([
 
 const PromptOption = z.object({ id: z.string(), label: z.string() })
 
+const ProviderQuestion = z.object({
+  id: z.string(),
+  header: z.string(),
+  question: z.string(),
+  options: z
+    .array(z.object({ label: z.string(), description: z.string().optional() }))
+    .optional(),
+  allowOther: z.boolean().optional(),
+  secret: z.boolean().optional(),
+  multiSelect: z.boolean().optional()
+})
+
 const Resolution = z.object({
   state: z.string().min(1),
   selectedOptionId: z.string().nullable(),
@@ -101,12 +113,19 @@ export const AgentJournalItemBodySchema = z.discriminatedUnion('kind', [
     question: z.string(),
     options: z.array(PromptOption),
     freeTextQuestionId: z.string().optional(),
+    questions: z.array(ProviderQuestion).optional(),
     resolution: Resolution
   }),
   z.object({
     kind: z.literal('status'),
     text: z.string(),
-    turnLifecycle: z.object({ turnId: z.string(), state: z.string().min(1) }).optional(),
+    turnLifecycle: z
+      .object({
+        turnId: z.string(),
+        state: z.string().min(1),
+        outcome: z.enum(['completed', 'failed', 'interrupted']).optional()
+      })
+      .optional(),
     providerFrame: ProviderFrame.optional()
   })
 ])

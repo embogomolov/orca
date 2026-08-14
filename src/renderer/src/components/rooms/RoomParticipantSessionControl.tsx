@@ -19,7 +19,7 @@ export function RoomParticipantSessionControl(props: {
 }): React.JSX.Element {
   const { participant, target } = props
   const [compacting, setCompacting] = useState(false)
-  const { surface, snapshot } = useRoomParticipantSessionOptions(participant, target)
+  const { surface, snapshot, canCompact } = useRoomParticipantSessionOptions(participant, target)
   const compact = async (): Promise<void> => {
     setCompacting(true)
     try {
@@ -35,7 +35,7 @@ export function RoomParticipantSessionControl(props: {
       snapshot={snapshot}
       isWorking={isRoomParticipantSessionControlBusy(participant.state, compacting)}
       context={participant.context}
-      canCompact
+      canCompact={canCompact}
       onCompact={compact}
       className={cn(
         'h-9 max-w-80 rounded-md border border-border bg-card px-2',

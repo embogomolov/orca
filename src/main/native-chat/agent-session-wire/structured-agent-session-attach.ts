@@ -120,6 +120,8 @@ export function journalIdentityFor(
             sessionId: head.handle.sessionId,
             leafUuid: head.handle.leafUuid
           }
+        : head?.handle.provider === 'acp'
+          ? { kind: 'acp', agent: head.handle.agent, sessionId: head.handle.sessionId }
         : (params.providerHandle ?? { kind: 'opaque', agent: params.agent, value: 'pending' })
   return {
     sessionId: record.sessionId,

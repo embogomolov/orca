@@ -13,6 +13,7 @@ import {
   isTrustedCompactImageSrc,
   type CommentMarkdownLinkClickHandler
 } from './comment-markdown-element-renderers'
+import { type StreamingMarkdownFade, useStreamingMarkdownFade } from './streaming-markdown-fade'
 
 export type { CommentMarkdownLinkClickHandler } from './comment-markdown-element-renderers'
 
@@ -186,6 +187,7 @@ type CommentMarkdownProps = React.ComponentPropsWithoutRef<'div'> & {
   onLinkClick?: CommentMarkdownLinkClickHandler
   allowFileUriLinks?: boolean
   expandImages?: boolean
+  streamingFade?: StreamingMarkdownFade
 }
 
 // Why forwardRef + rest props: Radix's HoverCardTrigger asChild merges a ref
@@ -201,11 +203,13 @@ const CommentMarkdown = React.memo(
       onLinkClick,
       allowFileUriLinks = false,
       expandImages = false,
+      streamingFade,
       ...rest
     },
     ref
   ) {
-    const components = React.useMemo(() => {
+    const fade = useStreamingMarkdownFade(streamingFade, content)
+    const baseComponents = React.useMemo(() => {
       if (!onLinkClick) {
         return variant === 'document'
           ? documentCommentMarkdownComponents
@@ -217,9 +221,17 @@ const CommentMarkdown = React.memo(
         ? createDocumentCommentMarkdownComponents(onLinkClick)
         : createCompactCommentMarkdownComponents(onLinkClick, expandImages)
     }, [expandImages, variant, onLinkClick])
+    const components = React.useMemo(
+      () => (fade.component ? { ...baseComponents, span: fade.component } : baseComponents),
+      [baseComponents, fade.component]
+    )
     const activeRemarkPlugins = React.useMemo(
       () => (githubRepo ? [...remarkPlugins, remarkGitHubReferences(githubRepo)] : remarkPlugins),
       [githubRepo]
+    )
+    const activeRehypePlugins = React.useMemo(
+      () => (fade.plugin ? [...rehypePlugins, fade.plugin] : rehypePlugins),
+      [fade.plugin]
     )
 
     return (
@@ -237,7 +249,7 @@ const CommentMarkdown = React.memo(
       >
         <Markdown
           remarkPlugins={activeRemarkPlugins}
-          rehypePlugins={rehypePlugins}
+          rehypePlugins={activeRehypePlugins}
           components={components}
           urlTransform={
             allowFileUriLinks ? commentMarkdownFileUriUrlTransform : commentMarkdownUrlTransform

@@ -3,6 +3,7 @@ import { ArrowUp } from 'lucide-react'
 import CommentMarkdown, {
   type CommentMarkdownLinkClickHandler
 } from '@/components/sidebar/CommentMarkdown'
+import type { StreamingMarkdownFade } from '@/components/sidebar/streaming-markdown-fade'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { basename } from '@/lib/path'
@@ -95,7 +96,8 @@ export function NativeChatMessageRow({
   onLinkClick,
   allowFileUriLinks = false,
   deliveryFailed = false,
-  imageLoadContext
+  imageLoadContext,
+  streamingFade
 }: {
   message: NativeChatMessage
   expandSignal: boolean
@@ -104,6 +106,7 @@ export function NativeChatMessageRow({
   allowFileUriLinks?: boolean
   deliveryFailed?: boolean
   imageLoadContext?: NativeChatImageLoadContext
+  streamingFade?: StreamingMarkdownFade
 }): React.JSX.Element | null {
   const rowRef = useRef<HTMLDivElement | null>(null)
   const { prose, tools } = useMemo(() => splitNativeChatBlocks(message.blocks), [message.blocks])
@@ -201,6 +204,7 @@ export function NativeChatMessageRow({
             className="text-sm"
             onLinkClick={onLinkClick}
             allowFileUriLinks={allowFileUriLinks}
+            streamingFade={streamingFade}
           />
         )
       ) : null}

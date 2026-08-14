@@ -87,6 +87,19 @@ function runtimeStub(): RoomHarnessRuntime {
   }
 }
 
+describe('machine room harness', () => {
+  it('keeps untrusted Claude launches on the trust-owning terminal transport', async () => {
+    const runtime = runtimeStub()
+
+    const binding = await createRoomHarnessAdapters(runtime).claude.launch('worktree-1', {
+      machineStreaming: true,
+      trusted: false
+    })
+
+    expect(binding.transport).toBe('terminal')
+  })
+})
+
 it('registers the canonical idle wait before interrupting a room agent', async () => {
   const runtime = runtimeStub()
   const adapter = createRoomHarnessAdapters(runtime).codex

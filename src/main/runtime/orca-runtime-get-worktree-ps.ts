@@ -25,6 +25,7 @@ import type { StructuredAgentSessionHandoffTransport } from '../native-chat/agen
 import { hostname } from 'node:os'
 import { probeAgentSessionProcessIdentity } from './agent-session-process-identity-probe'
 import { structuredAgentSessionTabId } from '../../shared/structured-agent-session-projection'
+import { createHarnessConversationDriverFactory } from '../harness-conversation/driver-factory'
 
 export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStructuredAgentSessionRecoverTuiOwner {
   async getWorktreePs(
@@ -149,9 +150,13 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStructuredAgent
       // in a plain folder lands in the folder rather than failing to resolve.
       resolveWorkspacePath: async (workspaceId) =>
         (await this.resolveRuntimeFileTarget(`id:${workspaceId}`)).worktree.path,
-      resolveLaunchArgs: () => this.resolveConfiguredCodexStructuredArgs(),
+      resolveLaunchArgs: (provider) =>
+        provider === 'codex' ? this.resolveConfiguredCodexStructuredArgs() : [],
       resolveLaunchEnvOverlay: () =>
         resolveTuiAgentLaunchEnv('codex', this.requireStore().getSettings().agentDefaultEnv),
+      createMachineDriver: createHarnessConversationDriverFactory(() =>
+        this.requireStore().getSettings()
+      ),
       handoffTransport: this.createStructuredAgentSessionHandoffTransport()
     })
   }

@@ -11,6 +11,8 @@ import {
   RoomSubscription
 } from './rooms-schemas'
 import { withoutRoomAgentOwners } from '../../rooms/participant-ownership'
+import { ROOM_WORK_METHODS } from './rooms-work'
+import { ROOM_NOTIFICATION_METHODS } from './rooms-notifications'
 
 const Unsubscribe = z.object({ subscriptionId: z.string().trim().min(1).max(256) }).strict()
 
@@ -176,7 +178,9 @@ export const ROOM_CORE_METHODS: readonly RpcAnyMethod[] = [
         displayName: z.string().trim().min(1).max(120),
         agent: HarnessAgent,
         roleId: z.string().uuid().nullable().optional(),
-        connection: ParticipantConnection
+        connection: ParticipantConnection,
+        machineStreaming: z.boolean().optional(),
+        trusted: z.boolean().optional()
       })
       .strict(),
     handler: async (params, { runtime }) => ({
@@ -287,18 +291,6 @@ export const ROOM_CORE_METHODS: readonly RpcAnyMethod[] = [
       return { retried: true }
     }
   }),
-  defineMethod({
-    name: 'rooms.work.stop',
-    params: z.object({ roomId: RoomId }).strict(),
-    handler: async (params, { runtime }) => ({
-      stopped: await runtime.getRoomService().stopRoom(params.roomId)
-    })
-  }),
-  defineMethod({
-    name: 'rooms.work.resume',
-    params: z.object({ roomId: RoomId }).strict(),
-    handler: async (params, { runtime }) => ({
-      resumed: await runtime.getRoomService().resumeRoom(params.roomId)
-    })
-  })
+  ...ROOM_WORK_METHODS,
+  ...ROOM_NOTIFICATION_METHODS
 ]

@@ -17,6 +17,9 @@ import {
   type CodexStructuredSessionAdapterDeps
 } from '../codex/codex-structured-session-adapter'
 import { StructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-host'
+import { StructuredAgentSessionAdapterRouter } from '../native-chat/agent-session-wire/structured-agent-session-adapter-router'
+import { MachineStructuredSessionAdapter } from '../harness-conversation/machine-structured-session-adapter'
+import type { HarnessConversationDriverFactory } from '../harness-conversation/driver'
 import type { StructuredAgentSessionHandoffTransport } from '../native-chat/agent-session-wire/structured-agent-session-handoff-types'
 import { setStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
 import { AgentSessionRecordStore } from './agent-session-record-store'
@@ -64,6 +67,7 @@ export type StructuredAgentSessionRuntimeDeps = {
   resolveLaunchEnvOverlay?: () => Promise<Record<string, string>> | Record<string, string>
   resolveEnvironment?: () => Promise<NodeJS.ProcessEnv>
   resolveCodexOverrides?: () => NodeJS.ProcessEnv
+  createMachineDriver?: HarnessConversationDriverFactory
   onError?: (input: { scope: string; error: unknown }) => void
   handoffTransport?: StructuredAgentSessionHandoffTransport
   reapOrphanChildren?: typeof stopOrphanAgentSessionChildren
@@ -71,7 +75,7 @@ export type StructuredAgentSessionRuntimeDeps = {
 
 type InstalledRuntime = {
   host: StructuredAgentSessionHost
-  adapter: CodexStructuredSessionAdapter
+  adapter: StructuredAgentSessionAdapterRouter
   /** Resolves after every adapter-exit recovery callback has settled. */
   waitForRecovery: () => Promise<void>
 }
@@ -147,6 +151,23 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
   try {
     let host: StructuredAgentSessionHost | null = null
     let recoveryChain = Promise.resolve()
+    const recoverUnexpectedExit = (event: {
+      type: 'ended'
+      sessionId: string
+      reason: string
+      cause: 'unexpected-exit' | 'requested-close'
+      fence: number
+      acquisitionGeneration: string
+    }): void => {
+      if (event.cause !== 'unexpected-exit') return
+      recoveryChain = recoveryChain.then(async () => {
+        try {
+          await host?.handleAdapterEvent(event)
+        } catch (error) {
+          deps.onError?.({ scope: `structured-agent-session-exit:${event.sessionId}`, error })
+        }
+      })
+    }
     const codex = new CodexStructuredSessionAdapter({
       resolveLaunch: createCodexStructuredLaunchResolver({
         store,
@@ -160,19 +181,22 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
         if (event.type !== 'ended' || !('cause' in event) || event.cause !== 'unexpected-exit') {
           return
         }
-        // Serialize recovery with teardown. Exit callbacks arrive from child
-        // process tasks, so a fire-and-forget callback can otherwise append
-        // after the host has flushed and its journal directory is removed.
-        recoveryChain = recoveryChain.then(async () => {
-          try {
-            await host?.handleAdapterEvent(event)
-          } catch (error) {
-            deps.onError?.({ scope: `structured-agent-session-exit:${event.sessionId}`, error })
-          }
-        })
+        recoverUnexpectedExit(event)
       }
     })
-    const adapter = codex
+    const machine = new MachineStructuredSessionAdapter({
+      createDriver:
+        deps.createMachineDriver ??
+        (() => Promise.reject(new Error('structured machine providers are unavailable'))),
+      resolveWorkspacePath: ({ workspaceId }) => deps.resolveWorkspacePath(workspaceId),
+      resolveProviderEnvironment: async ({ sessionId }) => {
+        const record = store.getRecord(sessionId)
+        return record ? { [record.accountHome.variable]: record.accountHome.path } : {}
+      },
+      ...(deps.readProcessStartTime ? { readProcessStartTime: deps.readProcessStartTime } : {}),
+      onEvent: recoverUnexpectedExit
+    })
+    const adapter = new StructuredAgentSessionAdapterRouter(codex, machine)
     host = new StructuredAgentSessionHost({
       store,
       adapter,

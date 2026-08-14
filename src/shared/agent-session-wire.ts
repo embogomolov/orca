@@ -12,6 +12,7 @@ import type {
   AgentJournalResolution,
   AgentJournalSubmission
 } from './agent-session-journal-types'
+import type { SessionOptionDescriptor } from './native-chat-session-options'
 import type { AgentSessionHandoffStage, AgentSessionOwnerRuntimeKind } from './agent-session-record'
 import type { AgentProviderSessionMetadata } from './agent-session-resume'
 
@@ -255,4 +256,6 @@ export type AgentSessionOptionsResult = {
     model: string
     effort?: string
   }
+  descriptors?: SessionOptionDescriptor[]
+  canCompact?: boolean
 }

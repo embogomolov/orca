@@ -27,6 +27,7 @@ export type AgentJournalCursor = {
 export type AgentSessionProviderHandle =
   | { kind: 'codex'; threadId: string }
   | { kind: 'claude'; sessionId: string; leafUuid: string | null }
+  | { kind: 'acp'; agent: AgentType; sessionId: string }
   | { kind: 'opaque'; agent: AgentType; value: string }
 
 /** The narrow slice of the durable session record the journal needs. The full
@@ -127,6 +128,16 @@ export type AgentJournalQuestionItem = {
   options: AgentJournalPromptOption[]
   /** Present when the provider accepts an answer outside the offered options. */
   freeTextQuestionId?: string
+  /** Providers such as Claude may ask several questions in one atomic prompt. */
+  questions?: {
+    id: string
+    header: string
+    question: string
+    options?: { label: string; description?: string }[]
+    allowOther?: boolean
+    secret?: boolean
+    multiSelect?: boolean
+  }[]
   resolution: AgentJournalResolution
 }
 
@@ -135,7 +146,11 @@ export type AgentJournalStatusItem = {
   text: string
   /** Durable root-turn lifecycle used by clients to expose cancellation only
    *  while the provider can still accept it. */
-  turnLifecycle?: { turnId: string; state: 'running' | 'completed' }
+  turnLifecycle?: {
+    turnId: string
+    state: 'running' | 'completed'
+    outcome?: 'completed' | 'failed' | 'interrupted'
+  }
   /** Additive fallback for provider traffic this host cannot model yet. Older
    *  clients still render `text`; newer clients expose the bounded frame. */
   providerFrame?: {

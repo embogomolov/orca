@@ -130,6 +130,9 @@ export async function handoffStructuredSessionToNative(
     throw error
   }
   context.releaseOwner(sessionId)
+  if (record.provider === 'acp') {
+    throw new Error('agent_session_handoff_unsupported')
+  }
   await deps.transport?.revealNativeSession?.({
     workspaceId: record.location.workspaceId,
     sessionId,

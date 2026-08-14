@@ -13,6 +13,9 @@ import { getSystemCodexHomePath } from '../codex/codex-home-paths'
 import { resolveTuiAgentLaunchEnv } from '../../shared/tui-agent-launch-defaults'
 import { hasPersistedStructuredAgentSessionStore as hasPersistedStructuredAgentSessionStoreOnDisk } from './structured-agent-session-runtime'
 import { getProfileUserDataPath } from '../orca-profiles/profile-storage-paths'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import type { StructuredMachineAgent } from '../../shared/structured-agent-provider'
 
 export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends OrcaRuntimeWithStopStructuredSessionProcess {
   protected async resolveRecoveredStructuredTuiTranscript(input: {
@@ -46,7 +49,7 @@ export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends Orca
 
   async getStructuredAgentSessionCreateSupport(
     worktreeSelector: string,
-    agent: 'codex'
+    agent: StructuredMachineAgent
   ): Promise<{ supported: boolean; reason?: 'agent' | 'remote' | 'wsl' }> {
     const location = await this.resolveStructuredAgentSessionLocation(worktreeSelector)
     await this.ensureStructuredAgentSessionHost()
@@ -111,17 +114,22 @@ export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends Orca
   async resolveStructuredAgentSessionCreateIntent(input: {
     envelope: { sessionId: string; clientOperationId: string }
     worktree: string
-    agent: 'codex'
+    agent: StructuredMachineAgent
   }): Promise<AgentSessionAttachParams> {
     return this.resolveStructuredAgentSessionIntent(input, async ({ workspacePath, launchEnv }) => {
       // A create has no process yet, so the current selection is what it must follow.
-      const preparedHome = await this.prepareCodexStructuredLaunchFn?.({ workspacePath, launchEnv })
-      const configuredHome = launchEnv.CODEX_HOME
-      return (
-        preparedHome?.trim() ||
-        (this.prepareCodexStructuredLaunchFn ? getSystemCodexHomePath() : configuredHome?.trim()) ||
-        getSystemCodexHomePath()
-      )
+      if (input.agent === 'codex') {
+        const preparedHome = await this.prepareCodexStructuredLaunchFn?.({ workspacePath, launchEnv })
+        const configuredHome = launchEnv.CODEX_HOME
+        return (
+          preparedHome?.trim() ||
+          (this.prepareCodexStructuredLaunchFn ? getSystemCodexHomePath() : configuredHome?.trim()) ||
+          getSystemCodexHomePath()
+        )
+      }
+      return input.agent === 'claude'
+        ? launchEnv.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), '.claude')
+        : launchEnv.HOME?.trim() || homedir()
     })
   }
 
@@ -129,7 +137,7 @@ export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends Orca
     input: {
       envelope: { sessionId: string; clientOperationId: string }
       worktree: string
-      agent: 'codex'
+      agent: StructuredMachineAgent
     },
     resolveAccountHomePath: (context: {
       workspacePath: string
@@ -152,10 +160,15 @@ export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends Orca
         payloadFingerprint: ''
       },
       location,
-      provider: input.agent,
+      provider: input.agent === 'grok' || input.agent === 'omp' ? 'acp' : input.agent,
       agent: input.agent,
       accountHome: {
-        variable: 'CODEX_HOME',
+        variable:
+          input.agent === 'codex'
+            ? 'CODEX_HOME'
+            : input.agent === 'claude'
+              ? 'CLAUDE_CONFIG_DIR'
+              : 'HOME',
         path: await resolveAccountHomePath({ workspacePath, launchEnv })
       },
       runtimeKind: 'native'

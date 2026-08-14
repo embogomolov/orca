@@ -289,7 +289,9 @@ function AgentSessionControlsInner({
     }
   }
   const modelLabel = model ? nativeChatModelPillLabel(model) : 'Session'
-  const optionLabel = options.length > 0 ? nativeChatOptionsPillLabel(options) : null
+  const optionLabel = options.some((option) => option.valueSource !== 'unknown')
+    ? nativeChatOptionsPillLabel(options)
+    : null
   const displayedContext = contextForSelectedWindow(context, options)
   const summary = contextSummary(displayedContext)
   const compacting =
