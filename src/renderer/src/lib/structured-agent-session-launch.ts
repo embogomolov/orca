@@ -1,4 +1,4 @@
-import type { AgentSessionHandleProvider } from '../../../shared/agent-session-provider-handle'
+import type { StructuredMachineAgent } from '../../../shared/structured-agent-provider'
 import { structuredAgentLabel } from '@/lib/structured-agent-session-launch-label'
 import {
   abandonStructuredAgentSessionLaunchIntent,
@@ -194,7 +194,7 @@ function restartStructuredLaunchState(state: StructuredLaunchState): void {
 
 function structuredAgentLaunchState(
   worktreeId: string,
-  agent: AgentSessionHandleProvider,
+  agent: StructuredMachineAgent,
   options: StructuredAgentLaunchOptions
 ): StructuredLaunchStateResult {
   const identity = structuredLaunchIdentity(worktreeId, agent, options.resumeFrom)
@@ -289,7 +289,7 @@ export function cancelStructuredAgentLaunch(worktreeId: string, sessionId: strin
 
 export function startStructuredAgentLaunch(
   worktreeId: string,
-  agent: AgentSessionHandleProvider,
+  agent: StructuredMachineAgent,
   options: StructuredAgentLaunchOptions = {}
 ): StructuredAgentLaunchResult {
   const { state, caller } = structuredAgentLaunchState(worktreeId, agent, options)

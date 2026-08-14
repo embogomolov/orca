@@ -13,6 +13,8 @@
 import type { AgentSessionWireRefusal } from '../../../shared/agent-session-wire'
 import { agentSessionRefusalError } from '../../../shared/agent-session-wire-refusals'
 import { adapterSupportsRecord } from './structured-agent-session-provider-support'
+import { agentSessionRecordAgent } from '../../../shared/agent-session-record'
+import { isStructuredMachineAgent } from '../../../shared/structured-agent-provider'
 import { StructuredAgentSessionReadableRestorer } from './structured-agent-session-readable-restorer'
 import { StructuredAgentSessionRestartRestoreGate } from './structured-agent-session-restart-restore-gate'
 import {
@@ -39,6 +41,8 @@ export async function revealStructuredAgentSession(
       reason: 'hostUnsupported'
     })
   }
+  const agent = agentSessionRecordAgent(record)
+  if (!isStructuredMachineAgent(agent)) throw new Error('structured_agent_session_unsupported')
   // Lease state is not consulted on purpose: this neither claims the lease nor spawns a child, so a
   // contested or reconciling chat still reveals and the send that follows adjudicates it. Refusing
   // here would hide the one view of a session a user needs when its ownership is in doubt.
@@ -51,7 +55,7 @@ export async function revealStructuredAgentSession(
     // From the record, never from a caller: a client that knows only a session id must not be able
     // to aim the tab publication at another workspace.
     workspaceId: record.location.workspaceId,
-    agent: record.provider,
+    agent,
     readable
   }
 }

@@ -5,7 +5,7 @@ import type {
   RoomParticipant,
   RoomProviderSession
 } from '../../../shared/rooms'
-import { participantFromRow, type RoomRow } from './rows'
+import { participantFromRow } from './rows'
 
 export type RoomAgentOwnershipIdentity = {
   worktreeId?: string | null
@@ -26,7 +26,7 @@ export function findRoomAgentOwner(
         (worktree_id = ? AND provider_session_json IS NOT NULL)
       )`
     )
-    .all(input.paneKey ?? null, input.terminalHandle ?? null, input.worktreeId ?? null) as RoomRow[]
+    .all(input.paneKey ?? null, input.terminalHandle ?? null, input.worktreeId ?? null)
   const family = input.agent === 'openclaude' ? 'claude' : input.agent
   return (
     rows
@@ -38,9 +38,21 @@ export function findRoomAgentOwner(
           (family &&
             input.providerSession &&
             (participant.agent === 'openclaude' ? 'claude' : participant.agent) === family &&
-            participant.providerSession?.key === input.providerSession.key &&
-            participant.providerSession.id === input.providerSession.id)
+            sameProviderSession(participant.providerSession, input.providerSession))
       ) ?? null
+  )
+}
+
+function sameProviderSession(
+  left: RoomProviderSession | null,
+  right: RoomProviderSession
+): boolean {
+  return Boolean(
+    left &&
+    ((left.key === right.key && left.id === right.id) ||
+      (left.sourceSessionId &&
+        (left.sourceSessionId === right.sourceSessionId || left.sourceSessionId === right.id)) ||
+      (right.sourceSessionId && right.sourceSessionId === left.id))
   )
 }
 

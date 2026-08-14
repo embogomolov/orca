@@ -54,6 +54,7 @@ import { createStructuredAgentSessionConversationDelivery } from './structured-a
 import { structuredAgentSessionConversationFence } from './structured-agent-session-provider-child'
 import { wireStructuredAgentSessionQueuedMessages } from './structured-agent-session-queued-wiring'
 import * as sessionLogger from './structured-agent-session-logger'
+import { listStructuredSessionSubagents } from './structured-agent-session-subagents'
 export type { StructuredAgentSessionHostDeps } from './structured-agent-session-host-types'
 
 export class StructuredAgentSessionHost {
@@ -61,6 +62,8 @@ export class StructuredAgentSessionHost {
     () => this.mutationContext(),
     this
   )
+  listSubagentSessions = (sessionId: string) =>
+    listStructuredSessionSubagents(this.deps.store.getRecord(sessionId))
   private readonly sessions = new StructuredAgentSessionConversations({
     deliver: (sessionId, journal) => {
       this.subscribers.publish(sessionId, journal)
@@ -314,6 +317,16 @@ export class StructuredAgentSessionHost {
   conversationReplacements = () => this.conversationCommands.replacements()
   /** Undefined means unavailable; an empty array is an authoritative catalog. */
   readCommands = (sessionId: string) => ({ commands: this.clientDelivery.readCommands(sessionId) })
+
+  readContext = (sessionId: string) => {
+    this.requireSession(sessionId)
+    return this.deps.adapter.readContext?.(sessionId) ?? null
+  }
+
+  readConfiguration = (sessionId: string) => {
+    this.requireSession(sessionId)
+    return this.deps.adapter.readConfiguration?.(sessionId) ?? null
+  }
 
   /** From the record store, never the session map: an idle-released chat has no map entry. */
   handoffStatus = (sessionId: string): SessionWire.AgentSessionHandoffStatus =>

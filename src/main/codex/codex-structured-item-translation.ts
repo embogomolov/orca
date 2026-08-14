@@ -1,6 +1,7 @@
 import { toolExecutionMetadata, toolWebSearchResults } from '../../shared/native-chat-tool-identity'
 import type { AgentJournalItemBody } from '../../shared/agent-session-journal-types'
 import type { NativeChatBlock } from '../../shared/native-chat-types'
+import { codexSubagentItem } from '../../shared/codex-subagent-items'
 import {
   boundInlineText,
   boundToolInput,
@@ -233,6 +234,14 @@ export function codexJournalItem(
   helperName?: CodexHelperName,
   started?: CodexThreadItem
 ): CodexJournalItem {
+  if (item.type === 'subAgentActivity') return { handled: true, body: null }
+  const subagent = codexSubagentItem(item)
+  if (subagent) {
+    return {
+      body: { ...subagent, input: boundToolInput(subagent.input, DEFAULT_JOURNAL_PAYLOAD_LIMITS) },
+      handled: true
+    }
+  }
   if (item.type === 'userMessage' || item.type === 'agentMessage') {
     const blocks = codexMessageBlocks(item)
     return {

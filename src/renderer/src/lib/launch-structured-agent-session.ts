@@ -1,4 +1,4 @@
-import type { AgentSessionHandleProvider } from '../../../shared/agent-session-provider-handle'
+import type { StructuredMachineAgent } from '../../../shared/structured-agent-provider'
 import type {
   AgentSessionAttachResult,
   AgentSessionMutationResult
@@ -31,7 +31,7 @@ import { createBrowserUuid } from '@/lib/browser-uuid'
 export type StructuredAgentSessionLaunchIntent = {
   sessionId: string
   worktreeId: string
-  agent: AgentSessionHandleProvider
+  agent: StructuredMachineAgent
   params: StructuredAgentSessionCreateParams
   /** The saved selection create seeds, read when the intent is built. */
   seedOptions?: Readonly<Record<string, string>>
@@ -39,7 +39,7 @@ export type StructuredAgentSessionLaunchIntent = {
 
 function launchSeedOptions(
   state: ReturnType<typeof useAppStore.getState>,
-  agent: AgentSessionHandleProvider
+  agent: StructuredMachineAgent
 ): { seedOptions?: Readonly<Record<string, string>> } {
   const seedOptions = resolveStructuredLaunchSeedOptions(
     state.settings?.nativeChatSessionOptions,
@@ -110,7 +110,7 @@ function definitiveStructuredAgentSessionCreateErrorCode(error: unknown): string
 
 export function createStructuredAgentSessionLaunchIntent(
   worktreeId: string,
-  agent: AgentSessionHandleProvider,
+  agent: StructuredMachineAgent,
   resumeFrom?: StructuredAgentSessionResumeSource
 ): StructuredAgentSessionLaunchIntent {
   const sessionId = createStructuredAgentSessionId(agent, createBrowserUuid)
@@ -119,7 +119,7 @@ export function createStructuredAgentSessionLaunchIntent(
 
 function buildStructuredAgentSessionLaunchIntent(
   worktreeId: string,
-  agent: AgentSessionHandleProvider,
+  agent: StructuredMachineAgent,
   sessionId: string,
   resumeFrom?: StructuredAgentSessionResumeSource
 ): StructuredAgentSessionLaunchIntent {
@@ -162,7 +162,7 @@ export function retryStructuredAgentSessionLaunchIntent(
 export function restoreStructuredAgentSessionLaunchIntent(args: {
   worktreeId: string
   sessionId: string
-  agent: AgentSessionHandleProvider
+  agent: StructuredMachineAgent
   clientOperationId: string
   payloadFingerprint: string
   expectedRuntimeFence: number | null

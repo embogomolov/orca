@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import type { AgentSessionHandleProvider } from '../../../shared/agent-session-provider-handle'
 import type { AgentSessionWriteRefusal } from '../../../shared/agent-session-write-failure'
+import type { StructuredMachineAgent } from '../../../shared/structured-agent-provider'
 import type { StructuredAgentSessionResumeSource } from '../../../shared/structured-agent-session-create'
 import type { StructuredLaunchRecoveryState } from './structured-agent-session-launch-recovery'
 import type { StructuredLaunchSelection } from './structured-agent-session-launch-options'
@@ -70,7 +71,7 @@ export function subscribeStructuredAgentLaunchStatus(listener: () => void): () =
 // Why keyed by conversation: a resume must not coalesce onto an unrelated blank launch.
 export function structuredLaunchIdentity(
   worktreeId: string,
-  agent: AgentSessionHandleProvider,
+  agent: StructuredMachineAgent,
   resumeFrom?: StructuredAgentSessionResumeSource
 ): string {
   return resumeFrom
@@ -324,7 +325,7 @@ export function retireAbsentStructuredAgentSessionLaunchCancellationTombstones(
 
 export function getStructuredAgentLaunchStatus(
   worktreeId: string,
-  agent: AgentSessionHandleProvider
+  agent: StructuredMachineAgent
 ): StructuredAgentLaunchStatus {
   // Any launch for this pair, including adopted conversations, means a chat is starting here.
   const states = [

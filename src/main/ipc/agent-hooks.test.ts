@@ -204,7 +204,8 @@ describe('agentStatus:getSnapshot IPC', () => {
     const runtime = {
       getAgentStatusTerminalHandleForPaneKey: vi.fn(() => undefined),
       getAgentStatusOrchestrationContextForPaneKey: vi.fn(() => undefined),
-      shouldPublishAgentStatusToRenderer: vi.fn((paneKey: string) => paneKey !== PANE_KEY)
+      shouldPublishAgentStatusToRenderer: vi.fn((paneKey: string) => paneKey !== PANE_KEY),
+      getTerminalProcessIncarnation: vi.fn(() => null)
     }
     const { registerAgentHookHandlers } = await import('./agent-hooks')
     registerAgentHookHandlers(runtime)

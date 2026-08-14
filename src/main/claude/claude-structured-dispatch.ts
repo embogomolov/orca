@@ -5,7 +5,10 @@ import {
   retireWaiter,
   waitForReplay
 } from './claude-structured-dispatch-waiters'
-import type { AgentJournalMessageItem } from '../../shared/agent-session-journal-types'
+import type {
+  AgentJournalMessageItem,
+  AgentJournalTurn
+} from '../../shared/agent-session-journal-types'
 import type { AgentSessionDispatchOutcome } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import type { ClaudeDispatchWaiter, ClaudeSession } from './claude-structured-session-state'
 import type { ClaudeLateDispatchSettlement } from './claude-replay-turn-resolution'
@@ -110,6 +113,15 @@ export function retireClaudeDispatchWaiters(session: ClaudeSession): void {
 function claudeWriteFailureRejection(error: unknown): AgentJournalDispatchRejection {
   console.warn('[claude-dispatch] message could not be handed to Claude:', error)
   return claudeDispatchRejection(agentSessionFailureFact('writeFailed'))
+
+}
+
+export function cancelPendingClaudeSteers(session: ClaudeSession, turnId: string): void {
+  const pending = session.dispatchWaiters.filter((waiter) => waiter.steeredTurnId === turnId)
+  for (const waiter of pending) {
+    retireWaiter(session, waiter)
+    waiter.resolve(null)
+  }
 }
 
 export async function dispatchClaudeTurn(
@@ -118,6 +130,7 @@ export async function dispatchClaudeTurn(
     clientMessageId?: string
     body: AgentJournalMessageItem
     requestedAt?: number
+    turnId?: string
     /** The frame's uuid, for a caller that correlates the provider's answer to it. */
     sentUuid?: string
   },
@@ -136,15 +149,20 @@ export async function dispatchClaudeTurn(
   if (startupFailure) {
     return { state: 'rejected', ...claudeDispatchRejection(startupFailure) }
   }
+  if (input.turnId && session.translator?.currentTurnId !== input.turnId) {
+    return { state: 'rejected', reason: 'conversation_turn_mismatch' }
+  }
   // Read the sent content, not the journal blocks: only the mapped trailing prompt decides
   // whether Claude runs a command, so the two cannot disagree about which frame settles this.
   const acceptsResult = claudeDispatchInvokesSlashCommand(content)
   const sentUuid = input.sentUuid ?? randomUUID()
   const arm = () => {
-    ++session.dispatchSequence
-    // A context report asked for before this send may land after it and misstate the context.
+    if (input.turnId && session.translator?.currentTurnId !== input.turnId) {
+      throw claudeUnwrittenUserMessageError(new Error('conversation_turn_mismatch'))
+    }
+    if (!input.turnId) ++session.dispatchSequence
     session.translator?.markContextActivity()
-    return waitForReplay(
+    const replay = waitForReplay(
       session,
       acceptsResult,
       sentUuid,
@@ -152,9 +170,12 @@ export async function dispatchClaudeTurn(
       input.clientMessageId ?? null,
       input.requestedAt ?? null
     )
+    replay.waiter.steeredTurnId = input.turnId
+    return replay
   }
   const message = {
     type: 'user',
+    ...(input.turnId ? { priority: 'next' } : {}),
     uuid: sentUuid,
     message: { role: 'user', content },
     parent_tool_use_id: null,
@@ -188,7 +209,12 @@ export async function dispatchClaudeTurn(
       if (uuid) {
         return {
           state: 'accepted',
-          providerIdentity: { provider: 'claude', sessionId: session.providerSessionId, uuid }
+          providerIdentity: {
+            provider: 'claude',
+            sessionId: session.providerSessionId,
+            uuid,
+            ...(waiter.steeredTurnId ? { turn: waiter.turn } : {})
+          }
         }
       }
     }
@@ -210,5 +236,19 @@ export async function dispatchClaudeTurn(
   // turn already running, which is why the deadline this replaces kept declaring
   // doubt about messages that were delivered. The replay resolution
   // (`claude-replay-turn-resolution.ts`) finishes the job.
+  if (input.turnId && pending.replay) {
+    const uuid = await pending.replay.promise
+    return uuid
+      ? {
+          state: 'accepted',
+          providerIdentity: {
+            provider: 'claude',
+            sessionId: session.providerSessionId,
+            uuid,
+            turn: pending.replay.waiter.turn
+          }
+        }
+      : { state: 'unknown', reason: 'Claude did not confirm the steered message' }
+  }
   return { state: 'admitted' }
 }

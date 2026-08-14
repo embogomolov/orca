@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type * as ReactModule from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SessionOptionDescriptor } from '../../../../shared/native-chat-session-options'
+import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 
 vi.mock('@/i18n/i18n', () => ({
   translate: (_key: string, fallback: string, values?: Record<string, string | number>) => {
@@ -29,8 +30,8 @@ vi.mock('@/components/ui/tooltip', () => ({
   TooltipContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@/components/ui/dropdown-menu', () => {
-  const React = require('react') as typeof ReactModule
+vi.mock('@/components/ui/dropdown-menu', async () => {
+  const React = await vi.importActual<typeof ReactModule>('react')
   return {
     DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     DropdownMenuTrigger: ({
@@ -102,14 +103,16 @@ vi.mock('@/components/ui/dropdown-menu', () => {
         data-on-value-change={onValueChange ? '1' : '0'}
       >
         {React.Children.map(children, (child) => {
-          if (!React.isValidElement(child)) {
+          if (
+            !React.isValidElement<{
+              value?: string
+              disabled?: boolean
+              children?: React.ReactNode
+            }>(child)
+          ) {
             return child
           }
-          const props = child.props as {
-            value?: string
-            disabled?: boolean
-            children?: React.ReactNode
-          }
+          const props = child.props
           const selected = props.value !== undefined && props.value === value
           return (
             <button
@@ -138,11 +141,7 @@ vi.mock('@/components/ui/dropdown-menu', () => {
     }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }) => (
       // Why: parent RadioGroup mock reads `value` via Children.map — keep it on
       // props even though native span has no value attribute.
-      <span
-        data-radio-item
-        data-disabled={disabled || undefined}
-        {...({ value } as Record<string, string>)}
-      >
+      <span data-radio-item data-disabled={disabled || undefined} {...{ value }}>
         {children}
       </span>
     )
@@ -231,6 +230,117 @@ const fast: SessionOptionDescriptor = {
 afterEach(() => cleanup())
 
 describe('AgentSessionControls', () => {
+  it('keeps a matching session effort visible without inventing a picker or stale Fast mode', () => {
+    const context = {
+      ...EMPTY_AGENT_SESSION_CONTEXT,
+      model: 'opus',
+      effort: 'high',
+      fastMode: true
+    }
+    const off = { ...fast, kind: { type: 'boolean' as const, currentValue: false } }
+    const props = { surface, isWorking: false, context, fallbackOptionLabel: 'High · Fast' }
+    const { rerender } = render(<AgentSessionControls {...props} snapshot={[model(), off]} />)
+    expect(
+      screen.getByRole('button', { name: 'Opus 4.8 High. Context unavailable' })
+    ).not.toBeNull()
+    expect(screen.queryByText('Effort')).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'High' })).toBeNull()
+
+    rerender(<AgentSessionControls {...props} snapshot={[model(), fast]} />)
+    expect(
+      screen.getByRole('button', { name: 'Opus 4.8 High · Fast. Context unavailable' })
+    ).not.toBeNull()
+
+    rerender(
+      <AgentSessionControls
+        {...props}
+        snapshot={[
+          model(),
+          {
+            ...effort,
+            kind: { type: 'select', currentValue: 'low', choices: [{ value: 'low', label: 'Low' }] }
+          },
+          off
+        ]}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Opus 4.8 Low. Context unavailable' })).not.toBeNull()
+
+    rerender(
+      <AgentSessionControls
+        {...props}
+        snapshot={[
+          model({ kind: { type: 'select', currentValue: 'other-model', choices: [] } }),
+          off
+        ]}
+      />
+    )
+    expect(
+      screen.getByRole('button', { name: 'other-model Options. Context unavailable' })
+    ).not.toBeNull()
+  })
+
+  it('shows the provider description for an unavailable option', () => {
+    const description = 'Claude reports Fast mode unavailable: extra_usage_disabled.'
+    render(
+      <AgentSessionControls
+        surface={surface}
+        snapshot={[model(), { ...fast, settable: false, description }]}
+        isWorking={false}
+      />
+    )
+    expect(screen.getByText(description)).not.toBeNull()
+    expect(screen.getByRole('switch', { name: 'Fast mode' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('keeps a participant pill visible while its persisted session is unavailable', () => {
+    render(
+      <AgentSessionControls
+        surface={null}
+        snapshot={[]}
+        isWorking={false}
+        leading={<span>@codex</span>}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Session. Context unavailable' })).not.toBeNull()
+    expect(screen.getByText('@codex')).not.toBeNull()
+  })
+
+  it('uses persisted labels only until live session options arrive', () => {
+    const { rerender } = render(
+      <AgentSessionControls
+        surface={null}
+        snapshot={[]}
+        isWorking={false}
+        fallbackModelLabel="GPT-5.6 Sol"
+        fallbackOptionLabel="High · Fast"
+        leading={<span>@codex</span>}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', {
+        name: 'GPT-5.6 Sol High · Fast. Context unavailable'
+      })
+    ).not.toBeNull()
+
+    rerender(
+      <AgentSessionControls
+        surface={surface}
+        snapshot={[model(), effort]}
+        isWorking={false}
+        fallbackModelLabel="GPT-5.6 Sol"
+        fallbackOptionLabel="High · Fast"
+        leading={<span>@codex</span>}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Opus 4.8 High. Context unavailable' })
+    ).not.toBeNull()
+  })
+
   it('prefers collision-aware upward placement', () => {
     render(
       <AgentSessionControls surface={surface} snapshot={[model(), effort]} isWorking={false} />
@@ -289,7 +399,7 @@ describe('AgentSessionControls', () => {
     expect(screen.getByText('Context window')).not.toBeNull()
   })
 
-  it('names a lone unknown effort control explicitly', () => {
+  it('does not put an unknown effort value in the pill', () => {
     render(
       <AgentSessionControls
         surface={surface}
@@ -299,8 +409,8 @@ describe('AgentSessionControls', () => {
     )
 
     expect(
-      screen.getByRole('button', { name: 'Opus 4.8 Effort. Context unavailable' }).textContent
-    ).toContain('Effort')
+      screen.getByRole('button', { name: 'Opus 4.8. Context unavailable' }).textContent
+    ).not.toContain('Effort')
   })
 
   it('keeps session details inspectable while the agent is working', () => {
@@ -327,9 +437,7 @@ describe('AgentSessionControls', () => {
         isWorking={false}
       />
     )
-    const unknownTrigger = screen.getByRole('button', {
-      name: 'Model Effort. Context unavailable'
-    })
+    const unknownTrigger = screen.getByRole('button', { name: 'Model. Context unavailable' })
     expect(unknownTrigger.textContent).not.toContain('Model: Model')
     expect(unknownTrigger.textContent).not.toContain('Effort: Effort')
 

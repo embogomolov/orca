@@ -7,6 +7,7 @@ import type { AgentJournalRenderItem } from '../../shared/agent-session-journal-
 import type { AgentSessionSubscribeEvent } from '../../shared/agent-session-wire'
 import {
   AGENT_SESSION_TURN_ITEM_CAPABILITY,
+  CLAUDE_STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
   STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
 } from '../../shared/protocol-version'
 import { fakeClaude } from './claude-structured-fake-connection-test-fixture'
@@ -38,7 +39,10 @@ const WORKSPACE = 'workspace-claude'
 // which structured-agent-session.test.ts pins in both its satisfied and refused states.
 const CLIENT = {
   clientKind: 'runtime' as const,
-  clientCapabilities: [STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY]
+  clientCapabilities: [
+    STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
+    CLAUDE_STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
+  ]
 }
 
 const { resolveSessionFilePath } = vi.hoisted(() => ({
