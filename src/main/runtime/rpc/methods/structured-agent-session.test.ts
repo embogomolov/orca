@@ -810,6 +810,14 @@ describe('parameter validation', () => {
     )
     expect(response).toMatchObject({ ok: true })
   })
+
+  it('reads subagents without a provider mutation or a renderer-supplied file path', async () => {
+    expect(
+      await call('agentSession.subagents', { sessionId: SESSION }, STRUCTURED_CLIENT)
+    ).toMatchObject({ ok: true, result: { sessions: [], issues: [] } })
+    expect(hostCalls.listSubagentSessions).toHaveBeenCalledWith(SESSION)
+    await rejects('agentSession.subagents', { sessionId: '' })
+  })
 })
 
 describe('agentSession.subscribeStatus', () => {

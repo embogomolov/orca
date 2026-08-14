@@ -5,7 +5,10 @@ import {
   retireWaiter,
   waitForReplay
 } from './claude-structured-dispatch-waiters'
-import type { AgentJournalMessageItem } from '../../shared/agent-session-journal-types'
+import type {
+  AgentJournalMessageItem,
+  AgentJournalTurn
+} from '../../shared/agent-session-journal-types'
 import type { AgentSessionDispatchOutcome } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import {
   claudeHasReplayContent,
@@ -45,7 +48,7 @@ const MAX_ACTIVE_DISPATCH_WAITERS = 64
 /** Settles a provider-proven late outcome; replay rows independently reconcile acceptance. */
 export type ClaudeLateDispatchSettlement = (input: ClaudeLateDispatchOutcome) => void
 
-export type ClaudeReplayTurnOrigin = { requestedAt: number | null }
+export type ClaudeReplayTurnOrigin = { requestedAt: number | null; turn?: AgentJournalTurn }
 
 export function resolveClaudeReplayTurn(
   session: ClaudeSession,
@@ -79,7 +82,7 @@ export function resolveClaudeReplayTurn(
     )
     if (exact) {
       settleWaiter(session, exact, uuid, onSettledLate)
-      return isUserReplay ? { requestedAt: exact.requestedAt } : null
+      return isUserReplay ? replayOrigin(exact) : null
     }
     const retired = session.retiredDispatchWaiters.find(
       (candidate) => candidate.sentUuid === userMessageUuid
@@ -95,7 +98,7 @@ export function resolveClaudeReplayTurn(
   const exact = session.dispatchWaiters.find((candidate) => candidate.sentUuid === uuid)
   if (exact) {
     settleWaiter(session, exact, uuid, onSettledLate)
-    return isUserReplay ? { requestedAt: exact.requestedAt } : null
+    return isUserReplay ? replayOrigin(exact) : null
   }
   const retired = session.retiredDispatchWaiters.find((candidate) => candidate.sentUuid === uuid)
   if (retired) {
@@ -117,7 +120,7 @@ export function resolveClaudeReplayTurn(
       if (compatible.length === 1) {
         const [candidate] = compatible
         settleWaiter(session, candidate!, uuid, onSettledLate)
-        return { requestedAt: candidate!.requestedAt }
+        return replayOrigin(candidate!)
       }
     } else if (!session.replayContentFallbackBlocked && session.dispatchWaiters.length === 0) {
       const lateCompatible = session.retiredDispatchWaiters.filter(
@@ -148,7 +151,7 @@ export function resolveClaudeReplayTurn(
   const waiter = uuid ? session.dispatchWaiters.shift() : undefined
   if (waiter && uuid) {
     settleWaiter(session, waiter, uuid, onSettledLate)
-    return isUserReplay ? { requestedAt: waiter.requestedAt } : null
+    return isUserReplay ? replayOrigin(waiter) : null
   }
   return null
 }
@@ -164,12 +167,18 @@ function settleWaiter(
     session.dispatchWaiters.splice(index, 1)
   }
   waiter.settledUuid = uuid
+  adoptTurn(session, waiter, uuid)
   waiter.resolve(uuid)
   // Dispatch returned on admission, so the replay is what settles delivery.
   if (waiter.clientMessageId) {
     onSettledLate?.({
       clientMessageId: waiter.clientMessageId,
-      providerIdentity: { provider: 'claude', sessionId: session.providerSessionId, uuid }
+      providerIdentity: {
+        provider: 'claude',
+        sessionId: session.providerSessionId,
+        uuid,
+        ...(waiter.steeredTurnId ? { turn: waiter.turn } : {})
+      }
     })
   }
 }
@@ -233,9 +242,17 @@ export function retireClaudeDispatchWaiters(session: ClaudeSession): void {
   }
 }
 
+export function cancelPendingClaudeSteers(session: ClaudeSession, turnId: string): void {
+  const pending = session.dispatchWaiters.filter((waiter) => waiter.steeredTurnId === turnId)
+  for (const waiter of pending) {
+    retireWaiter(session, waiter)
+    waiter.resolve(null)
+  }
+}
+
 export async function dispatchClaudeTurn(
   session: ClaudeSession,
-  input: { clientMessageId?: string; body: AgentJournalMessageItem; requestedAt?: number },
+  input: { clientMessageId?: string; body: AgentJournalMessageItem; requestedAt?: number; turnId?: string },
   beforeDispatch?: () => Promise<void>,
   onSettledLate?: ClaudeLateDispatchSettlement
 ): Promise<AgentSessionDispatchOutcome> {
@@ -252,15 +269,20 @@ export async function dispatchClaudeTurn(
   if (startupFailure) {
     return { state: 'rejected', reason: startupFailure }
   }
+  if (input.turnId && session.translator?.currentTurnId !== input.turnId) {
+    return { state: 'rejected', reason: 'conversation_turn_mismatch' }
+  }
   // Read the sent content, not the journal blocks: only the mapped trailing prompt decides
   // whether Claude runs a command, so the two cannot disagree about which frame settles this.
   const acceptsResult = claudeDispatchInvokesSlashCommand(content)
   const sentUuid = randomUUID()
   const arm = () => {
-    ++session.dispatchSequence
-    // A context report asked for before this send may land after it and misstate the context.
+    if (input.turnId && session.translator?.currentTurnId !== input.turnId) {
+      throw claudeUnwrittenUserMessageError(new Error('conversation_turn_mismatch'))
+    }
+    if (!input.turnId) ++session.dispatchSequence
     session.translator?.markContextActivity()
-    return waitForReplay(
+    const replay = waitForReplay(
       session,
       acceptsResult,
       sentUuid,
@@ -268,9 +290,12 @@ export async function dispatchClaudeTurn(
       input.clientMessageId ?? null,
       input.requestedAt ?? null
     )
+    replay.waiter.steeredTurnId = input.turnId
+    return replay
   }
   const message = {
     type: 'user',
+    ...(input.turnId ? { priority: 'next' } : {}),
     uuid: sentUuid,
     message: { role: 'user', content },
     parent_tool_use_id: null,
@@ -312,7 +337,12 @@ export async function dispatchClaudeTurn(
       if (uuid) {
         return {
           state: 'accepted',
-          providerIdentity: { provider: 'claude', sessionId: session.providerSessionId, uuid }
+          providerIdentity: {
+            provider: 'claude',
+            sessionId: session.providerSessionId,
+            uuid,
+            ...(waiter.steeredTurnId ? { turn: waiter.turn } : {})
+          }
         }
       }
     }
@@ -333,5 +363,30 @@ export async function dispatchClaudeTurn(
   // The write is the admission signal. Awaiting the echo here would block on the
   // turn already running, which is why the deadline this replaces kept declaring
   // doubt about messages that were delivered. `settleWaiter` finishes the job.
+  if (input.turnId && pending.replay) {
+    const uuid = await pending.replay.promise
+    return uuid
+      ? {
+          state: 'accepted',
+          providerIdentity: {
+            provider: 'claude',
+            sessionId: session.providerSessionId,
+            uuid,
+            turn: pending.replay.waiter.turn
+          }
+        }
+      : { state: 'unknown', reason: 'Claude did not confirm the steered message' }
+  }
   return { state: 'admitted' }
+}
+
+function adoptTurn(session: ClaudeSession, waiter: ClaudeDispatchWaiter, uuid: string): void {
+  waiter.turn =
+    waiter.steeredTurnId && session.translator?.currentTurnId === waiter.steeredTurnId
+      ? { turnId: waiter.steeredTurnId }
+      : { turnId: uuid, root: true }
+}
+
+function replayOrigin(waiter: ClaudeDispatchWaiter): ClaudeReplayTurnOrigin {
+  return { requestedAt: waiter.requestedAt, ...(waiter.steeredTurnId ? { turn: waiter.turn } : {}) }
 }

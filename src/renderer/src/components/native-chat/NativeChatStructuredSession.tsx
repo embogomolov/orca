@@ -6,7 +6,7 @@ import type { NativeChatLiveSession } from './use-native-chat-live-session'
 import { NativeChatApprovalCard } from './NativeChatApprovalCard'
 import { NativeChatComposer, type NativeChatComposerHandle } from './NativeChatComposer'
 import { NativeChatEmptyState } from './NativeChatEmptyState'
-import { NativeChatMessageList } from './NativeChatMessageList'
+import { NativeChatSubagentMessageList } from './NativeChatSubagentMessageList'
 import { NativeChatQuestionCard } from './NativeChatQuestionCard'
 import { selectNativeChatViewState } from './native-chat-view-state'
 import { useNativeChatComposerRevealFocus } from './use-native-chat-composer-reveal-focus'
@@ -226,7 +226,8 @@ export function NativeChatStructuredSession(
         ) : viewState.kind === 'empty' ? (
           <NativeChatEmptyState kind="empty" agent={props.agent} />
         ) : (
-          <NativeChatMessageList
+          <NativeChatSubagentMessageList
+            subagents={{ structuredSessionId: props.sessionId, target: props.target }}
             session={session}
             journalItems={controller.journalItems}
             railOutline={controller.railOutline}

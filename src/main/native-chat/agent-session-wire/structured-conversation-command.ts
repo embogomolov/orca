@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { agentSessionRecordAgent } from '../../../shared/agent-session-record'
 import { isDefinitiveAgentSessionCreateRefusal } from '../../../shared/agent-session-definitive-refusal'
 import { parseAgentSessionOperationTimestamp } from '../../../shared/agent-session-host-authority'
 import type {
@@ -28,7 +29,7 @@ export type ConversationReplacement = {
   sourceSessionId: string
   sessionId: string
   workspaceId: string
-  agent: 'claude' | 'codex'
+  agent: import('../../../shared/structured-agent-provider').StructuredMachineAgent
 }
 
 export function runStructuredConversationCommand(
@@ -130,7 +131,7 @@ export function runStructuredConversationCommand(
               location: record.location,
               accountHome: record.accountHome,
               provider: record.provider,
-              agent: record.provider,
+              agent: agentSessionRecordAgent(record),
               runtimeKind: 'native',
               launchArgs: record.launchArgs,
               // The options the user chose, which any restart of this chat would replay too.

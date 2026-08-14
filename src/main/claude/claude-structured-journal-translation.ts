@@ -1,8 +1,11 @@
 import type { AgentSessionDeltaCoalescerDeps } from '../native-chat/agent-session-wire/agent-session-delta-coalescer'
-import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
 import type { ClaudeJournalTranslator } from './claude-journal-translator-contract'
+import type { AgentJournalTurn } from '../../shared/agent-session-journal-types'
+import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
 import {
   claudeStreamingMessageBody,
+  claudeMessageIdentity,
+  claudeText,
   type ClaudeToolUse
 } from './claude-structured-item-translation'
 import type { ClaudePromptRegistry } from './claude-structured-prompt-replies'
@@ -60,7 +63,6 @@ export function createClaudeSessionJournalTranslator(
       })
     : null
 }
-
 export function createClaudeJournalTranslator(
   deps: ClaudeJournalTranslatorDeps
 ): ClaudeJournalTranslator {
@@ -119,7 +121,15 @@ export function createClaudeJournalTranslator(
     ...(deps.schedule ? { schedule: deps.schedule } : {}),
     producer: subagents.linkage,
     persist: (identity, text, options) => {
-      deps.sink.appendItem(identity, claudeStreamingMessageBody(text), options)
+      const reasoning =
+        identity.provider === 'orca' && identity.clientMessageId.startsWith('claude-thinking:')
+      deps.sink.appendItem(
+        identity,
+        reasoning
+          ? { kind: 'message', role: 'reasoning', blocks: [{ type: 'text', text }] }
+          : { ...claudeStreamingMessageBody(text), assistantPhase: 'commentary' },
+        options
+      )
       deps.sink.publish()
     }
   })
@@ -144,6 +154,9 @@ export function createClaudeJournalTranslator(
     if (!delta) {
       return false
     }
+    if (delta.role === 'assistant' && delta.parentToolUseId === null) {
+      messageContext.lastAssistant = { identity: delta.identity, groupKey: turn.groupKey }
+    }
     streamedText.append(delta.identity, delta.text, delta.parentToolUseId)
     return true
   }
@@ -158,16 +171,18 @@ export function createClaudeJournalTranslator(
     backgroundTasks,
     providerFallback,
     corrections,
-    turn
+    turn,
+    lastAssistant: null
   }
 
   const handleMessage = (
     message: Record<string, unknown>,
     startsTurn: boolean,
     observedAt: number,
-    requestedAt?: number
-  ): boolean => journalClaudeMessage(messageContext, message, startsTurn, observedAt, requestedAt)
-
+    requestedAt?: number,
+    replayTurn?: AgentJournalTurn
+  ): boolean =>
+    journalClaudeMessage(messageContext, message, startsTurn, observedAt, requestedAt, replayTurn)
   return {
     handle: (event) => {
       if (event.type === 'ended') {
@@ -209,15 +224,31 @@ export function createClaudeJournalTranslator(
         // it ends no turn.
         const settlesTurn = isRootClaudeFrame(event.message)
         if (settlesTurn) {
+          const end = claudeTurnEndForResult(event.message, event.observedAt ?? Date.now())
+          const finalText = end.outcome === 'success' ? claudeText(event.message.result) : null
+          const sessionId = claudeText(event.message.session_id)
+          if (finalText && sessionId && turn.id) {
+            const identity =
+              messageContext.lastAssistant?.groupKey === turn.groupKey
+                ? messageContext.lastAssistant.identity
+                : claudeMessageIdentity({
+                    sessionId,
+                    uuid: claudeText(event.message.uuid) ?? `${turn.id}:final`
+                  })
+            deps.sink.appendItem(identity, {
+              kind: 'message',
+              role: 'assistant',
+              assistantPhase: 'final',
+              blocks: [{ type: 'text', text: finalText }]
+            })
+          }
+          messageContext.lastAssistant = null
           prompts.retryPendingCancellations()
           turn.suppressReopenOnFailure(event.message.is_error === true)
           // The turn is over however it ended, so a foreground child still
           // reported as working will never be settled by an event.
           subagents.settleTurn(turn.groupKey)
-          context.settle(
-            event.message,
-            claudeTurnEndForResult(event.message, event.observedAt ?? Date.now())
-          )
+          context.settle(event.message, end)
           // The turn is over. A block still awaiting its final keeps the text the
           // flush above journaled, but its live state goes: an interrupted turn
           // would otherwise retain that text for the life of the session.
@@ -249,7 +280,8 @@ export function createClaudeJournalTranslator(
             event.message,
             event.startsTurn === true,
             event.observedAt ?? Date.now(),
-            event.requestedAt
+            event.requestedAt,
+            event.turn
           )
         ) {
           providerFallback.append(

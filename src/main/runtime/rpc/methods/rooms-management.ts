@@ -1,14 +1,24 @@
-import { z } from 'zod'
-import { defineMethod } from '../core'
-import { MessageId, RoomId } from './rooms-schemas'
+import {
+  RoomsDeleteParams,
+  RoomsArchiveExportStartParams,
+  RoomsArchiveExportReadParams,
+  RoomsArchiveImportStartParams,
+  RoomsArchiveImportAppendParams,
+  RoomsArchiveImportFinishParams,
+  RoomsArchiveTransferCancelParams,
+  RoomsUpdateParams,
+  RoomsRolesSaveParams,
+  RoomsRolesDeleteParams,
+  RoomsPinsSetParams,
+  RoomsPinsRemoveParams
+} from '../../../../shared/rpc-contract/rooms-management-params'
 
-const TransferId = z.string().uuid()
-const ArchiveChunk = z.string().max(600_000)
+import { defineMethod } from '../core'
 
 export const ROOM_MANAGEMENT_METHODS = [
   defineMethod({
     name: 'rooms.delete',
-    params: z.object({ roomId: RoomId }).strict(),
+    params: RoomsDeleteParams,
     handler: async (params, { runtime }) => {
       await runtime.getRoomService().deleteRoom(params.roomId)
       return { deleted: true }
@@ -16,7 +26,7 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.archive.export.start',
-    params: z.object({ roomId: RoomId }).strict(),
+    params: RoomsArchiveExportStartParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       const room = service.db.core.get(params.roomId)
@@ -27,13 +37,13 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.archive.export.read',
-    params: z.object({ transferId: TransferId, offset: z.number().int().nonnegative() }).strict(),
+    params: RoomsArchiveExportReadParams,
     handler: async (params, { runtime }) =>
       runtime.getRoomService().archiveTransfers.readExport(params.transferId, params.offset)
   }),
   defineMethod({
     name: 'rooms.archive.import.start',
-    params: z.object({ roomId: RoomId }).strict(),
+    params: RoomsArchiveImportStartParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       service.assertWritable(params.roomId)
@@ -42,7 +52,7 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.archive.import.append',
-    params: z.object({ transferId: TransferId, contentBase64: ArchiveChunk }).strict(),
+    params: RoomsArchiveImportAppendParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       service.assertWritable(service.archiveTransfers.importRoomId(params.transferId))
@@ -51,7 +61,7 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.archive.import.finish',
-    params: z.object({ transferId: TransferId }).strict(),
+    params: RoomsArchiveImportFinishParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       const result = await service.finishArchiveImport(params.transferId)
@@ -64,7 +74,7 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.archive.transfer.cancel',
-    params: z.object({ transferId: TransferId }).strict(),
+    params: RoomsArchiveTransferCancelParams,
     handler: async (params, { runtime }) => {
       runtime.getRoomService().archiveTransfers.cancel(params.transferId)
       return { cancelled: true }
@@ -72,15 +82,7 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.update',
-    params: z
-      .object({
-        roomId: RoomId,
-        name: z.string().trim().min(1).max(120).optional(),
-        description: z.string().max(4000).optional(),
-        loopLimit: z.number().int().min(0).max(20).optional(),
-        worktreeId: z.string().trim().min(1).max(1024).nullable().optional()
-      })
-      .strict(),
+    params: RoomsUpdateParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       service.assertWritable(params.roomId)
@@ -91,14 +93,7 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.roles.save',
-    params: z
-      .object({
-        roleId: z.string().uuid().optional(),
-        roomId: RoomId,
-        name: z.string().trim().min(1).max(80),
-        prompt: z.string().max(4000)
-      })
-      .strict(),
+    params: RoomsRolesSaveParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       service.assertWritable(params.roomId)
@@ -109,7 +104,7 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.roles.delete',
-    params: z.object({ roleId: z.string().uuid() }).strict(),
+    params: RoomsRolesDeleteParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       const role = service.db.core.getRole(params.roleId)
@@ -121,13 +116,7 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.pins.set',
-    params: z
-      .object({
-        roomId: RoomId,
-        messageId: MessageId,
-        status: z.enum(['todo', 'done'])
-      })
-      .strict(),
+    params: RoomsPinsSetParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       service.assertWritable(params.roomId)
@@ -145,7 +134,7 @@ export const ROOM_MANAGEMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.pins.remove',
-    params: z.object({ roomId: RoomId, messageId: MessageId }).strict(),
+    params: RoomsPinsRemoveParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       service.assertWritable(params.roomId)

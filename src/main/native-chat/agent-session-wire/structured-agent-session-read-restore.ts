@@ -1,4 +1,4 @@
-import type { AgentSessionRecord } from '../../../shared/agent-session-record'
+import { agentSessionRecordAgent, type AgentSessionRecord } from '../../../shared/agent-session-record'
 import type { AgentSessionRecordStore } from '../../runtime/agent-session-record-store'
 import { findJournalFileFormatRemnant } from '../agent-session-journal/journal-file-format-remnant'
 import { loadJournal } from '../agent-session-journal/journal-open'
@@ -86,7 +86,7 @@ export function attachParamsForRecord(
     },
     location: record.location,
     provider: record.provider,
-    agent: record.provider,
+    agent: agentSessionRecordAgent(record),
     accountHome: record.accountHome,
     runtimeKind: 'native'
   }

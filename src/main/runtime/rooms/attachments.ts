@@ -6,7 +6,8 @@ import type { RoomAttachment } from '../../../shared/rooms'
 import { decodeCanonicalBase64 } from './canonical-base64'
 import { roomAttachmentMimeType, safeRoomAttachmentName } from './attachment-file-metadata'
 
-export const ROOM_ATTACHMENT_MAX_BYTES = 100 * 1024 * 1024
+import { ROOM_ATTACHMENT_MAX_BYTES } from '../../../shared/rooms'
+export { ROOM_ATTACHMENT_MAX_BYTES } from '../../../shared/rooms'
 export const ROOM_ATTACHMENT_CHUNK_BYTES = 384 * 1024
 const MAX_ATTACHMENTS = 10
 const MAX_PENDING_UPLOADS = 20

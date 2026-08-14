@@ -22,7 +22,7 @@ export type StructuredAgentSessionCaller = { callerKey: string }
 export type StructuredAgentSessionReveal = {
   sessionId: string
   workspaceId: string
-  agent: 'claude' | 'codex'
+  agent: import('../../../shared/structured-agent-provider').StructuredMachineAgent
   readable: boolean
 }
 

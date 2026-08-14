@@ -1,5 +1,8 @@
+import type { ClaudeConversationActivity } from '../harness-conversation/claude-activity'
+import type { StructuredProviderConfiguration } from '../../shared/structured-agent-provider'
 import type {
   AgentJournalItemIdentity,
+  AgentJournalTurn,
   AgentSessionJournalIdentity
 } from '../../shared/agent-session-journal-types'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
@@ -47,6 +50,7 @@ export type ClaudeStructuredSessionEvent =
       requestedAt?: number
       /** Host clock at receipt; stamped on turn boundaries only. */
       observedAt?: number
+      turn?: AgentJournalTurn
     }
   | { type: 'provider-frame'; sessionId: string; kind: string; payload: unknown }
   | { type: 'prompt'; sessionId: string; prompt: ClaudePendingPrompt }
@@ -136,9 +140,13 @@ export type ClaudeDispatchWaiter = {
   retired?: boolean
   /** Bounded digest/summary for compatibility CLIs that mint UUIDs. */
   replayContentKey: string
+  steeredTurnId?: string
+  turn?: AgentJournalTurn
 }
 
 export type ClaudeSession = {
+  contextActivity?: ClaudeConversationActivity
+  configuration?: StructuredProviderConfiguration
   connection: ClaudeStreamJsonConnection
   providerSessionId: string
   /** Latest main-chain message seen on the live stream, mid-turn included. */
@@ -154,6 +162,7 @@ export type ClaudeSession = {
   /** Once a retired waiter is evicted, legacy content-only replay matching is unsafe. */
   replayContentFallbackBlocked: boolean
   options: Map<string, string>
+  launchModel?: string
   reportedOptions: { model?: string; effort?: string; fastMode?: boolean }
   /** What `get_settings` says the next request will send, after Claude's own env and settings
    *  precedence: the lowest-ranked answer, unconfirmed until a turn reports it. */

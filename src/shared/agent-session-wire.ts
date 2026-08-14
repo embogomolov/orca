@@ -24,11 +24,11 @@ import type {
   AgentJournalThreadGoal,
   AgentJournalTurnOutcome
 } from './agent-session-journal-types'
+import type { SessionOptionDescriptor } from './native-chat-session-options'
 import {
   agentSessionScopeKey,
   type AgentSessionExecutionLocation,
-  type AgentSessionHandoffStage,
-  type AgentSessionRecord
+  type AgentSessionHandoffStage
 } from './agent-session-record'
 import type { AgentProviderSessionMetadata } from './agent-session-resume'
 import type { StructuredAgentSessionProjectedStatus } from './structured-agent-session-projection'
@@ -179,7 +179,7 @@ export type AgentSessionStatusSummary = {
   rewindBlockedReason?: AgentSessionRewindReason
   sessionId: string
   workspaceId: string
-  agent: AgentSessionRecord['provider']
+  agent: import('./agent-status-types').AgentType
   /** Null until the journal holds a persisted user or assistant message. */
   status: StructuredAgentSessionProjectedStatus | null
   /** Present only while this host has the provider child executing the session. */
@@ -419,6 +419,7 @@ export type AgentSessionOptionsResult = {
   /** Session/account/transport support. Absent means unknown, never unsupported. */
   fastModeSupport?: AgentSessionFastModeSupport
   current: {
+    /** Empty when neither the provider nor an explicit selection names the model. */
     model: string
     effort?: string
     /** Canonical preference for the next turn. Explicit false is meaningful. */
@@ -432,4 +433,7 @@ export type AgentSessionOptionsResult = {
      */
     confirmed?: readonly string[]
   }
+  descriptors?: SessionOptionDescriptor[]
+  canCompact?: boolean
+  canSteer?: boolean
 }

@@ -13,7 +13,7 @@ import { useAppStore } from '@/store'
 import { gateWorktreeAgentActivation } from '@/lib/worktree-agent-activation-gate'
 import { createWorkspaceTerminalHostAuthoritySelector } from '@/lib/workspace-terminal-host-authority'
 import { getStructuredAgentLaunchStatus } from '@/lib/structured-agent-session-launch'
-import { AGENT_SESSION_PROVIDER_HANDLE_PROVIDERS } from '../../../shared/agent-session-provider-handle'
+import { STRUCTURED_MACHINE_AGENTS } from '../../../shared/structured-agent-provider'
 import type { TerminalColdActivationController } from './terminal-cold-activation'
 
 // Why shared: surfaces without watchable live tabs need no per-pass allocation.
@@ -222,7 +222,7 @@ export function useTerminalWatcherEffects(controller: TerminalWatcherController)
       }
       // A pending or unanswered chat create owns the surface even before its tab is published.
       if (
-        AGENT_SESSION_PROVIDER_HANDLE_PROVIDERS.some(
+        STRUCTURED_MACHINE_AGENTS.some(
           (agent) => getStructuredAgentLaunchStatus(activeWorktreeId, agent) !== 'idle'
         )
       ) {

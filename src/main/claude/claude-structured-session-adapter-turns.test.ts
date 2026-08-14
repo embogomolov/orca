@@ -220,7 +220,7 @@ describe('ClaudeStructuredSessionAdapter turns and controls', () => {
     })
     const adapter = await acquired(claude)
 
-    await expect(adapter.readOptions({ sessionId: 'session-1', fence: 7 })).resolves.toEqual({
+    await expect(adapter.readOptions({ sessionId: 'session-1', fence: 7 })).resolves.toMatchObject({
       models: [
         {
           id: 'opus',

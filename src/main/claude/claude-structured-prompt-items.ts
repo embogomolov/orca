@@ -1,3 +1,6 @@
+import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
+import type { ClaudeStructuredSessionEvent } from './claude-structured-session-state'
+import { agentJournalItemKey } from '../../shared/agent-session-journal-item-key'
 import type {
   AgentJournalApprovalItem,
   AgentJournalItemIdentity,
@@ -113,7 +116,7 @@ export function claudeQuestionItems(input: {
           {
             id: questionAddress,
             question: text,
-            ...(header ? { header } : {}),
+            header: header ?? text,
             options: questionOptions(question, questionAddress),
             multiSelect: question.multiSelect === true,
             freeTextQuestionId: questionAddress
@@ -144,4 +147,32 @@ export function claudeQuestionItems(input: {
       })
     }
   ]
+}
+
+export function publishClaudePrompt(
+  sink: StructuredAgentSessionEventSink,
+  event: Extract<ClaudeStructuredSessionEvent, { type: 'prompt' }>,
+  bindPromptItemId?: (itemId: string, promptKey: string) => void
+): AgentJournalItemIdentity[] {
+  const identities: AgentJournalItemIdentity[] = []
+  if (event.prompt.kind === 'question') {
+    for (const question of claudeQuestionItems({
+      sessionId: event.sessionId,
+      prompt: event.prompt
+    })) {
+      identities.push(question.identity)
+      sink.appendItem(question.identity, question.body)
+      bindPromptItemId?.(agentJournalItemKey(question.identity), event.prompt.promptKey)
+    }
+  } else {
+    const identity = claudePromptIdentity({
+      sessionId: event.sessionId,
+      promptKey: event.prompt.promptKey
+    })
+    identities.push(identity)
+    sink.appendItem(identity, claudeApprovalItem(event.prompt))
+    bindPromptItemId?.(agentJournalItemKey(identity), event.prompt.promptKey)
+  }
+  sink.publish()
+  return identities
 }

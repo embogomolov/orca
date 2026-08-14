@@ -12,7 +12,7 @@ import type { AgentSessionQuestionAnswer } from './agent-session-question-answer
 import type { AgentJournalTurnOutcome } from './agent-turn-outcome'
 import type { NativeChatToolMetadata } from './native-chat-tool-identity'
 import type { AgentSessionContextUsage } from './agent-session-context-usage'
-import type { NativeChatBlock, NativeChatRole } from './native-chat-types'
+import type { NativeChatBlock, NativeChatMessage, NativeChatRole } from './native-chat-types'
 
 export { type AgentType }
 
@@ -42,6 +42,7 @@ export type AgentJournalCursor = {
 export type AgentSessionProviderHandle =
   | { kind: 'codex'; threadId: string }
   | { kind: 'claude'; sessionId: string; leafUuid: string | null }
+  | { kind: 'acp'; agent: AgentType; sessionId: string }
   | { kind: 'opaque'; agent: AgentType; value: string }
 
 /** The narrow slice of the durable session record the journal needs. The full
@@ -63,13 +64,16 @@ export type AgentSessionJournalIdentity = {
 // positionally on resume, so a persisted item id is never an identity. Claude
 // copies the original uuids on fork, so the uuid is.
 
-export type AgentJournalItemIdentity =
+export type AgentJournalTurn = { turnId: string; root?: true }
+
+export type AgentJournalItemIdentity = (
   | { provider: 'codex'; threadId: string; turnId: string; ordinal: number }
   | { provider: 'claude'; sessionId: string; uuid: string }
   /** A submission Orca minted before any provider echo existed. */
   | { provider: 'orca'; clientMessageId: string }
   /** Bridge-era transcript record with no provider-stable identity. */
   | { provider: 'legacy'; agent: AgentType; sessionId: string; recordId: string }
+) & { turn?: AgentJournalTurn }
 
 // ─── Bounded payloads ───────────────────────────────────────────────────────
 
@@ -101,6 +105,7 @@ export type AgentJournalMessageItem = {
   /** Absent ⇒ an ordinary turn input. `goal` ⇒ the text was set as the thread
    *  goal's objective, and the provider pursues it without a turn of its own. */
   sentAs?: AgentJournalMessageSendMode
+  assistantPhase?: NativeChatMessage['assistantPhase']
 }
 
 export type AgentJournalToolCallState = 'running' | 'completed' | 'failed'
@@ -150,6 +155,7 @@ export type AgentJournalQuestion = {
   question: string
   header?: string
   multiSelect: boolean
+  secret?: boolean
   options: AgentJournalPromptOption[]
   /** Present when the provider accepts an answer outside the offered options. */
   freeTextQuestionId?: string
@@ -338,6 +344,8 @@ export type AgentJournalRenderItem = AgentJournalProducerLinkage & {
   observedAt: number
   /** Timestamp of the latest revision; omitted until the item is revised. */
   updatedAt?: number
+  /** Provider turn ownership; independent of item ordering and message payload. */
+  turn?: AgentJournalTurn
   /** Set when the row was appended by crash reconciliation rather than live. */
   recovered?: true
   /** When crash reconciliation wrote this revision; present exactly when `recovered` is. */

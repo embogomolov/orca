@@ -11,7 +11,10 @@
 // republishes them.
 
 import { agentProviderSessionsEqual } from '../../../shared/agent-session-resume'
-import type { AgentSessionRecord } from '../../../shared/agent-session-record'
+import {
+  agentSessionRecordAgent,
+  type AgentSessionRecord
+} from '../../../shared/agent-session-record'
 import { normalizeOptionalField } from '../../../shared/agent-status-field-normalization'
 import { isAgentStatusHeldOpenByChildWork } from '../../../shared/agent-lead-status-fold'
 import { AGENT_MODEL_MAX_LENGTH } from '../../../shared/agent-status-types'
@@ -41,7 +44,11 @@ export type StructuredAgentSessionStatusSubscriber = {
 
 type StatusFeedSession = {
   journal: AgentSessionJournal
-  params: { location: AgentSessionRecord['location']; provider: AgentSessionRecord['provider'] }
+  params: {
+    location: AgentSessionRecord['location']
+    provider: AgentSessionRecord['provider']
+    agent?: string
+  }
   hasProviderChild?: boolean
   providerChildPhase?: StructuredAgentSessionProviderChildPhase
   fence?: number
@@ -277,7 +284,7 @@ export class StructuredAgentSessionStatusFeed {
     return {
       sessionId,
       workspaceId: session.params.location.workspaceId,
-      agent: session.params.provider,
+      agent: record ? agentSessionRecordAgent(record) : (session.params.agent ?? session.params.provider),
       ...(session.hasProviderChild
         ? {
             hostExecutionOwned: true as const,

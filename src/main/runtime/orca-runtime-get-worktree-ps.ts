@@ -24,6 +24,7 @@ import { nativeChatShellEnvironmentPolicy } from '../../shared/native-chat-shell
 import { claudeStructuredPermissionModeForSettings } from '../claude/claude-structured-permission-mode'
 import { codexStructuredPermissionPolicyForSettings } from '../codex/codex-structured-permission-policy'
 import { claudeStructuredAuthPolicyForSettings } from '../claude-accounts/claude-structured-auth-policy'
+import { createHarnessConversationDriverFactory } from '../harness-conversation/driver-factory'
 
 export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVisibleReadProbe {
   async getWorktreePs(
@@ -171,7 +172,8 @@ export class OrcaRuntimeWithGetWorktreePs extends OrcaRuntimeWithStartTuiIdleVis
           firstWorkRenameDeps(this.requireStore(), this)
         )
       },
-      ...(this.structuredAgentStatusSinkFn ? { statusSink: this.structuredAgentStatusSinkFn } : {})
+      ...(this.structuredAgentStatusSinkFn ? { statusSink: this.structuredAgentStatusSinkFn } : {}),
+      createMachineDriver: createHarnessConversationDriverFactory(() => this.requireStore().getSettings())
     })
   }
 }

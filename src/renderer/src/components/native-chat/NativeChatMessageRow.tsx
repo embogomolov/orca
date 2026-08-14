@@ -3,6 +3,7 @@ import { Goal } from 'lucide-react'
 import CommentMarkdown, {
   type CommentMarkdownLinkClickHandler
 } from '@/components/sidebar/CommentMarkdown'
+import type { StreamingMarkdownFade } from '@/components/sidebar/streaming-markdown-fade'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import type {
@@ -45,7 +46,8 @@ export const MessageRow = memo(function MessageRow({
   structuredActivityUi = true,
   folded = false,
   runtimeContext,
-  imageLoadContext
+  imageLoadContext,
+  streamingFade
 }: {
   message: NativeChatMessage
   previousTodoWrite?: NativeChatToolCallBlock
@@ -65,6 +67,7 @@ export const MessageRow = memo(function MessageRow({
   folded?: boolean
   runtimeContext?: RuntimeFileOperationArgs | null
   imageLoadContext?: NativeChatImageLoadContext
+  streamingFade?: StreamingMarkdownFade
 }): React.JSX.Element | null {
   const rowRef = useRef<HTMLDivElement | null>(null)
   // One pass per block set, shared with the list that decides whether this row
@@ -142,7 +145,8 @@ export const MessageRow = memo(function MessageRow({
                 blocks={prose}
                 runtimeContext={runtimeContext}
                 enablePreview={runtimeContext !== undefined}
-               loadContext={imageLoadContext} />
+                loadContext={imageLoadContext}
+              />
               {literalTransport !== null ? (
                 <div className="whitespace-pre-wrap break-words">{renderedText}</div>
               ) : (
@@ -161,7 +165,8 @@ export const MessageRow = memo(function MessageRow({
               blocks={prose}
               runtimeContext={runtimeContext}
               enablePreview={runtimeContext !== undefined}
-             loadContext={imageLoadContext} />
+              loadContext={imageLoadContext}
+            />
           )}
         </div>
         {message.sentAs === 'goal' ? (
@@ -219,20 +224,22 @@ export const MessageRow = memo(function MessageRow({
         blocks={prose}
         runtimeContext={runtimeContext}
         enablePreview={runtimeContext !== undefined}
-       loadContext={imageLoadContext} />
+        loadContext={imageLoadContext}
+      />
       {renderedText ? (
         literalTransport !== null ? (
           <div className="whitespace-pre-wrap break-words">{renderedText}</div>
         ) : (
-        <CommentMarkdown
-          content={renderedText}
-          variant="document"
-          className="text-sm"
-          renderCodeBlock={NativeChatCodeBlock}
-          onLinkClick={onLinkClick}
-          allowFileUriLinks={allowFileUriLinks}
-          linkifyFilePaths={onLinkClick !== undefined}
-        />
+          <CommentMarkdown
+            content={renderedText}
+            variant="document"
+            className="text-sm"
+            renderCodeBlock={NativeChatCodeBlock}
+            onLinkClick={onLinkClick}
+            allowFileUriLinks={allowFileUriLinks}
+            streamingFade={streamingFade}
+            linkifyFilePaths={onLinkClick !== undefined}
+          />
         )
       ) : null}
       {tools.length > 0 || subagentGroups.length > 0 || backgroundTasks.length > 0 ? (

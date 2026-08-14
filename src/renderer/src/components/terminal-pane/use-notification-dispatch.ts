@@ -58,12 +58,31 @@ export type TerminalNotificationEvent = {
   roomDeliveryId?: string
 }
 
+export type WorktreeNotificationEvent = Omit<
+  NotificationDispatchRequest,
+  'worktreeId' | 'repoLabel' | 'worktreeLabel' | 'hasMultipleActiveRepos' | 'isActiveWorktree'
+>
+
 export function dispatchNotification(event: NotificationDispatchRequest): void {
   deliverAgentAttentionNotification(
     event,
     readAgentAttentionNotificationSound(useAppStore.getState().settings ?? {})
   )
 }
+
+export function dispatchWorktreeNotification(
+  worktreeId: string,
+  event: WorktreeNotificationEvent
+): void {
+  const state = useAppStore.getState()
+  dispatchNotification({
+    ...event,
+    worktreeId,
+    ...getNotificationWorkspaceLabels(state, worktreeId, event.terminalTitle),
+    isActiveWorktree: state.activeWorktreeId === worktreeId
+  })
+}
+
 /**
  * Returns a stable dispatch function for terminal notifications.
  * Reads repo/worktree labels from the store at dispatch time rather

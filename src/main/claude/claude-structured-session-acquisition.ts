@@ -113,7 +113,7 @@ export async function acquireClaudeSession({
           deps.onDispatchSettledLate?.({ sessionId, ...settlement })
         )
       : null
-    const startsTurn = turnOrigin !== null
+    const startsTurn = turnOrigin !== null && (!turnOrigin.turn || turnOrigin.turn.root === true)
     // Turn endpoints are stamped on the host clock, never the frame's own timestamp.
     const observedAt =
       startsTurn || message.type === 'result' ? { observedAt: deps.now?.() ?? Date.now() } : {}
@@ -124,6 +124,7 @@ export async function acquireClaudeSession({
         sessionId,
         message,
         ...(startsTurn ? { startsTurn: true } : {}),
+        ...(turnOrigin?.turn ? { turn: turnOrigin.turn } : {}),
         ...(requestedAt === null || requestedAt === undefined ? {} : { requestedAt }),
         ...observedAt
       })
