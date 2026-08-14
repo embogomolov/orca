@@ -201,7 +201,9 @@ export async function setClaudeStructuredOption(
               : readClaudeSettingsEffort(settings)
           )
           .catch(() => null)
-      : null
+      : input.key === 'fastMode'
+        ? input.value
+        : null
   if (mutationSequence !== session.optionMutationSequence) {
     return Object.fromEntries(session.options)
   }

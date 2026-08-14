@@ -25,7 +25,7 @@ export type StructuredAgentSessionAdoption = {
 
 export type CommittedStructuredAgentSessionAdoptionReplay = {
   record: AgentSessionRecord
-  providerHandle: Exclude<AgentSessionProviderHandle, { kind: 'opaque' }>
+  providerHandle: Extract<AgentSessionProviderHandle, { kind: 'claude' | 'codex' }>
 }
 
 /** Exact committed-operation identity; attach still validates its fingerprint. */
@@ -53,7 +53,8 @@ export function findCommittedStructuredAgentSessionAdoptionReplay(input: {
     !record ||
     record.sessionId !== input.selfSessionId ||
     record.provider !== input.agent ||
-    adopted?.origin !== 'adopted'
+    adopted?.origin !== 'adopted' ||
+    adopted.handle.provider === 'acp'
   ) {
     return null
   }

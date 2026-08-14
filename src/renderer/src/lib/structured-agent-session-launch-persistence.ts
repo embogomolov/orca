@@ -1,11 +1,12 @@
-import type { AgentSessionHandleProvider } from '../../../shared/agent-session-provider-handle'
+import type { StructuredMachineAgent } from '../../../shared/structured-agent-provider'
+import { isStructuredMachineAgent } from '../../../shared/structured-agent-provider'
 import type { StructuredAgentSessionResumeSource } from '../../../shared/structured-agent-session-create'
 
 export type StructuredAgentLaunchPersistedLifecycle = 'pending' | 'visibility-unknown' | 'failed'
 
 export type StructuredAgentLaunchPersistedRecord = {
   sessionId: string
-  agent: AgentSessionHandleProvider
+  agent: StructuredMachineAgent
   lifecycle: StructuredAgentLaunchPersistedLifecycle
   clientOperationId: string
   payloadFingerprint: string
@@ -45,7 +46,8 @@ function validRecord(value: unknown): value is StructuredAgentLaunchPersistedRec
   return (
     typeof sessionId === 'string' &&
     sessionId.length > 0 &&
-    (agent === 'claude' || agent === 'codex') &&
+    typeof agent === 'string' &&
+    isStructuredMachineAgent(agent) &&
     (lifecycle === 'pending' || lifecycle === 'visibility-unknown' || lifecycle === 'failed') &&
     typeof clientOperationId === 'string' &&
     typeof payloadFingerprint === 'string' &&

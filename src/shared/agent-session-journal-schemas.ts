@@ -139,6 +139,7 @@ const Question = z
     question: z.string(),
     header: z.string().optional(),
     multiSelect: z.boolean(),
+    secret: z.boolean().optional(),
     options: z.array(PromptOption),
     freeTextQuestionId: z.string().optional()
   })
@@ -176,8 +177,9 @@ const MessageBody = z.object({
   kind: z.literal('message'),
   role: z.string().min(1),
   blocks: z.array(Block),
-  // Open like roles: a send mode a newer build writes must not turn the row malformed.
-  sentAs: z.string().min(1).optional()
+  // Open like roles: newer send modes remain readable.
+  sentAs: z.string().min(1).optional(),
+  assistantPhase: z.string().optional()
 })
 
 const ThreadGoal = z.object({
@@ -283,6 +285,10 @@ export const AgentJournalProducerLinkageFields = {
   producerKind: z.string().min(1).optional(),
   attempt: z.number().int().optional()
 } as const
+export const AgentJournalTurnSchema = z.object({
+  turnId: z.string().min(1),
+  root: z.literal(true).optional()
+})
 
 export const AgentJournalRenderItemSchema = z.object({
   itemId: z.string().min(1),
@@ -291,6 +297,7 @@ export const AgentJournalRenderItemSchema = z.object({
   sequence: z.number().int(),
   observedAt: z.number(),
   updatedAt: z.number().optional(),
+  turn: AgentJournalTurnSchema.optional(),
   recovered: z.literal(true).optional(),
   recoveredAt: z.number().optional(),
   ...AgentJournalProducerLinkageFields

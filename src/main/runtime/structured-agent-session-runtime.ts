@@ -31,6 +31,8 @@ import {
   type StructuredAgentSessionHostDeps
 } from '../native-chat/agent-session-wire/structured-agent-session-host'
 import { StructuredAgentSessionAdapterRouter } from '../native-chat/agent-session-wire/structured-agent-session-adapter-router'
+import { MachineStructuredSessionAdapter } from '../harness-conversation/machine-structured-session-adapter'
+import type { HarnessConversationDriverFactory } from '../harness-conversation/driver'
 import { setStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
 import {
   readClaudeManagedAccountGateSettings,
@@ -98,6 +100,7 @@ export type StructuredAgentSessionRuntimeDeps = {
   /** Which login-shell variables Codex and Claude children inherit; absent inherits all. */
   resolveShellEnvironmentPolicy?: () => NativeChatShellEnvironmentPolicy
   resolveCodexOverrides?: () => NodeJS.ProcessEnv
+  createMachineDriver?: HarnessConversationDriverFactory
   onError?: (input: { scope: string; error: unknown }) => void
   /** Every structured-session status projection, for host-side reactions such as the first-work
    *  workspace rename that CLI agents get from their hooks. */
@@ -291,9 +294,20 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
     ...(deps.readProcessStartTime ? { readProcessStartTime: deps.readProcessStartTime } : {}),
     modelCatalog: agentModelCatalogStore
   })
-  const adapter = new StructuredAgentSessionAdapterRouter({ codex, claude }, async () => {
-    await Promise.all([codex.closeAll(), claude.closeAll()])
+  const machine = new MachineStructuredSessionAdapter({
+    createDriver: deps.createMachineDriver ?? (() => Promise.reject(new Error('structured machine providers are unavailable'))),
+    resolveWorkspacePath: ({ workspaceId }) => deps.resolveWorkspacePath(workspaceId),
+    resolveProviderEnvironment: async ({ sessionId }) => {
+      const record = store.getRecord(sessionId)
+      return record ? { [record.accountHome.variable]: record.accountHome.path } : {}
+    },
+    ...(deps.readProcessStartTime ? { readProcessStartTime: deps.readProcessStartTime } : {}),
+    onEvent: (event) => { if (event.type === 'ended' && event.cause === 'unexpected-exit') lifecycle.deliver(event) }
   })
+  const adapter = new StructuredAgentSessionAdapterRouter(
+    { codex, claude, openclaude: machine, grok: machine, omp: machine },
+    async () => { await Promise.all([codex.closeAll(), claude.closeAll(), machine.closeAll()]) }
+  )
   host = new StructuredAgentSessionHost({
     store,
     adapter,

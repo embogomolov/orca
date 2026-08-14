@@ -50,6 +50,7 @@ import {
   type StructuredAgentSessionRestartResume
 } from './structured-agent-session-restart-resume-host'
 import { structuredAgentSessionRestartResumeSurfaces } from './structured-agent-session-restart-resume-wiring'
+import { listStructuredSessionSubagents } from './structured-agent-session-subagents'
 export type { StructuredAgentSessionHostDeps } from './structured-agent-session-host-types'
 
 export class StructuredAgentSessionHost {
@@ -57,6 +58,8 @@ export class StructuredAgentSessionHost {
     () => this.mutationContext(),
     this
   )
+  listSubagentSessions = (sessionId: string) =>
+    listStructuredSessionSubagents(this.deps.store.getRecord(sessionId))
   private readonly sessions = new StructuredAgentSessionConversations({
     deliver: (sessionId, journal) => this.subscribers.publish(sessionId, journal),
     onDeliveryError: (sessionId, error) => this.deps.onEventSinkError?.({ sessionId, error })
@@ -272,6 +275,16 @@ export class StructuredAgentSessionHost {
   readCommands = (sessionId: string): SessionWire.AgentSessionCommandsResult => ({
     commands: this.deps.adapter.readCommands?.(sessionId)
   })
+
+  readContext = (sessionId: string) => {
+    this.requireSession(sessionId)
+    return this.deps.adapter.readContext?.(sessionId) ?? null
+  }
+
+  readConfiguration = (sessionId: string) => {
+    this.requireSession(sessionId)
+    return this.deps.adapter.readConfiguration?.(sessionId) ?? null
+  }
 
   /** From the record store, never the session map: an idle-released chat has no map entry. */
   handoffStatus = (sessionId: string): SessionWire.AgentSessionHandoffStatus =>

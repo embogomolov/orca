@@ -111,9 +111,7 @@ export function fakeClaude(
             uuid: options.initUuid ?? 'init-uuid'
           })
         } else if (options.initProof !== 'none') {
-          // Keys mirror the real system/init frame, which carries `model` but no
-          // effort of any kind: the current effort only comes back from
-          // get_settings. Never add a field the CLI does not send.
+          // system/init reports model; only get_settings reports effort.
           handlers.onMessage?.({
             type: 'system',
             subtype: 'init',
@@ -139,6 +137,7 @@ export function fakeClaude(
         // Shape measured from Claude Code 2.1.258: {applied, effective, sources},
         // and the only place the session's current effort is reported.
         return (
+          routed('get_settings') ??
           options.settings ?? {
             applied: { model: 'claude-sonnet-5', effort: 'high', advisor: null, ultracode: false },
             effective: { model: 'claude-sonnet-5', effortLevel: 'high', env: {} },
@@ -294,9 +293,7 @@ export function recordingJournalSink(): StructuredAgentSessionEventSink {
   return { appendItem: () => {}, appendTombstone: () => {}, publish: () => {} }
 }
 
-export function tick(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve))
-}
+export const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
 export function invokeCanUseTool(
   connection: FakeConnection,

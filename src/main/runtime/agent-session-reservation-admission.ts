@@ -1,3 +1,4 @@
+import type { AgentType } from '../../shared/agent-status-types'
 /**
  * Reservation admission: what a reserve request means against the persisted state.
  *
@@ -51,6 +52,7 @@ export type AgentSessionReserveRequest = {
   sessionId: string
   location: AgentSessionExecutionLocation
   provider: AgentSessionHandleProvider
+  agent?: AgentType
   accountHome: AgentSessionAccountHome
   /** Arguments pinned on first reservation so owner replacement repeats the same launch. */
   launchArgs?: AgentSessionLaunchArgs
@@ -145,6 +147,12 @@ export function applyAgentSessionReservation(
   record: AgentSessionRecord
   disposition: Exclude<AgentSessionReserveDisposition, 'replayed'>
 } {
+  if (
+    request.agent !== undefined &&
+    (typeof request.agent !== 'string' || !request.agent.trim() || request.agent.length > 128)
+  ) {
+    throw new Error('agent_session_operation_invalid')
+  }
   if (request.launchEnv && !isAgentSessionLaunchEnv(request.launchEnv)) {
     throw new Error('agent_session_launch_env_invalid')
   }
@@ -181,6 +189,9 @@ export function applyAgentSessionReservation(
   if (
     !agentSessionExecutionLocationsEqual(existing.location, request.location) ||
     existing.provider !== request.provider ||
+    (existing.agent !== undefined &&
+      request.agent !== undefined &&
+      existing.agent !== request.agent) ||
     existing.accountHome.variable !== request.accountHome.variable ||
     existing.accountHome.path !== request.accountHome.path
   ) {
@@ -275,6 +286,7 @@ function createAgentSessionRecord(
     sessionId: request.sessionId,
     location: request.location,
     provider: request.provider,
+    ...(request.agent ? { agent: request.agent } : {}),
     // Fence 1 below is this record's first, and the owner probe requires the head link to carry the
     // record's current fence — so an adopted link must be minted at that same fence.
     providerHandleChain: request.adoptedHandleLink ? [request.adoptedHandleLink] : [],

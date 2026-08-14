@@ -1,21 +1,19 @@
-import { z } from 'zod'
-import { ROOM_ATTACHMENT_MAX_BYTES } from '../../rooms/attachments'
-import { defineMethod } from '../core'
-import { RoomId } from './rooms-schemas'
+import {
+  RoomsAttachmentsUploadStartParams,
+  RoomsAttachmentsUploadAppendParams,
+  RoomsAttachmentsUploadFinishParams,
+  RoomsAttachmentsUploadCancelParams,
+  RoomsAttachmentsDownloadStartParams,
+  RoomsAttachmentsDownloadReadParams,
+  RoomsAttachmentsDownloadCancelParams
+} from '../../../../shared/rpc-contract/rooms-attachments-params'
 
-const UploadId = z.string().uuid()
-const TransferId = z.string().uuid()
+import { defineMethod } from '../core'
 
 export const ROOM_ATTACHMENT_METHODS = [
   defineMethod({
     name: 'rooms.attachments.upload.start',
-    params: z
-      .object({
-        roomId: RoomId,
-        fileName: z.string().trim().min(1).max(240),
-        byteSize: z.number().int().nonnegative().max(ROOM_ATTACHMENT_MAX_BYTES)
-      })
-      .strict(),
+    params: RoomsAttachmentsUploadStartParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       return service.startAttachmentUpload(params.roomId, params.fileName, params.byteSize)
@@ -23,13 +21,7 @@ export const ROOM_ATTACHMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.attachments.upload.append',
-    params: z
-      .object({
-        uploadId: UploadId,
-        offset: z.number().int().nonnegative(),
-        contentBase64: z.string().max(600_000)
-      })
-      .strict(),
+    params: RoomsAttachmentsUploadAppendParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       service.assertWritable(service.attachmentTransfers.uploadRoomId(params.uploadId))
@@ -42,7 +34,7 @@ export const ROOM_ATTACHMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.attachments.upload.finish',
-    params: z.object({ uploadId: UploadId }).strict(),
+    params: RoomsAttachmentsUploadFinishParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       service.assertWritable(service.attachmentTransfers.uploadRoomId(params.uploadId))
@@ -52,7 +44,7 @@ export const ROOM_ATTACHMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.attachments.upload.cancel',
-    params: z.object({ uploadId: UploadId }).strict(),
+    params: RoomsAttachmentsUploadCancelParams,
     handler: async (params, { runtime }) => {
       await runtime.getRoomService().attachmentTransfers.cancelUpload(params.uploadId)
       return { cancelled: true }
@@ -60,13 +52,13 @@ export const ROOM_ATTACHMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.attachments.download.start',
-    params: z.object({ roomId: RoomId, attachmentId: z.string().uuid() }).strict(),
+    params: RoomsAttachmentsDownloadStartParams,
     handler: async (params, { runtime }) =>
       runtime.getRoomService().startAttachmentDownload(params.roomId, params.attachmentId)
   }),
   defineMethod({
     name: 'rooms.attachments.download.read',
-    params: z.object({ transferId: TransferId, offset: z.number().int().nonnegative() }).strict(),
+    params: RoomsAttachmentsDownloadReadParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
       service.assertWritable(service.attachmentTransfers.downloadRoomId(params.transferId))
@@ -75,7 +67,7 @@ export const ROOM_ATTACHMENT_METHODS = [
   }),
   defineMethod({
     name: 'rooms.attachments.download.cancel',
-    params: z.object({ transferId: TransferId }).strict(),
+    params: RoomsAttachmentsDownloadCancelParams,
     handler: async (params, { runtime }) => {
       runtime.getRoomService().attachmentTransfers.cancelDownload(params.transferId)
       return { cancelled: true }

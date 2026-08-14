@@ -35,6 +35,8 @@ import type { AgentSessionPromptResponse } from '../../../shared/agent-session-q
 import type { ProviderHistoryWindow } from '../agent-session-journal/journal-submission-reconciler'
 import type { StructuredAgentSessionEventSink } from './structured-agent-session-event-sink'
 import type { AgentSessionCreatePhaseRecorder } from '../../observability/agent-session-instrumentation'
+import type { AgentSessionContextSnapshot } from '../../../shared/agent-session-context'
+import type { StructuredProviderConfiguration } from '../../../shared/structured-agent-provider'
 
 export class AgentSessionAcquisitionRefusal extends Error {
   constructor(
@@ -236,6 +238,13 @@ export type StructuredAgentSessionAdapter = {
     fence: number
     onLateResult?: (result: { error?: string }) => Promise<void>
   }): Promise<{ error?: string }>
+  steer?(input: {
+    sessionId: string
+    clientMessageId: string
+    body: AgentJournalMessageItem
+    turnId: string
+    fence: number
+  }): Promise<AgentSessionDispatchOutcome>
   /** Cancels one turn, not the session: a session-wide interrupt would also kill
    *  a turn the client never asked to stop. */
   cancelTurn(input: {
@@ -292,6 +301,8 @@ export type StructuredAgentSessionAdapter = {
   readOptions?(input: { sessionId: string; fence: number }): Promise<AgentSessionOptionsResult>
   /** Option keys skipped after a provider rejected their persisted restore value. */
   readOptionRestoreFailures?(sessionId: string): readonly string[]
+  readContext?(sessionId: string): AgentSessionContextSnapshot | null
+  readConfiguration?(sessionId: string): StructuredProviderConfiguration | null
   /** Transcript path for journal recovery. Omit to let the existing session-file
    *  resolver discover it from the provider session id. */
   historyFilePath?(input: { identity: AgentSessionJournalIdentity }): Promise<string | null>

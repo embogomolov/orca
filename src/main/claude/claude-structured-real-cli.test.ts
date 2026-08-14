@@ -137,6 +137,7 @@ describe.skipIf(!realClaudeAvailable)('Claude structured real CLI handshake', ()
         expect(observedSubtypes).toContain('hook_started')
         expect(adapter.readCommands('real-cli-handshake')).toContainEqual({
           name: 'orca-init-catalog-proof',
+          description: expect.stringContaining('Initialization catalog proof'),
           kind: 'command',
           kindUnspecified: true
         })

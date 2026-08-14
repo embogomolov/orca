@@ -191,7 +191,7 @@ function sessionRecordStore(): {
 
 function namesProviderSession(record: AgentSessionRecord, id: string): boolean {
   return record.providerHandleChain.some(({ handle }) =>
-    handle.provider === 'claude' ? handle.sessionId === id : handle.threadId === id
+    handle.provider === 'codex' ? handle.threadId === id : handle.sessionId === id
   )
 }
 

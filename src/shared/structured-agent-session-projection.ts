@@ -31,6 +31,7 @@ import type { NativeChatBlock, NativeChatMessage } from './native-chat-types'
 import { sha256 } from './sha256'
 import { structuredAgentSessionStatusStartedAt } from './structured-agent-session-status-started-at'
 import { isUnansweredStructuredAgentSessionDispatch } from './structured-agent-session-unanswered-dispatch'
+import { codexSubagentProviderFrame } from './codex-subagent-items'
 
 // Re-exported so the live-turn readers' existing consumers keep one import site.
 export {
@@ -62,7 +63,10 @@ function itemBlocks(item: AgentJournalRenderItem): {
   role: NativeChatMessage['role']
   blocks: NativeChatBlock[]
 } | null {
-  const body = item.body
+  const body =
+    item.body.kind === 'status' && item.body.providerFrame
+      ? (codexSubagentProviderFrame(item.body.providerFrame) ?? item.body)
+      : item.body
   if (body.kind === 'message') {
     return { role: body.role, blocks: body.blocks }
   }

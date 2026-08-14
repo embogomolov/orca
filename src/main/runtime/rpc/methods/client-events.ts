@@ -44,8 +44,15 @@ export const CLIENT_EVENT_METHODS = [
           const state = getPublicSshState(getRegisteredSshState(target.id) ?? null)
           return state ? [{ targetId: target.id, state }] : []
         })
+        const roomNotificationSequence = runtime
+          .getRoomService()
+          .db.notificationReplay.list(null, 1).cursor
         // Why: attaching the listener before snapshotting closes the reload gap without exposing HUB-private target configuration.
-        emit({ type: 'ready', subscriptionId, snapshot: { sshStates } })
+        emit({
+          type: 'ready',
+          subscriptionId,
+          snapshot: { sshStates, roomNotificationSequence }
+        })
       })
     }
   }),

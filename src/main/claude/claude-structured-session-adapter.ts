@@ -11,7 +11,11 @@ import { releaseClaudeAcquisition } from './claude-structured-acquisition-releas
 import { acquireClaudeSession } from './claude-structured-session-acquisition'
 import { supportsClaudeStructuredLocation } from './claude-structured-location-support'
 import { setClaudeStructuredSessionOption } from './claude-structured-options'
-import { readClaudeStructuredSessionOptions } from './claude-structured-session-options'
+import {
+  readClaudeStructuredSessionOptions,
+  readClaudeStructuredContext,
+  readClaudeStructuredConfiguration
+} from './claude-structured-session-options'
 import { claudeStartupSettledWithin } from './claude-structured-session-startup-gate'
 import { CLAUDE_DEFAULT_REQUEST_TIMEOUT_MS } from './claude-agent-sdk-control-requests'
 import {
@@ -136,6 +140,9 @@ export class ClaudeStructuredSessionAdapter implements StructuredAgentSessionAda
     } else if (event.type === 'message') {
       session?.childWork.observe(event.message)
     }
+    if (event.type === 'message') {
+      session?.contextActivity?.observeContext(event.message)
+    }
     const backgroundTasksChanged =
       event.type === 'ended'
         ? (session?.backgroundTasks.clear() ?? false)
@@ -182,6 +189,14 @@ export class ClaudeStructuredSessionAdapter implements StructuredAgentSessionAda
     dispatchClaudeTurn(this.session(input.sessionId), input, input.beforeDispatch, (settlement) =>
       this.deps.onDispatchSettledLate?.({ sessionId: input.sessionId, ...settlement })
     )
+
+  steer: NonNullable<StructuredAgentSessionAdapter['steer']> = (input) => {
+    const session = this.session(input.sessionId)
+    if (session.fence !== input.fence || session.translator?.currentTurnId !== input.turnId) {
+      return Promise.resolve({ state: 'rejected', reason: 'conversation_turn_mismatch' })
+    }
+    return dispatchClaudeTurn(session, input)
+  }
 
   compact: NonNullable<StructuredAgentSessionAdapter['compact']> = (input) =>
     compactClaudeSession(this.session(input.sessionId), this.compactions, input)
@@ -237,6 +252,12 @@ export class ClaudeStructuredSessionAdapter implements StructuredAgentSessionAda
   readOptions = (input: { sessionId: string; fence: number }) =>
     readClaudeStructuredSessionOptions(this.session(input.sessionId), this.deps.requestTimeoutMs)
   recordsContextUsage = (sessionId: string): boolean => this.sessions.has(sessionId)
+
+  readContext = (sessionId: string) => readClaudeStructuredContext(this.sessions.get(sessionId))
+  readConfiguration = (sessionId: string) => {
+    const session = this.sessions.get(sessionId)
+    return session ? readClaudeStructuredConfiguration(session) : null
+  }
 
   readOptionRestoreFailures = (sessionId: string): readonly string[] => [
     ...(this.sessions.get(sessionId)?.restoreSkippedOptions ?? [])

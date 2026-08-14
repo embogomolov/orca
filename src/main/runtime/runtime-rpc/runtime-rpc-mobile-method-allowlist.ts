@@ -229,6 +229,7 @@ export const MOBILE_RPC_METHOD_ALLOWLIST = new Set([
   'agentSession.conversationCommand',
   'agentSession.commands',
   'agentSession.history',
+  'agentSession.subagents',
   'agentSession.subscribe',
   'agentSession.unsubscribe',
   'agentSession.hold',
