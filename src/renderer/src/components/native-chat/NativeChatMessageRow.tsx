@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react'
-import { ArrowUp, Image as ImageIcon } from 'lucide-react'
+import { ArrowUp } from 'lucide-react'
 import CommentMarkdown, {
   type CommentMarkdownLinkClickHandler
 } from '@/components/sidebar/CommentMarkdown'
@@ -16,6 +16,10 @@ import { isNativeChatPastedImagePath } from './native-chat-image-paste'
 import { NativeChatToolRun } from './NativeChatToolRun'
 import { NativeChatCopyButton } from './NativeChatCopyButton'
 import { literalRoomTransportText } from './native-chat-room-transport'
+import {
+  NativeChatImageAttachments,
+  type NativeChatImageLoadContext
+} from './NativeChatImageAttachments'
 
 function proseToMarkdown(blocks: NativeChatBlock[]): string {
   return blocks
@@ -24,33 +28,35 @@ function proseToMarkdown(blocks: NativeChatBlock[]): string {
     .join('\n\n')
 }
 
-function ImageAttachmentRefs({ blocks }: { blocks: NativeChatBlock[] }): React.JSX.Element | null {
+function ImageAttachmentRefs({
+  blocks,
+  loadContext
+}: {
+  blocks: NativeChatBlock[]
+  loadContext?: NativeChatImageLoadContext
+}): React.JSX.Element | null {
   const images = blocks.filter((block) => block.type === 'image-ref')
   if (images.length === 0) {
     return null
   }
   return (
-    <div className="mb-2 flex flex-wrap gap-1.5">
-      {images.map((image) => {
+    <NativeChatImageAttachments
+      images={images.map((image, index) => {
         const label = image.alt ?? image.path ?? image.url ?? 'Image'
-        const name =
-          image.path && isNativeChatPastedImagePath(image.path)
-            ? translate('components.native-chat.composer.pastedImageLabel', 'Pasted image')
-            : image.path
-              ? basename(image.path)
-              : label
-        return (
-          <div
-            key={image.path ?? image.url ?? label}
-            className="flex max-w-full items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
-            title={label}
-          >
-            <ImageIcon className="size-3.5 shrink-0" />
-            <span className="truncate">{name}</span>
-          </div>
-        )
+        return {
+          id: `${image.path ?? image.url ?? label}:${index}`,
+          path: image.path,
+          url: image.url,
+          fileName:
+            image.path && isNativeChatPastedImagePath(image.path)
+              ? translate('components.native-chat.composer.pastedImageLabel', 'Pasted image')
+              : image.path
+                ? basename(image.path)
+                : label
+        }
       })}
-    </div>
+      loadContext={loadContext}
+    />
   )
 }
 
@@ -88,7 +94,8 @@ export function NativeChatMessageRow({
   onScrollMessageToTop,
   onLinkClick,
   allowFileUriLinks = false,
-  deliveryFailed = false
+  deliveryFailed = false,
+  imageLoadContext
 }: {
   message: NativeChatMessage
   expandSignal: boolean
@@ -96,6 +103,7 @@ export function NativeChatMessageRow({
   onLinkClick?: CommentMarkdownLinkClickHandler
   allowFileUriLinks?: boolean
   deliveryFailed?: boolean
+  imageLoadContext?: NativeChatImageLoadContext
 }): React.JSX.Element | null {
   const rowRef = useRef<HTMLDivElement | null>(null)
   const { prose, tools } = useMemo(() => splitNativeChatBlocks(message.blocks), [message.blocks])
@@ -124,7 +132,7 @@ export function NativeChatMessageRow({
         <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-muted px-3.5 py-2.5 text-sm text-foreground">
           {renderedText ? (
             <>
-              <ImageAttachmentRefs blocks={prose} />
+              <ImageAttachmentRefs blocks={prose} loadContext={imageLoadContext} />
               {literalTransport !== null ? (
                 <div className="whitespace-pre-wrap break-words">{renderedText}</div>
               ) : (
@@ -138,7 +146,7 @@ export function NativeChatMessageRow({
               )}
             </>
           ) : (
-            <ImageAttachmentRefs blocks={prose} />
+            <ImageAttachmentRefs blocks={prose} loadContext={imageLoadContext} />
           )}
         </div>
         {deliveryFailed ? (
@@ -182,7 +190,7 @@ export function NativeChatMessageRow({
           className="absolute -top-8 right-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
         />
       ) : null}
-      <ImageAttachmentRefs blocks={prose} />
+      <ImageAttachmentRefs blocks={prose} loadContext={imageLoadContext} />
       {renderedText ? (
         literalTransport !== null ? (
           <div className="whitespace-pre-wrap break-words">{renderedText}</div>

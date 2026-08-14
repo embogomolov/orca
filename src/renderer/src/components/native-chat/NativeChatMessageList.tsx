@@ -22,6 +22,7 @@ import {
   ProviderFrameRow
 } from './NativeChatTranscriptChrome'
 import { AgentSubagentTurnLink } from '../agent-subagents/AgentSubagentContext'
+import type { NativeChatImageLoadContext } from './NativeChatImageAttachments'
 
 export { ProviderFrameRow } from './NativeChatTranscriptChrome'
 
@@ -63,7 +64,8 @@ function MessageRow({
   allowFileUriLinks = false,
   deliveryFailed = false,
   activityExpandOverride,
-  structuredActivityUi = true
+  structuredActivityUi = true,
+  imageLoadContext
 }: {
   message: NativeChatMessage
   expandSignal: boolean
@@ -75,6 +77,7 @@ function MessageRow({
   deliveryFailed?: boolean
   activityExpandOverride?: boolean
   structuredActivityUi?: boolean
+  imageLoadContext?: NativeChatImageLoadContext
 }): React.JSX.Element | null {
   const rowRef = useRef<HTMLDivElement | null>(null)
   const { prose, tools } = useMemo(() => splitNativeChatBlocks(message.blocks), [message.blocks])
@@ -114,7 +117,7 @@ function MessageRow({
         <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-muted px-3.5 py-2.5 text-sm text-foreground">
           {markdown ? (
             <>
-              <NativeChatImageAttachments blocks={prose} />
+              <NativeChatImageAttachments blocks={prose} loadContext={imageLoadContext} />
               <CommentMarkdown
                 content={markdown}
                 variant="document"
@@ -124,7 +127,7 @@ function MessageRow({
               />
             </>
           ) : (
-            <NativeChatImageAttachments blocks={prose} />
+            <NativeChatImageAttachments blocks={prose} loadContext={imageLoadContext} />
           )}
         </div>
         {deliveryFailed ? (
@@ -153,7 +156,7 @@ function MessageRow({
         isSystem && 'text-xs text-muted-foreground'
       )}
     >
-      <NativeChatImageAttachments blocks={prose} />
+      <NativeChatImageAttachments blocks={prose} loadContext={imageLoadContext} />
       {markdown ? (
         <CommentMarkdown
           content={markdown}
@@ -193,7 +196,8 @@ export function NativeChatMessageList({
   workingStartedAt,
   failedDeliveryMessageIds,
   subagentSourceKey,
-  showTurnStatus = true
+  showTurnStatus = true,
+  imageLoadContext
 }: {
   session: NativeChatLiveSession
   isWorking: boolean
@@ -208,6 +212,7 @@ export function NativeChatMessageList({
   subagentSourceKey?: string
   /** Turn timing/disclosure is available only on the structured Codex lane. */
   showTurnStatus?: boolean
+  imageLoadContext?: NativeChatImageLoadContext
 }): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -418,6 +423,7 @@ export function NativeChatMessageList({
                   deliveryFailed={failedDeliveryMessageIds?.has(message.id) === true}
                   structuredActivityUi={showTurnStatus}
                   activityExpandOverride={turnKey ? expandedTurnIds.has(turnKey) : undefined}
+                  imageLoadContext={imageLoadContext}
                 />
                 {showTurnStatus &&
                 status &&

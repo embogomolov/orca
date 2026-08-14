@@ -1,4 +1,4 @@
-import { ArrowUp, Image as ImageIcon } from 'lucide-react'
+import { ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
 import { basename } from '@/lib/path'
@@ -6,38 +6,40 @@ import type { NativeChatBlock } from '../../../../shared/native-chat-types'
 import { isNativeChatPastedImagePath } from './native-chat-image-paste'
 import { NativeChatCopyButton } from './NativeChatCopyButton'
 import { nativeChatProviderFrameSummary } from '../../../../shared/native-chat-provider-frame-summary'
+import {
+  NativeChatImageAttachments as NativeChatImageGallery,
+  type NativeChatImageLoadContext
+} from './NativeChatImageAttachments'
 
 export function NativeChatImageAttachments({
-  blocks
+  blocks,
+  loadContext
 }: {
   blocks: NativeChatBlock[]
+  loadContext?: NativeChatImageLoadContext
 }): React.JSX.Element | null {
   const images = blocks.filter((block) => block.type === 'image-ref')
   if (images.length === 0) {
     return null
   }
   return (
-    <div className="mb-2 flex flex-wrap gap-1.5">
-      {images.map((image, index) => {
+    <NativeChatImageGallery
+      images={images.map((image, index) => {
         const label = image.alt ?? image.path ?? image.url ?? 'Image'
-        const name =
-          image.path && isNativeChatPastedImagePath(image.path)
-            ? translate('components.native-chat.composer.pastedImageLabel', 'Pasted image')
-            : image.path
-              ? basename(image.path)
-              : label
-        return (
-          <div
-            key={`${label}-${index}`}
-            className="flex max-w-full items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
-            title={label}
-          >
-            <ImageIcon className="size-3.5 shrink-0" />
-            <span className="truncate">{name}</span>
-          </div>
-        )
+        return {
+          id: `${image.path ?? image.url ?? label}:${index}`,
+          path: image.path,
+          url: image.url,
+          fileName:
+            image.path && isNativeChatPastedImagePath(image.path)
+              ? translate('components.native-chat.composer.pastedImageLabel', 'Pasted image')
+              : image.path
+                ? basename(image.path)
+                : label
+        }
       })}
-    </div>
+      loadContext={loadContext}
+    />
   )
 }
 

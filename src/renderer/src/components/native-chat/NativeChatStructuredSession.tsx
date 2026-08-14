@@ -23,6 +23,7 @@ import { translate } from '@/i18n/i18n'
 import { NativeChatOrchestrationPausedNotice } from './NativeChatOrchestrationPausedNotice'
 import { useNativeChatPasteBridge } from './use-native-chat-paste-bridge'
 import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
+import { nativeChatImageLoadContext } from './native-chat-image-load-context'
 
 function encodeQuestionAnswer(questionId: string, answer: string): string {
   return `${encodeURIComponent(questionId)}:${encodeURIComponent(answer)}`
@@ -83,6 +84,7 @@ export function NativeChatStructuredSession(props: {
   const viewState = selectNativeChatViewState(session)
   const fontScale = useNativeChatFontScale(viewState.kind === 'ready')
   const fileLinkContext = useNativeChatFileLinkContext(props.tabId)
+  const imageLoadContext = nativeChatImageLoadContext(fileLinkContext)
   const fileLinkClick = useNativeChatFileLinkClick(props.allowFileUriLinks ? fileLinkContext : null)
   const prompt = controller.prompts[0] ?? null
   const questionBody = prompt?.body.kind === 'question' ? prompt.body : null
@@ -148,6 +150,7 @@ export function NativeChatStructuredSession(props: {
             showTurnStatus={props.agent === 'codex'}
             onLinkClick={fileLinkClick}
             allowFileUriLinks={fileLinkClick !== undefined}
+            imageLoadContext={imageLoadContext}
           />
         )}
       </div>
