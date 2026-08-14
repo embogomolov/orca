@@ -27,6 +27,7 @@ import { useStructuredAgentSessionHostExecutionPhase } from './StructuredAgentSe
 import { structuredAgentLabel } from '@/lib/structured-agent-session-launch-label'
 import { NativeChatThreadGoalBanner } from './NativeChatThreadGoalBanner'
 import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
+import { nativeChatImageLoadContext } from './native-chat-image-load-context'
 
 export function NativeChatStructuredSession(
   props: Omit<NativeChatStructuredViewProps, 'mode'>
@@ -111,6 +112,7 @@ export function NativeChatStructuredSession(
     rootRef,
     { sessionId: props.sessionId, isVisible: props.isVisible }
   )
+  const imageLoadContext = nativeChatImageLoadContext(fileLinkContext)
   const prompt = controller.prompts[0] ?? null
   const approvalBody = prompt?.body.kind === 'approval' ? prompt.body : null
   const approval = approvalBody
@@ -240,6 +242,7 @@ export function NativeChatStructuredSession(
             onLinkClick={onLinkClick}
             allowFileUriLinks={onLinkClick !== undefined}
             runtimeContext={imageRuntimeContext}
+            imageLoadContext={imageLoadContext}
           />
         )}
       </div>
@@ -310,7 +313,7 @@ export function NativeChatStructuredSession(
                 const optionId = question.options[optionIndex]?.id
                 return optionId ? [optionId] : []
               })
-              return { questionId: question.id, optionIds, ...(other ? { other } : {}) }
+              return { questionId: question.id, optionIds: question.multiSelect || !other ? optionIds : [], ...(other ? { other } : {}) }
             })
             if (chosen.every((answer) => answer.optionIds.length > 0 || answer.other)) {
               void controller.respond(prompt, { kind: 'answers', answers: chosen })

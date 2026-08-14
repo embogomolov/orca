@@ -3,6 +3,7 @@ import type { NativeChatMessage } from '../../../../shared/native-chat-types'
 import type { CommentMarkdownLinkClickHandler } from '@/components/sidebar/CommentMarkdown'
 import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
 import { MessageRow } from './NativeChatMessageRow'
+import type { NativeChatImageLoadContext } from './NativeChatImageAttachments'
 import { NativeChatResolutionReceipt } from './NativeChatResolutionReceipt'
 import { NativeChatWorkingStatus } from './NativeChatWorkingStatus'
 import { NativeChatTurnDiffRollup } from './NativeChatTurnDiffRollup'
@@ -24,6 +25,7 @@ export type NativeChatTranscriptRowContext = {
   turnMessagesByKey: ReadonlyMap<string, NativeChatMessage[]>
   allowFileUriLinks: boolean
   runtimeContext?: RuntimeFileOperationArgs | null
+  imageLoadContext?: NativeChatImageLoadContext
   onLinkClick?: CommentMarkdownLinkClickHandler
   onToggleExpandedTurn: (turnKey: string) => void
   onScrollMessageToTop: (element: HTMLElement) => void
@@ -68,6 +70,7 @@ export const NativeChatTranscriptRow = memo(function NativeChatTranscriptRow({
           structuredActivityUi={context.showTurnStatus}
           folded={slot.folded}
           runtimeContext={context.runtimeContext}
+          imageLoadContext={context.imageLoadContext}
         />
       )}
       {status ? (

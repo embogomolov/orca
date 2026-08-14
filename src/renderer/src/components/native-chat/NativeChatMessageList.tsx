@@ -49,6 +49,7 @@ import {
   type NativeChatDiffTarget,
   type NativeChatTurnDiff
 } from './native-chat-turn-diffs'
+import type { NativeChatImageLoadContext } from './NativeChatImageAttachments'
 
 export { ProviderFrameRow } from './NativeChatTranscriptChrome'
 
@@ -75,7 +76,8 @@ export function NativeChatMessageList({
   showTurnStatus = true,
   showLiveTurnActivity = true,
   turnActivity,
-  runtimeContext
+  runtimeContext,
+  imageLoadContext
 }: {
   session: NativeChatLiveSession
   journalItems?: readonly AgentJournalRenderItem[]
@@ -100,6 +102,7 @@ export function NativeChatMessageList({
   showLiveTurnActivity?: boolean
   turnActivity?: NativeChatTurnActivity | null
   runtimeContext?: RuntimeFileOperationArgs | null
+  imageLoadContext?: NativeChatImageLoadContext
 }): React.JSX.Element {
   const [navigationRequest, setNavigationRequest] = useState<NativeChatNavigationRequest | null>(
     null
@@ -350,6 +353,7 @@ export function NativeChatMessageList({
       turnMessagesByKey,
       allowFileUriLinks,
       runtimeContext,
+      imageLoadContext,
       onLinkClick,
       onToggleExpandedTurn: toggleExpandedTurn,
       onScrollMessageToTop: scrollMessageToTop,
@@ -366,6 +370,7 @@ export function NativeChatMessageList({
       revealDiff,
       revealedDiff,
       runtimeContext,
+      imageLoadContext,
       scrollMessageToTop,
       showTurnStatus,
       taskListPredecessors,
