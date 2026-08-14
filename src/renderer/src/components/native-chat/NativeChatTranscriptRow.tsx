@@ -4,6 +4,7 @@ import type { CommentMarkdownLinkClickHandler } from '@/components/sidebar/Comme
 import { cn } from '@/lib/utils'
 import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
 import { MessageRow, type NativeChatDeliveryNotice } from './NativeChatMessageRow'
+import type { NativeChatImageLoadContext } from './NativeChatImageAttachments'
 import { NativeChatResolutionReceipt } from './NativeChatResolutionReceipt'
 import { NativeChatWorkingStatus } from './NativeChatWorkingStatus'
 import { NativeChatTurnDiffRollup } from './NativeChatTurnDiffRollup'
@@ -29,6 +30,7 @@ export type NativeChatTranscriptRowContext = {
   turnMessagesByKey: ReadonlyMap<string, NativeChatMessage[]>
   allowFileUriLinks: boolean
   runtimeContext?: RuntimeFileOperationArgs | null
+  imageLoadContext?: NativeChatImageLoadContext
   onLinkClick?: CommentMarkdownLinkClickHandler
   onToggleExpandedTurn: (turnKey: string) => void
   subagentDisclosure: NativeChatSubagentDisclosure
@@ -117,6 +119,7 @@ export const NativeChatTranscriptRow = memo(function NativeChatTranscriptRow({
           subagentDisclosure={context.subagentDisclosure}
           inSubagentSection={slot.depth > 0}
           runtimeContext={context.runtimeContext}
+          imageLoadContext={context.imageLoadContext}
         />
       )}
       {slot.statusAbove ? null : statusRow}

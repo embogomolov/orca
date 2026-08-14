@@ -28,6 +28,7 @@ import type {
 } from './native-chat-subagent-sections'
 import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
 import { literalRoomTransportText } from './native-chat-room-transport'
+import type { NativeChatImageLoadContext } from './NativeChatImageAttachments'
 
 /** What a user message says under it when it did not go through, with its own Retry when the
  *  surface can send it again. */
@@ -58,7 +59,8 @@ export const MessageRow = memo(function MessageRow({
   subagentRoster,
   subagentDisclosure,
   inSubagentSection = false,
-  runtimeContext
+  runtimeContext,
+  imageLoadContext
 }: {
   message: NativeChatMessage
   previousTodoWrite?: NativeChatToolCallBlock
@@ -81,6 +83,7 @@ export const MessageRow = memo(function MessageRow({
   /** Inside a subagent's section, whose border has to reach past the row's controls. */
   inSubagentSection?: boolean
   runtimeContext?: RuntimeFileOperationArgs | null
+  imageLoadContext?: NativeChatImageLoadContext
 }): React.JSX.Element | null {
   const rowRef = useRef<HTMLDivElement | null>(null)
   // One pass per block set, shared with the list that decides whether this row
@@ -158,7 +161,7 @@ export const MessageRow = memo(function MessageRow({
                 blocks={prose}
                 runtimeContext={runtimeContext}
                 enablePreview={runtimeContext !== undefined}
-              />
+               loadContext={imageLoadContext} />
               {literalTransport !== null ? (
                 <div className="whitespace-pre-wrap break-words">{renderedText}</div>
               ) : (
@@ -177,7 +180,7 @@ export const MessageRow = memo(function MessageRow({
               blocks={prose}
               runtimeContext={runtimeContext}
               enablePreview={runtimeContext !== undefined}
-            />
+             loadContext={imageLoadContext} />
           )}
         </div>
         {message.sentAs === 'goal' ? (
@@ -246,7 +249,7 @@ export const MessageRow = memo(function MessageRow({
         blocks={prose}
         runtimeContext={runtimeContext}
         enablePreview={runtimeContext !== undefined}
-      />
+       loadContext={imageLoadContext} />
       {renderedText ? (
         literalTransport !== null ? (
           <div className="whitespace-pre-wrap break-words">{renderedText}</div>
