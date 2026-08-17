@@ -1,4 +1,5 @@
 import SyncDatabase from '../../sqlite/sync-database'
+import { z } from 'zod'
 import type { RoomSnapshot } from '../../../shared/rooms'
 import { initializeRoomSchema } from './schema'
 import { RoomCoreStore } from './core-store'
@@ -9,6 +10,7 @@ import { RoomProviderMessageStore } from './provider-messages'
 import { RoomActivityStore } from './activities'
 import { RoomDeliveryConfigurationStore } from './delivery-configuration'
 import { RoomNotificationReplayStore } from './notification-replay'
+import { RoomQueueEditStore } from './queue-edit-store'
 
 export type RoomDeletionManifest = {
   roomId: string
@@ -16,6 +18,15 @@ export type RoomDeletionManifest = {
   pendingUploadIds: string[]
   drops: { connectionId: string; remotePath: string }[]
 }
+
+const deletionManifestSchema = z
+  .object({
+    roomId: z.string(),
+    attachmentPaths: z.array(z.string()),
+    pendingUploadIds: z.array(z.string()),
+    drops: z.array(z.object({ connectionId: z.string(), remotePath: z.string() }).passthrough())
+  })
+  .passthrough()
 
 export class RoomDatabase {
   private readonly db: SyncDatabase.Database
@@ -27,18 +38,23 @@ export class RoomDatabase {
   readonly activities: RoomActivityStore
   readonly deliveryConfiguration: RoomDeliveryConfigurationStore
   readonly notificationReplay: RoomNotificationReplayStore
+  readonly queueEdits: RoomQueueEditStore
 
-  constructor(path: string) {
+  constructor(
+    path: string,
+    readSessionOptions?: ConstructorParameters<typeof RoomParticipantStore>[1]
+  ) {
     this.db = new SyncDatabase(path)
     initializeRoomSchema(this.db)
     this.core = new RoomCoreStore(this.db)
-    this.participants = new RoomParticipantStore(this.db)
+    this.participants = new RoomParticipantStore(this.db, readSessionOptions)
     this.messages = new RoomMessageStore(this.db)
     this.pins = new RoomPinStore(this.db)
     this.providerMessages = new RoomProviderMessageStore(this.db, this.messages)
     this.activities = new RoomActivityStore(this.db)
     this.deliveryConfiguration = new RoomDeliveryConfigurationStore(this.db)
     this.notificationReplay = new RoomNotificationReplayStore(this.db)
+    this.queueEdits = new RoomQueueEditStore(this.db)
   }
 
   close(): void {
@@ -70,7 +86,11 @@ export class RoomDatabase {
       roles: this.core.listRoles(roomId),
       pins: this.pins.list(roomId),
       unread: this.messages.getUnread(roomId, readerKey),
-      workState: this.messages.deliveries.workState(roomId)
+      workState: this.messages.deliveries.workState(roomId),
+      deliveryQueueVersion: 1,
+      deliveryQueueMutationVersion: 1,
+      broadcastQueuePlacementVersion: 1,
+      queueComposerEditVersion: 1
     }
   }
 
@@ -86,14 +106,13 @@ export class RoomDatabase {
   }
 
   listAttachmentDrops(roomId: string): RoomDeletionManifest['drops'] {
-    return (
-      this.db
-        .prepare('SELECT connection_id, remote_path FROM room_attachment_drops WHERE room_id = ?')
-        .all(roomId) as Record<string, unknown>[]
-    ).map((row) => ({
-      connectionId: String(row.connection_id),
-      remotePath: String(row.remote_path)
-    }))
+    return this.db
+      .prepare('SELECT connection_id, remote_path FROM room_attachment_drops WHERE room_id = ?')
+      .all(roomId)
+      .map((row) => ({
+        connectionId: String(row.connection_id),
+        remotePath: String(row.remote_path)
+      }))
   }
 
   deleteRoom(manifest: RoomDeletionManifest): void {
@@ -109,11 +128,10 @@ export class RoomDatabase {
   }
 
   listRoomDeletionCleanup(): RoomDeletionManifest[] {
-    return (
-      this.db.prepare('SELECT manifest_json FROM room_deletion_cleanup').all() as {
-        manifest_json: string
-      }[]
-    ).map((row) => JSON.parse(row.manifest_json) as RoomDeletionManifest)
+    return this.db
+      .prepare('SELECT manifest_json FROM room_deletion_cleanup')
+      .all()
+      .map((row) => deletionManifestSchema.parse(JSON.parse(String(row.manifest_json))))
   }
 
   finishRoomDeletionCleanup(roomId: string): void {

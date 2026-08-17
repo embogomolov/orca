@@ -107,6 +107,17 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
     return this.forBinding(binding).send(binding, prompt, options)
   }
 
+  steer(
+    binding: RoomHarnessBinding,
+    prompt: string,
+    options?: Parameters<NonNullable<RoomHarnessAdapter['steer']>>[2]
+  ) {
+    if (binding.transport !== 'machine') {
+      throw new Error('conversation_steer_unsupported')
+    }
+    return this.machine!.steer(binding, prompt, options)
+  }
+
   interrupt(binding: RoomHarnessBinding) {
     return this.forBinding(binding).interrupt(binding)
   }
@@ -124,7 +135,7 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
 
   restore(binding: RoomHarnessBinding, preferences?: AgentLaunchPreferences) {
     return binding.transport === 'machine'
-      ? this.machine!.restore(binding)
+      ? this.machine!.restore(binding, preferences)
       : this.terminal.restore(binding, preferences)
   }
 
@@ -180,14 +191,21 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
     return this.forBinding(binding).subscribe(binding, callbacks)
   }
 
-  private forBinding(binding: RoomHarnessBinding): RoomHarnessAdapter {
-    return (binding.transport === 'machine' ? this.machine : this.terminal) as RoomHarnessAdapter
+  private forBinding(
+    binding: RoomHarnessBinding
+  ): Omit<RoomHarnessAdapter, 'statusEvent' | 'launch'> {
+    const adapter = binding.transport === 'machine' ? this.machine : this.terminal
+    if (!adapter) {
+      throw new Error('room_harness_unavailable')
+    }
+    return adapter
   }
 
   private shouldUseMachine(options?: RoomHarnessLaunchOptions): boolean {
     return Boolean(
       options?.machineStreaming &&
       this.machine &&
+      this.runtime.structuredAgentStreamingEnabled?.(this.agent) === true &&
       ((this.agent !== 'claude' && this.agent !== 'openclaude') || options.trusted === true)
     )
   }

@@ -50,6 +50,7 @@ export type AgentSessionControlsProps = {
   snapshot: SessionOptionDescriptor[]
   isWorking: boolean
   context?: AgentSessionContextSnapshot
+  showContextIndicator?: boolean
   canCompact?: boolean
   onCompact?: () => Promise<void>
   onOpen?: () => void
@@ -58,6 +59,8 @@ export type AgentSessionControlsProps = {
   fallbackModelLabel?: string | null
   fallbackOptionLabel?: string | null
   className?: string
+  variant?: 'pill' | 'card'
+  dimmed?: boolean
 }
 
 const CATEGORY_ORDER: Record<string, number> = {
@@ -79,6 +82,7 @@ function AgentSessionControlsInner({
   snapshot,
   isWorking,
   context = EMPTY_AGENT_SESSION_CONTEXT,
+  showContextIndicator = true,
   canCompact = false,
   onCompact,
   onOpen,
@@ -86,7 +90,9 @@ function AgentSessionControlsInner({
   leading,
   fallbackModelLabel,
   fallbackOptionLabel,
-  className
+  className,
+  variant = 'pill',
+  dimmed = false
 }: AgentSessionControlsProps): React.JSX.Element | null {
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [tooltipOpen, setTooltipOpen] = useState(false)
@@ -170,21 +176,20 @@ function AgentSessionControlsInner({
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
-              variant="ghost"
-              size="xs"
+              variant={variant === 'card' ? 'card' : 'muted'}
+              size="compact"
+              shape={variant === 'pill' ? 'round' : undefined}
+              dimmed={dimmed}
               aria-label={`${modelLabel}${optionLabel ? ` ${optionLabel}` : ''}. ${summary}`}
               onPointerLeave={() => setTooltipOpen(false)}
-              className={cn(
-                'max-w-72 gap-1.5 rounded-full bg-muted/50 px-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                className
-              )}
+              className={cn(variant === 'card' ? 'h-9 max-w-80' : 'max-w-72', className)}
             >
               {leading}
               {compacting ? (
                 <SynchronizedSpinner />
-              ) : (
+              ) : showContextIndicator ? (
                 <ContextDonut percent={displayedContext.usedPercent} />
-              )}
+              ) : null}
               <span className="truncate text-foreground">{modelLabel}</span>
               {optionLabel ? <span className="truncate">{optionLabel}</span> : null}
               <ChevronDown className="size-3" />
@@ -232,15 +237,15 @@ function AgentSessionControlsInner({
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-64">
                 {descriptor.description ? (
-                  <DropdownMenuLabel className="font-normal">
+                  <DropdownMenuLabel variant="description">
                     {descriptor.description}
                   </DropdownMenuLabel>
                 ) : null}
                 {reason && !descriptor.settable ? (
-                  <DropdownMenuLabel className="font-normal">{reason}</DropdownMenuLabel>
+                  <DropdownMenuLabel variant="description">{reason}</DropdownMenuLabel>
                 ) : null}
                 {sessionOptionDispatchUnconfirmed(descriptor) ? (
-                  <DropdownMenuLabel className="font-normal text-muted-foreground">
+                  <DropdownMenuLabel variant="description">
                     {translate(
                       'components.native-chat.composer.sentNotConfirmed',
                       'Sent to the agent — not confirmed'

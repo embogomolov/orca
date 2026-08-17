@@ -31,6 +31,7 @@ import type { StructuredAgentSessionAttachContext } from './structured-agent-ses
 import * as sessionTabs from './structured-agent-session-host-tabs'
 import {
   structuredAgentSessionMutationDelegates,
+  steerStructuredAgentSessionTurn,
   type StructuredAgentSessionMutationContext
 } from './structured-agent-session-host-mutations'
 import { settleStructuredAgentSessionLateDispatch } from './structured-agent-session-late-dispatch'
@@ -184,6 +185,7 @@ export class StructuredAgentSessionHost {
 
   hasSession = (sessionId: string): boolean => this.sessions.has(sessionId)
   sessionAgent = (sessionId: string) => this.deps.store.getRecord(sessionId)?.provider ?? null
+  hasProviderChild = (id: string): boolean => this.sessions.get(id)?.child != null
 
   handleAdapterEvent = (event: Parameters<StructuredAgentSessionEventRecovery['handle']>[0]) =>
     this.eventRecovery.handle(event)
@@ -301,6 +303,11 @@ export class StructuredAgentSessionHost {
   queuedMessagesResume = this.queued.queuedMessagesResume
 
   waitForSendSettlement = this.clientDelivery.waitForSendSettlement
+  steer = (
+    caller: StructuredAgentSessionCaller,
+    params: Parameters<typeof steerStructuredAgentSessionTurn>[2]
+  ): ReturnType<typeof steerStructuredAgentSessionTurn> =>
+    steerStructuredAgentSessionTurn(this.mutationContext(), caller, params)
 
   private mutations = structuredAgentSessionMutationDelegates(() => this.mutationContext())
   cancel = this.mutations.cancel

@@ -64,6 +64,7 @@ import {
   modelCatalogHostDeps,
   type RuntimeAgentAccountHomeResolver
 } from './structured-agent-model-catalog-wiring'
+import { canStartEmptyClaudeSession } from '../claude/claude-empty-session'
 
 /** Whether this profile holds a structured chat: a record or tab in the journal database, or the
  *  records file a profile from before it carries while the database still owes its copy. */
@@ -305,18 +306,28 @@ async function installOnJournal(
     modelCatalog: agentModelCatalogStore
   })
   const machine = new MachineStructuredSessionAdapter({
-    createDriver: deps.createMachineDriver ?? (() => Promise.reject(new Error('structured machine providers are unavailable'))),
+    canStartEmptyClaudeSession: (sessionId) =>
+      canStartEmptyClaudeSession(store.getRecord(sessionId), journalDatabase),
+    createDriver:
+      deps.createMachineDriver ??
+      (() => Promise.reject(new Error('structured machine providers are unavailable'))),
     resolveWorkspacePath: ({ workspaceId }) => deps.resolveWorkspacePath(workspaceId),
     resolveProviderEnvironment: async ({ sessionId }) => {
       const record = store.getRecord(sessionId)
       return record ? { [record.accountHome.variable]: record.accountHome.path } : {}
     },
     ...(deps.readProcessStartTime ? { readProcessStartTime: deps.readProcessStartTime } : {}),
-    onEvent: (event) => { if (event.type === 'ended' && event.cause === 'unexpected-exit') lifecycle.deliver(event) }
+    onEvent: (event) => {
+      if (event.type === 'ended' && event.cause === 'unexpected-exit') {
+        lifecycle.deliver(event)
+      }
+    }
   })
   const adapter = new StructuredAgentSessionAdapterRouter(
     { codex, claude, openclaude: machine, grok: machine, omp: machine },
-    async () => { await Promise.all([codex.closeAll(), claude.closeAll(), machine.closeAll()]) }
+    async () => {
+      await Promise.all([codex.closeAll(), claude.closeAll(), machine.closeAll()])
+    }
   )
   host = new StructuredAgentSessionHost({
     store,

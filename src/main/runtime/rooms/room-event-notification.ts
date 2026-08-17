@@ -1,12 +1,18 @@
 import type { RoomEvent } from '../../../shared/rooms'
+import { isRecord } from '../../../shared/agent-status-child-work-value-guards'
 import type { RoomDatabase } from './database'
 
-export function addRoomMessageNotificationContext(
+export function addRoomMessageNotificationContext<T extends RoomEvent>(
   db: RoomDatabase,
   roomId: string,
-  event: RoomEvent
-): RoomEvent {
-  if (event.type !== 'message.created' || event.message.actorKind !== 'agent') {
+  event: T
+): T {
+  if (
+    event.type !== 'message.created' ||
+    event.message.actorKind !== 'agent' ||
+    (isRecord(event.message.metadata.activity) &&
+      event.message.metadata.activity.state === 'interrupted')
+  ) {
     return event
   }
   const room = db.core.get(roomId)

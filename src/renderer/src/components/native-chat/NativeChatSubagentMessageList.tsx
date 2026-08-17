@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import { codexLiveSubagents } from '../../../../shared/codex-subagent-items'
+import { isRootAgentJournalItem } from '../../../../shared/agent-session-journal-producer'
 import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 import {
   AgentSubagentProvider,
@@ -23,6 +24,7 @@ export function NativeChatSubagentMessageList({
         {
           key: subagents.structuredSessionId,
           identity: agent,
+          showIdentity: false,
           agent,
           sessionId: subagents.structuredSessionId,
           ...subagents,
@@ -40,6 +42,7 @@ export function NativeChatSubagentMessageList({
       {
         key: 'native-chat',
         identity: agent,
+        showIdentity: false,
         agent,
         paneKey,
         sessionId: messageListProps.session.sessionId,
@@ -59,9 +62,18 @@ export function NativeChatSubagentMessageList({
     messageListProps.session.messages,
     subagents
   ])
+  // Child transcripts belong to the sheet, not upstream's inline child sections.
+  const messages = useMemo(
+    () => messageListProps.session.messages.filter(isRootAgentJournalItem),
+    [messageListProps.session.messages]
+  )
   return (
     <AgentSubagentProvider sources={sources}>
-      <NativeChatMessageList {...messageListProps} subagentSourceKey={sources[0]?.key} />
+      <NativeChatMessageList
+        {...messageListProps}
+        session={{ ...messageListProps.session, messages }}
+        subagentSourceKey={sources[0]?.key}
+      />
     </AgentSubagentProvider>
   )
 }

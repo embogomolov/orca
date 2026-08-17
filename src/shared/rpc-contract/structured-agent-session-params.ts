@@ -194,6 +194,8 @@ export const SendParams = z
   })
   .strict()
 
+export const SteerParams = SendParams
+
 export const CancelParams = z
   .object({
     envelope: MutationEnvelope,

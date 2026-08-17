@@ -20,14 +20,21 @@ import { Input } from '@/components/ui/input'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import { roomRpc } from '@/runtime/runtime-rooms-client'
-import type { RoomExistingAgentCandidate, RoomHarnessAgent } from '../../../../shared/rooms'
+import {
+  ROOM_HARNESS_AGENTS,
+  type RoomExistingAgentCandidate,
+  type RoomHarnessAgent
+} from '../../../../shared/rooms'
 import {
   runtimeEnvironmentSupportsCapability,
   type RuntimeClientTarget
 } from '@/runtime/runtime-rpc-client'
 import { showRoomActionError } from './room-action-error'
 import type { Worktree } from '../../../../shared/worktree/types'
-import { isStructuredMachineAgent } from '../../../../shared/structured-agent-provider'
+import {
+  isStructuredMachineAgentEnabled,
+  type StructuredMachineAgent
+} from '../../../../shared/structured-agent-provider'
 import { useConfirmationDialog } from '@/components/confirmation-dialog-context'
 import {
   ROOM_EXISTING_STRUCTURED_SESSION_RUNTIME_CAPABILITY,
@@ -55,7 +62,8 @@ export function RoomAddAgentDialog({
   worktreeId,
   worktrees,
   target,
-  machineStreaming
+  machineStreaming,
+  enabledStreamingAgents
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -64,6 +72,7 @@ export function RoomAddAgentDialog({
   worktrees: Worktree[]
   target: RuntimeClientTarget
   machineStreaming: boolean
+  enabledStreamingAgents?: StructuredMachineAgent[]
 }): React.JSX.Element {
   const confirm = useConfirmationDialog()
   const [agent, setAgent] = useState<RoomHarnessAgent>('claude')
@@ -90,7 +99,7 @@ export function RoomAddAgentDialog({
     const load = async (): Promise<void> => {
       const machineSupported =
         machineStreaming &&
-        isStructuredMachineAgent(agent) &&
+        isStructuredMachineAgentEnabled(agent, enabledStreamingAgents) &&
         (target.kind === 'local' ||
           (await runtimeEnvironmentSupportsCapability(
             target.environmentId,
@@ -121,7 +130,7 @@ export function RoomAddAgentDialog({
     return () => {
       disposed = true
     }
-  }, [agent, machineStreaming, mode, open, target, worktree?.id])
+  }, [agent, enabledStreamingAgents, machineStreaming, mode, open, target, worktree?.id])
 
   const add = async (): Promise<void> => {
     if (!roomId || !worktree || !identity.trim()) {
@@ -132,7 +141,7 @@ export function RoomAddAgentDialog({
       mode === 'existing'
         ? existingMachineSupported
         : machineStreaming &&
-          isStructuredMachineAgent(agent) &&
+          isStructuredMachineAgentEnabled(agent, enabledStreamingAgents) &&
           (target.kind === 'local' ||
             (await runtimeEnvironmentSupportsCapability(
               target.environmentId,
@@ -219,7 +228,7 @@ export function RoomAddAgentDialog({
           </DialogDescription>
         </DialogHeader>
         {choosing ? (
-          <Command className="min-w-0 border border-border bg-background">
+          <Command bordered className="min-w-0">
             <CommandInput
               autoFocus
               placeholder={translate('rooms.addAgent.searchSessions', 'Search sessions…')}
@@ -238,7 +247,8 @@ export function RoomAddAgentDialog({
                     key={value}
                     value={`${item.title || value} ${item.model || ''} ${value}`}
                     onSelect={() => choose(item)}
-                    className="min-w-0 items-start py-2"
+                    variant="multiline"
+                    className="min-w-0 items-start"
                   >
                     <Check className={cn('mt-0.5 size-4', selection !== value && 'invisible')} />
                     <div className="min-w-0 flex-1">
@@ -267,7 +277,11 @@ export function RoomAddAgentDialog({
               <select
                 value={agent}
                 onChange={(event) => {
-                  setAgent(event.target.value as RoomHarnessAgent)
+                  const selected = ROOM_HARNESS_AGENTS.find((value) => value === event.target.value)
+                  if (!selected) {
+                    return
+                  }
+                  setAgent(selected)
                   setSelection('')
                 }}
                 className="min-w-0 rounded-md border border-border bg-background p-2 text-sm text-foreground"
@@ -284,17 +298,13 @@ export function RoomAddAgentDialog({
               <Input value={identity} onChange={(event) => setIdentity(event.target.value)} />
             </label>
             <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
-              {(['new', 'existing'] as Mode[]).map((item) => (
+              {(['new', 'existing'] as const).map((item) => (
                 <Button
                   key={item}
                   type="button"
                   size="sm"
-                  variant="ghost"
+                  variant="segmented"
                   aria-pressed={mode === item}
-                  className={cn(
-                    mode === item &&
-                      'border border-border bg-background text-foreground shadow-xs hover:bg-background'
-                  )}
                   onClick={() => {
                     setMode(item)
                     setSelection('')
@@ -310,7 +320,8 @@ export function RoomAddAgentDialog({
               <Button
                 type="button"
                 variant="outline"
-                className="min-w-0 justify-between font-normal"
+                weight="normal"
+                className="min-w-0 justify-between"
                 disabled={loadingChoices}
                 onClick={() => setChoosing(true)}
               >

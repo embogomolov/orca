@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SDKAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { HarnessConversationDriverSink } from './driver'
 import { emitClaudeAssistant, emitClaudeFinal, emitClaudeStreamDelta } from './claude-message'
 
@@ -19,11 +18,12 @@ describe('emitClaudeAssistant', () => {
     emitClaudeAssistant(
       sink,
       {
+        uuid: '00000000-0000-4000-8000-000000000000',
         message: {
           id: 'provider-message',
           content: [{ type: 'thinking', thinking: 'Checking', signature: '' }]
         }
-      } as SDKAssistantMessage,
+      },
       'claude:provider-message',
       new Map()
     )
@@ -37,7 +37,7 @@ describe('emitClaudeAssistant', () => {
     )
   })
 
-  it('keeps assistant text buffered until the successful result confirms it', () => {
+  it('streams assistant text before the successful result confirms it', () => {
     const texts = new Map<string, string>()
     emitClaudeStreamDelta(
       sink,
@@ -47,7 +47,10 @@ describe('emitClaudeAssistant', () => {
       texts
     )
 
-    expect(sink.emit).not.toHaveBeenCalled()
+    expect(sink.emit.mock.calls.map(([event]) => event.type)).toEqual([
+      'message.started',
+      'message.delta'
+    ])
     expect(texts.get('claude:message')).toBe('Final answer')
 
     emitClaudeFinal(sink, 'claude:message', 'Final answer')
@@ -56,23 +59,33 @@ describe('emitClaudeAssistant', () => {
       'message.delta',
       'message.completed'
     ])
-    expect(sink.emit.mock.calls[0]?.[0]).toMatchObject({
+    expect(sink.emit.mock.calls.at(-1)?.[0]).toMatchObject({
       message: { assistantPhase: 'final' }
     })
   })
 
-  it('keeps a canonical text-only assistant message buffered', () => {
+  it('emits a canonical text-only assistant message without guessing its phase', () => {
     const texts = new Map<string, string>()
     emitClaudeAssistant(
       sink,
       {
-        message: { id: 'provider-message', content: [{ type: 'text', text: 'Candidate' }] }
-      } as SDKAssistantMessage,
+        uuid: '00000000-0000-4000-8000-000000000000',
+        message: {
+          id: 'provider-message',
+          content: [{ type: 'text', text: 'Candidate', citations: null }]
+        }
+      },
       'claude:provider-message',
       texts
     )
 
-    expect(sink.emit).not.toHaveBeenCalled()
-    expect(texts.get('claude:provider-message')).toBe('Candidate')
+    expect(sink.emit).toHaveBeenCalledWith({
+      type: 'message.completed',
+      message: expect.objectContaining({
+        id: 'claude:provider-message',
+        blocks: [{ type: 'text', text: 'Candidate' }]
+      })
+    })
+    expect(sink.emit.mock.calls[0]?.[0].message).not.toHaveProperty('assistantPhase')
   })
 })

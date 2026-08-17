@@ -52,6 +52,7 @@ describe('RoomComposerAttachments image viewer', () => {
       <RoomComposerAttachments
         attachments={[
           {
+            source: 'upload',
             uploadId: 'one',
             fileName: 'one.png',
             byteSize: 10,
@@ -59,6 +60,7 @@ describe('RoomComposerAttachments image viewer', () => {
             previewUrl: 'blob:one'
           },
           {
+            source: 'upload',
             uploadId: 'two',
             fileName: 'two.png',
             byteSize: 20,
@@ -88,7 +90,7 @@ describe('RoomComposerAttachments image viewer', () => {
     mocks.downloadRoomAttachment.mockResolvedValue('/tmp/image.png')
     render(
       <RoomMessageAttachments
-        data={{ target: { kind: 'local' } } as never}
+        data={{ target: { kind: 'local' } }}
         message={{
           id: 'message-1',
           roomId: 'room-1',

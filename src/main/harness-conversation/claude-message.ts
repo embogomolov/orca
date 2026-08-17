@@ -1,4 +1,5 @@
 import type { SDKAssistantMessage, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import type { StructuredProviderInput } from '../../shared/structured-agent-provider'
 import type { NativeChatBlock, NativeChatMessage } from '../../shared/native-chat-types'
 import type { HarnessConversationDriverSink } from './driver'
@@ -21,11 +22,13 @@ export function claudeTextMessage(
 
 export function emitClaudeAssistant(
   sink: HarnessConversationDriverSink,
-  message: SDKAssistantMessage,
+  message: Pick<SDKAssistantMessage, 'uuid'> & {
+    message: Pick<SDKAssistantMessage['message'], 'id' | 'content'>
+  },
   streamingId: string | null,
   streamedText: Map<string, string>
-): boolean {
-  const finalId = streamingId ?? `claude:${message.message.id}`
+): string | null {
+  const finalId = streamingId ?? `claude:${message.uuid}`
   const blocks: NativeChatBlock[] = []
   const reasoning: string[] = []
   for (const block of message.message.content) {
@@ -48,27 +51,19 @@ export function emitClaudeAssistant(
     })
   }
   const hasToolCall = blocks.some((block) => block.type === 'tool-call')
-  if (hasToolCall) {
+  if (blocks.length > 0) {
     sink.emit({
       type: 'message.completed',
       message: {
-        ...claudeTextMessage(finalId, 'assistant', '', 'commentary'),
+        ...claudeTextMessage(finalId, 'assistant', '', hasToolCall ? 'commentary' : undefined),
         blocks,
         timestamp
       }
     })
-    for (const id of streamedText.keys()) {
-      if (!id.endsWith(':reasoning')) {
-        streamedText.delete(id)
-      }
-    }
-  } else {
-    const text = blocks.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n\n')
-    if (text) {
-      streamedText.set(finalId, text)
-    }
   }
-  return hasToolCall
+  streamedText.delete(finalId)
+  streamedText.delete(`${finalId}:reasoning`)
+  return hasToolCall || !blocks.some((block) => block.type === 'text') ? null : finalId
 }
 
 export function emitClaudeToolResults(
@@ -108,12 +103,12 @@ export function emitClaudeToolResults(
 
 export function emitClaudeStreamDelta(
   sink: HarnessConversationDriverSink,
-  event: Record<string, unknown>,
+  event: unknown,
   fallbackId: string,
   streamingId: string | null,
   streamedText: Map<string, string>
 ): void {
-  const delta = event.delta as { type?: unknown; text?: unknown; thinking?: unknown } | undefined
+  const delta = isRecord(event) && isRecord(event.delta) ? event.delta : undefined
   const role = delta?.type === 'thinking_delta' ? 'reasoning' : 'assistant'
   const text = role === 'reasoning' ? delta?.thinking : delta?.text
   if (typeof text !== 'string') {
@@ -122,13 +117,11 @@ export function emitClaudeStreamDelta(
   const baseId = streamingId ?? `claude:${fallbackId}`
   const messageId = role === 'reasoning' ? `${baseId}:reasoning` : baseId
   const current = streamedText.get(messageId) ?? ''
-  if (!streamedText.has(messageId) && role === 'reasoning') {
+  if (!streamedText.has(messageId)) {
     sink.emit({ type: 'message.started', message: claudeTextMessage(messageId, role, '') })
   }
   streamedText.set(messageId, current + text)
-  if (role === 'reasoning') {
-    sink.emit({ type: 'message.delta', messageId, blockIndex: 0, offset: current.length, text })
-  }
+  sink.emit({ type: 'message.delta', messageId, blockIndex: 0, offset: current.length, text })
 }
 
 export function emitClaudeBufferedCommentary(
@@ -150,14 +143,9 @@ export function emitClaudeFinal(
   id: string,
   text: string
 ): void {
-  const message = claudeTextMessage(id, 'assistant', '', 'final')
-  sink.emit({ type: 'message.started', message })
-  if (text) {
-    sink.emit({ type: 'message.delta', messageId: id, blockIndex: 0, offset: 0, text })
-  }
   sink.emit({
     type: 'message.completed',
-    message: { ...message, blocks: [{ type: 'text', text }] }
+    message: claudeTextMessage(id, 'assistant', text, 'final')
   })
 }
 
@@ -166,10 +154,10 @@ export function parseClaudeQuestions(value: unknown): StructuredProviderInput['q
     return []
   }
   return value.flatMap((entry) => {
-    if (!entry || typeof entry !== 'object') {
+    if (!isRecord(entry)) {
       return []
     }
-    const question = entry as Record<string, unknown>
+    const question = entry
     if (typeof question.question !== 'string') {
       return []
     }
@@ -187,10 +175,10 @@ export function parseClaudeQuestions(value: unknown): StructuredProviderInput['q
 }
 
 function parseOption(value: unknown): { label: string; description?: string }[] {
-  if (!value || typeof value !== 'object') {
+  if (!isRecord(value)) {
     return []
   }
-  const option = value as Record<string, unknown>
+  const option = value
   return typeof option.label === 'string'
     ? [
         {

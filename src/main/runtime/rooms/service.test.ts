@@ -7,6 +7,8 @@ import { ROOM_CORE_METHODS } from '../rpc/methods/rooms-core'
 import { ROOM_MANAGEMENT_METHODS } from '../rpc/methods/rooms-management'
 import type { RoomHarnessRuntime } from './harness-adapter'
 import { RoomService } from './service'
+import { OrcaRuntimeService } from '../orca-runtime'
+import { roomSnapshotFixture } from '../../../shared/rooms.test-fixture'
 
 const ROOM_METHODS = [...ROOM_CORE_METHODS, ...ROOM_MANAGEMENT_METHODS]
 
@@ -322,21 +324,20 @@ describe('RoomService lifecycle', () => {
 
   it('returns the room snapshot without waiting for harness activation', async () => {
     const snapshotMethod = ROOM_METHODS.find((method) => method.name === 'rooms.snapshot')
-    const service = {
-      snapshot: vi.fn(() => ({ room: { id: 'room-1' } })),
-      activateRoom: vi.fn(() => new Promise(() => {}))
-    }
-    const result = await (
-      snapshotMethod as unknown as {
-        handler: (params: unknown, context: unknown) => Promise<{ snapshot: unknown }>
-      }
-    ).handler(
+    const service = new RoomService(':memory:', runtime())
+    vi.spyOn(service, 'prepareSnapshot').mockResolvedValue(undefined)
+    vi.spyOn(service, 'snapshot').mockReturnValue(roomSnapshotFixture({ room: { id: 'room-1' } }))
+    vi.spyOn(service, 'activateRoom').mockImplementation(() => new Promise(() => {}))
+    const rpcRuntime = new OrcaRuntimeService()
+    vi.spyOn(rpcRuntime, 'getRoomService').mockReturnValue(service)
+    const result = await snapshotMethod!.handler(
       { roomId: crypto.randomUUID(), readerKey: 'user' },
-      { runtime: { getRoomService: () => service } }
+      { runtime: rpcRuntime }
     )
     // The header renders from persisted state; reconciliation streams events.
-    expect(result.snapshot).toEqual({ room: { id: 'room-1' } })
+    expect(result.snapshot).toMatchObject({ room: { id: 'room-1' } })
     expect(service.activateRoom).toHaveBeenCalledTimes(1)
+    service.close()
   })
 
   it('trusts the same harness process on restore without waiting or resending config', async () => {

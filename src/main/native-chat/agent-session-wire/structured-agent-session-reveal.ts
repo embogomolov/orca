@@ -36,13 +36,12 @@ export async function revealStructuredAgentSession(
   if (!record) {
     throw agentSessionRefusalError('agent_session_identity_required', { reason: 'recordMissing' })
   }
-  if (!adapterSupportsRecord(deps.adapter, record)) {
+  const agent = agentSessionRecordAgent(record)
+  if (!isStructuredMachineAgent(agent) || !adapterSupportsRecord(deps.adapter, record)) {
     throw agentSessionRefusalError('structured_agent_session_unsupported', {
       reason: 'hostUnsupported'
     })
   }
-  const agent = agentSessionRecordAgent(record)
-  if (!isStructuredMachineAgent(agent)) throw new Error('structured_agent_session_unsupported')
   // Lease state is not consulted on purpose: this neither claims the lease nor spawns a child, so a
   // contested or reconciling chat still reveals and the send that follows adjudicates it. Refusing
   // here would hide the one view of a session a user needs when its ownership is in doubt.

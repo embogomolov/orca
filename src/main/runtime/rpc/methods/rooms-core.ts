@@ -23,7 +23,9 @@ import { defineMethod, defineStreamingMethod } from '../core'
 
 import { ROOM_WORK_METHODS } from './rooms-work'
 import { ROOM_NOTIFICATION_METHODS } from './rooms-notifications'
+import { ROOM_QUEUE_METHODS } from './rooms-queue'
 import { ROOM_EXISTING_PARTICIPANT_METHOD } from './rooms-participant-existing'
+import { updateRoomParticipant } from '../../rooms/participant-participation'
 
 export const ROOM_CORE_METHODS = [
   defineMethod({
@@ -45,6 +47,7 @@ export const ROOM_CORE_METHODS = [
     params: RoomsSnapshotParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
+      await service.prepareSnapshot(params.roomId)
       // The header must render instantly from persisted state; harness
       // reconciliation can take minutes and streams participant.updated events.
       void service.activateRoom(params.roomId, params.readerKey).catch(() => {})
@@ -55,6 +58,7 @@ export const ROOM_CORE_METHODS = [
     name: 'rooms.subscribe',
     params: RoomsSubscribeParams,
     handler: async (params, { runtime, connectionId }, emit) => {
+      await runtime.getRoomService().prepareSnapshot(params.roomId)
       const key = `rooms:${connectionId ?? 'local'}:${params.subscriptionId}`
       let deleted = false
       const unsubscribe = runtime
@@ -95,6 +99,7 @@ export const ROOM_CORE_METHODS = [
         .listMessages(params.roomId, params.beforeSequence ?? null, params.limit)
     })
   }),
+  ...ROOM_QUEUE_METHODS,
   defineMethod({
     name: 'rooms.messages.send',
     params: RoomsMessagesSendParams,
@@ -165,14 +170,25 @@ export const ROOM_CORE_METHODS = [
     }
   }),
   defineMethod({
+    name: 'rooms.participants.wake',
+    params: RoomsParticipantsRemoveParams,
+    handler: async (params, { runtime }) => ({
+      participant: await runtime.getRoomService().wakeParticipant(params.participantId)
+    })
+  }),
+  defineMethod({
     name: 'rooms.participants.update',
     params: RoomsParticipantsUpdateParams,
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
-      const current = service.db.participants.get(params.participantId)
-      service.assertWritable(current.roomId)
-      const participant = service.db.participants.update(current.id, params)
-      service.emitEvent(participant.roomId, { type: 'participant.updated', participant })
+      const participant = updateRoomParticipant(
+        service.db,
+        params.participantId,
+        params,
+        service.assertWritable,
+        (roomId, event) => service.emitEvent(roomId, event),
+        () => service.queue.wake()
+      )
       return { participant }
     }
   }),

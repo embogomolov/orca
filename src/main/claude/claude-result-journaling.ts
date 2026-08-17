@@ -15,8 +15,7 @@ import {
 } from './claude-structured-provider-fallback'
 import { claudeTurnEndForResult } from './claude-turn-lifecycle-item'
 import { claudeFrameParentRef, isRootClaudeFrame } from './claude-turn-opening'
-import { claudeMessageIdentity } from './claude-structured-item-translation'
-import { claudeText } from './claude-structured-values'
+import { claudeMessageIdentity, claudeText } from './claude-structured-item-translation'
 
 export type ClaudeResultJournalContext = Pick<
   ClaudeMessageJournalContext,

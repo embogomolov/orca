@@ -173,6 +173,9 @@ export function projectStructuredItemToNativeChat(
         ...agentJournalLinkageFields(item),
         role: projected.role,
         blocks: projected.blocks,
+        ...(item.body.kind === 'message' && item.body.assistantPhase
+          ? { assistantPhase: item.body.assistantPhase }
+          : {}),
         // A send mode this build cannot name renders as an ordinary message.
         ...(sentAs !== undefined && isAgentJournalMessageSendMode(sentAs) ? { sentAs } : {})
       }

@@ -1,3 +1,7 @@
+import {
+  hostTestStub,
+  hostTestHistoryPage
+} from '../../native-chat/agent-session-wire/structured-agent-session-host-test-harness'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EMPTY_ROOM_CONTEXT } from '../../../shared/room-context'
 import { ROOM_HARNESS_AGENTS, type RoomHarnessAgent } from '../../../shared/rooms'
@@ -14,6 +18,7 @@ afterEach(() => setStructuredAgentSessionHost(null))
 
 function runtimeStub(): RoomHarnessRuntime {
   return {
+    structuredAgentStreamingEnabled: () => true,
     createAgentSession: vi.fn(async (request) => ({
       terminal: {
         handle: `term_${request.agent}`,
@@ -123,18 +128,42 @@ function structuredAttachParams(
 
 function structuredHostStub() {
   return {
-    attach: vi.fn(async () => ({ ok: true })),
-    hold: vi.fn(async () => undefined),
+    attach: vi.fn(async () => ({
+      ok: true as const,
+      replayed: false,
+      fence: 1,
+      cursor: { epoch: 'epoch-1', sequence: 0 },
+      value: {
+        sessionId: 'session-1',
+        fence: 1,
+        page: hostTestHistoryPage(),
+        unconfirmedClientMessageIds: []
+      }
+    })),
     close: vi.fn(async () => undefined),
+    hasProviderChild: vi.fn(() => true),
     readConfiguration: vi.fn(() => null)
   }
 }
 
 describe('machine room harness', () => {
+  it('keeps a disabled provider on the terminal transport', async () => {
+    const runtime = runtimeStub()
+    runtime.structuredAgentStreamingEnabled = (agent) => agent !== 'claude'
+
+    const binding = await createRoomHarnessAdapters(runtime).claude.launch('worktree-1', {
+      machineStreaming: true,
+      trusted: true
+    })
+
+    expect(binding.transport).toBe('terminal')
+    expect(runtime.createAgentSession).toHaveBeenCalledOnce()
+  })
+
   it('uses the structured transport only when explicitly enabled', async () => {
     const runtime = runtimeStub()
     const host = structuredHostStub()
-    setStructuredAgentSessionHost(host as never)
+    setStructuredAgentSessionHost(hostTestStub(host))
     runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
     runtime.resolveStructuredAgentSessionCreateIntent = vi.fn(async (input) =>
       structuredAttachParams(input.agent, input.envelope.sessionId)
@@ -157,14 +186,13 @@ describe('machine room harness', () => {
     }
     expect(binding.conversationId).toMatch(/^room_[A-Za-z0-9_]+$/)
     expect(host.attach).toHaveBeenCalledOnce()
-    expect(host.hold).toHaveBeenCalledOnce()
     expect(runtime.createAgentSession).not.toHaveBeenCalled()
   })
 
   it('hands an idle existing terminal session to the machine transport', async () => {
     const runtime = runtimeStub()
     const host = structuredHostStub()
-    setStructuredAgentSessionHost(host as never)
+    setStructuredAgentSessionHost(hostTestStub(host))
     runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
     runtime.resolveStructuredAgentSessionCreateIntent = vi.fn(async (input) =>
       structuredAttachParams(input.agent, input.envelope.sessionId)
@@ -200,11 +228,15 @@ describe('machine room harness', () => {
       hasSession: vi.fn(() => true),
       restoreReadableSessions: vi.fn(async () => undefined),
       listSessionTabs: vi.fn(() => [
-        { sessionId: 'room_session_1', workspaceId: 'worktree-1', agent: 'codex' }
+        { sessionId: 'room_session_1', workspaceId: 'worktree-1', agent: 'codex' as const }
       ]),
-      history: vi.fn(() => ({ providerSession: { id: 'provider-1' } }))
+      history: vi.fn(async () => ({
+        ok: true as const,
+        page: hostTestHistoryPage(),
+        providerSession: { key: 'session_id' as const, id: 'provider-1' }
+      }))
     }
-    setStructuredAgentSessionHost(host as never)
+    setStructuredAgentSessionHost(hostTestStub(host))
     runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
 
     const binding = await createRoomHarnessAdapters(runtime).codex.connectExisting(
@@ -219,14 +251,51 @@ describe('machine room harness', () => {
       providerSession: { sourceSessionId: 'provider-1' }
     })
     expect(host.attach).not.toHaveBeenCalled()
-    expect(host.hold).toHaveBeenCalledOnce()
+    expect(host.history).toHaveBeenCalled()
+  })
+
+  it('migrates a legacy machine binding through its provider session', async () => {
+    const runtime = runtimeStub()
+    const host = {
+      ...structuredHostStub(),
+      hasSession: vi.fn(() => false),
+      restoreReadableSessions: vi.fn(async () => undefined)
+    }
+    setStructuredAgentSessionHost(hostTestStub(host))
+    runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
+    runtime.resolveStructuredAgentSessionCreateIntent = vi.fn(async (input) =>
+      structuredAttachParams(input.agent, input.envelope.sessionId)
+    )
+
+    const binding = await createRoomHarnessAdapters(runtime).codex.restore({
+      transport: 'machine',
+      worktreeId: 'worktree-1',
+      conversationId: 'legacy-conversation',
+      providerSession: {
+        key: 'session_id',
+        id: 'legacy-conversation',
+        transport: 'machine',
+        sourceSessionId: 'provider-1'
+      }
+    })
+
+    expect(binding).toMatchObject({
+      transport: 'machine',
+      conversationId: expect.stringMatching(/^room_[A-Za-z0-9_]+$/),
+      disposition: 'created',
+      providerSession: { sourceSessionId: 'provider-1' }
+    })
+    expect(runtime.resolveStructuredAgentSessionCreateIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ agent: 'codex', providerSessionId: 'provider-1' })
+    )
+    expect(host.attach).toHaveBeenCalledOnce()
   })
 
   it('restores an existing terminal when machine handoff fails', async () => {
     const runtime = runtimeStub()
     const running = await runtime.listRoomRunningAgents('worktree-1')
     runtime.listRoomRunningAgents = vi.fn().mockResolvedValueOnce(running).mockResolvedValueOnce([])
-    setStructuredAgentSessionHost(structuredHostStub() as never)
+    setStructuredAgentSessionHost(hostTestStub(structuredHostStub()))
     runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
     runtime.resolveStructuredAgentSessionCreateIntent = vi.fn(async () => {
       throw new Error('machine_failed')
@@ -251,16 +320,19 @@ describe('machine room harness', () => {
     )
   })
 
-  it('keeps untrusted Claude launches on the trust-owning terminal transport', async () => {
-    const runtime = runtimeStub()
+  it.each(['claude', 'openclaude'] as const)(
+    'keeps untrusted %s launches on the trust-owning terminal transport',
+    async (agent) => {
+      const runtime = runtimeStub()
 
-    const binding = await createRoomHarnessAdapters(runtime).claude.launch('worktree-1', {
-      machineStreaming: true,
-      trusted: false
-    })
+      const binding = await createRoomHarnessAdapters(runtime)[agent].launch('worktree-1', {
+        machineStreaming: true,
+        trusted: false
+      })
 
-    expect(binding.transport).toBe('terminal')
-  })
+      expect(binding.transport).toBe('terminal')
+    }
+  )
 })
 
 it('registers the canonical idle wait before interrupting a room agent', async () => {
@@ -280,7 +352,11 @@ it('registers the canonical idle wait before interrupting a room agent', async (
     timeoutMs: 8_000,
     signal: expect.any(AbortSignal)
   })
-  expect(runtime.sendTerminal).toHaveBeenCalledWith('term-codex', { text: '\x1b' })
+  expect(runtime.sendTerminal).toHaveBeenCalledWith(
+    'term-codex',
+    { text: '\x1b' },
+    { inputKind: 'driving' }
+  )
   expect(vi.mocked(runtime.waitForTerminal).mock.invocationCallOrder[0]).toBeLessThan(
     vi.mocked(runtime.sendTerminal!).mock.invocationCallOrder[0]!
   )
@@ -394,7 +470,11 @@ describe.each(ROOM_HARNESS_AGENTS)('%s room harness adapter', (agent: RoomHarnes
     await expect(adapter.send(launched, 'review')).resolves.toMatchObject({ accepted: true })
     await adapter.prepareControl?.(launched, '/fast off')
     if (agent === 'claude') {
-      expect(runtime.sendTerminal).toHaveBeenCalledWith(launched.terminalHandle, { text: '\x1b' })
+      expect(runtime.sendTerminal).toHaveBeenCalledWith(
+        launched.terminalHandle,
+        { text: '\x1b' },
+        { inputKind: 'driving' }
+      )
       expect(runtime.waitForTerminalAgentInputReady).toHaveBeenCalledWith(
         launched.terminalHandle,
         'claude'
@@ -631,14 +711,26 @@ describe('room transcript lifecycle normalization', () => {
     const toolMessage = {
       id: 'tool-1',
       role: 'assistant' as const,
-      blocks: [{ type: 'tool-call' as const, name: 'Bash', input: { command: 'git status' } }],
+      blocks: [
+        {
+          type: 'tool-call' as const,
+          toolCallId: 'tool-1',
+          name: 'Bash',
+          input: { command: 'git status' }
+        },
+        {
+          type: 'tool-result' as const,
+          toolCallId: 'tool-1',
+          output: 'still running',
+          isPartial: true
+        }
+      ],
       timestamp: 10,
       source: 'transcript' as const
     }
     expect(transcriptLifecycleEvent([toolMessage])).toMatchObject({
       type: 'activity',
-      activity: { kind: 'command', detail: 'git status' },
-      messages: [toolMessage]
+      activity: { kind: 'command', detail: 'git status' }
     })
     expect(
       transcriptLifecycleEvent([], { state: 'completed', turnId: 'turn-1', timestamp: 20 })

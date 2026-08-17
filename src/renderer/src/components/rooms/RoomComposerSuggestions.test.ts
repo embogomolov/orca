@@ -1,11 +1,12 @@
+import { roomParticipantFixture } from '../../../../shared/rooms.test-fixture'
 import { describe, expect, it } from 'vitest'
-import type { RoomParticipant } from '../../../../shared/rooms'
+
 import {
   applyRoomComposerSuggestion,
   getExactRoomMentionSuggestion,
   getRoomComposerQuery,
   getRoomComposerSuggestions,
-  resolveSelectedRoomRecipients
+  resolveRoomComposerMentions
 } from './RoomComposerSuggestions'
 
 describe('room composer suggestions', () => {
@@ -25,29 +26,34 @@ describe('room composer suggestions', () => {
 
   it('offers all and matching live room identities', () => {
     const participants = [
-      {
+      roomParticipantFixture({
         actorKind: 'agent',
         identity: 'codex',
         displayName: 'Claude Impersonator',
         state: 'online',
         participation: 'active'
-      },
-      {
+      }),
+      roomParticipantFixture({
         actorKind: 'agent',
         identity: 'claude',
         displayName: 'Researcher',
         state: 'busy',
         participation: 'active'
-      },
-      {
+      }),
+      roomParticipantFixture({
         actorKind: 'agent',
         identity: 'gemini',
         displayName: 'Gemini',
         state: 'online',
         participation: 'paused'
-      },
-      { actorKind: 'user', identity: 'user', displayName: 'You', state: 'online' }
-    ] as RoomParticipant[]
+      }),
+      roomParticipantFixture({
+        actorKind: 'user',
+        identity: 'user',
+        displayName: 'You',
+        state: 'online'
+      })
+    ]
 
     expect(getRoomComposerSuggestions(getRoomComposerQuery('@cl', 3), participants)).toEqual([
       expect.objectContaining({
@@ -66,13 +72,13 @@ describe('room composer suggestions', () => {
         getRoomComposerSuggestions(getRoomComposerQuery('@al', 3), participants)
       )
     ).toBeNull()
-    expect(resolveSelectedRoomRecipients(['@all'], participants)).toEqual(['codex', 'claude'])
-    expect(resolveSelectedRoomRecipients(['@codex'], participants)).toEqual(['codex'])
-    expect(resolveSelectedRoomRecipients(['@claude', '@codex'], participants)).toEqual([
+    expect(resolveRoomComposerMentions('@all please', participants)).toEqual(['codex', 'claude'])
+    expect(resolveRoomComposerMentions('ask @codex', participants)).toEqual(['codex'])
+    expect(resolveRoomComposerMentions('@claude and @codex', participants)).toEqual([
       'claude',
       'codex'
     ])
-    expect(resolveSelectedRoomRecipients(['@gemini'], participants)).toEqual([])
-    expect(resolveSelectedRoomRecipients([], participants)).toEqual([])
+    expect(resolveRoomComposerMentions('mail@example.com @gemini', participants)).toEqual([])
+    expect(resolveRoomComposerMentions('hello', participants)).toEqual([])
   })
 })

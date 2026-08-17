@@ -348,6 +348,15 @@ import {
 import { CreateProject } from './linear-project-create-params'
 import { NativeChatSession, NativeChatUnsubscribe } from './native-chat-params'
 import {
+  NativeChatQueueAcceptParams,
+  NativeChatQueueClaimParams,
+  NativeChatQueueEditParams,
+  NativeChatQueueEnqueueParams,
+  NativeChatQueueReadParams,
+  NativeChatQueueRejectParams,
+  NativeChatQueueReorderParams
+} from './native-chat-queue-params'
+import {
   NotificationGetMissedSinceParams,
   NotificationRegisterPushParams,
   NotificationUnsubscribeParams,
@@ -482,6 +491,16 @@ import {
 } from './rooms-management-params'
 import { RoomsNotificationsReplayParams } from './rooms-notifications-params'
 import { RoomsParticipantsExistingParams } from './rooms-participant-existing-params'
+import {
+  RoomsDeliveriesQueueParams,
+  RoomsDeliveriesReorderParams,
+  RoomsDeliveriesSteerParams,
+  RoomsMessagesBeginQueueEditParams,
+  RoomsMessagesCancelQueueEditParams,
+  RoomsMessagesFinishQueueEditParams,
+  RoomsMessagesReorderQueueParams,
+  RoomsMessagesRetargetParams
+} from './rooms-queue-params'
 import { RoomsWorkResumeParams, RoomsWorkStopParams } from './rooms-work-params'
 import { BrowserTarget } from './rpc-param-primitives'
 import { ClientCapabilitiesUpdate } from './runtime-client-capabilities-params'
@@ -644,6 +663,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'agentSession.rewind': RewindParams,
   'agentSession.send': SendParams,
   'agentSession.setOption': SetOptionParams,
+  'agentSession.steer': SendParams,
   'agentSession.subagents': OptionsParams,
   'agentSession.subscribe': SubscribeParams,
   'agentSession.subscribeStatus': null,
@@ -1026,6 +1046,18 @@ export const RPC_PARAMS_BY_METHOD = {
   'mobileWeb.bundle.chunk': MobileWebBundleChunkParamsSchema,
   'mobileWeb.bundle.manifest': null,
   'mobileWeb.bundle.range': MobileWebBundleChunkParamsSchema,
+  'nativeChat.queue.accept': NativeChatQueueAcceptParams,
+  'nativeChat.queue.beginEdit': NativeChatQueueAcceptParams,
+  'nativeChat.queue.claim': NativeChatQueueClaimParams,
+  'nativeChat.queue.edit': NativeChatQueueEditParams,
+  'nativeChat.queue.enqueue': NativeChatQueueEnqueueParams,
+  'nativeChat.queue.pause': NativeChatQueueClaimParams,
+  'nativeChat.queue.read': NativeChatQueueReadParams,
+  'nativeChat.queue.reject': NativeChatQueueRejectParams,
+  'nativeChat.queue.remove': NativeChatQueueAcceptParams,
+  'nativeChat.queue.reorder': NativeChatQueueReorderParams,
+  'nativeChat.queue.resume': NativeChatQueueClaimParams,
+  'nativeChat.queue.retry': NativeChatQueueAcceptParams,
   'nativeChat.readSession': NativeChatSession,
   'nativeChat.subscribe': NativeChatSession,
   'nativeChat.unsubscribe': NativeChatUnsubscribe,
@@ -1140,10 +1172,18 @@ export const RPC_PARAMS_BY_METHOD = {
   'rooms.attachments.upload.start': RoomsAttachmentsUploadStartParams,
   'rooms.create': RoomsCreateParams,
   'rooms.delete': RoomsDeleteParams,
+  'rooms.deliveries.queue': RoomsDeliveriesQueueParams,
+  'rooms.deliveries.reorder': RoomsDeliveriesReorderParams,
   'rooms.deliveries.retry': RoomsDeliveriesRetryParams,
+  'rooms.deliveries.steer': RoomsDeliveriesSteerParams,
   'rooms.list': RoomsListParams,
+  'rooms.messages.beginQueueEdit': RoomsMessagesBeginQueueEditParams,
+  'rooms.messages.cancelQueueEdit': RoomsMessagesCancelQueueEditParams,
   'rooms.messages.delete': RoomsMessagesDeleteParams,
+  'rooms.messages.finishQueueEdit': RoomsMessagesFinishQueueEditParams,
   'rooms.messages.list': RoomsMessagesListParams,
+  'rooms.messages.reorderQueue': RoomsMessagesReorderQueueParams,
+  'rooms.messages.retarget': RoomsMessagesRetargetParams,
   'rooms.messages.send': RoomsMessagesSendParams,
   'rooms.messages.update': RoomsMessagesUpdateParams,
   'rooms.notifications.replay': RoomsNotificationsReplayParams,
@@ -1155,6 +1195,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'rooms.participants.remove': RoomsParticipantsRemoveParams,
   'rooms.participants.reveal': RoomsParticipantsRevealParams,
   'rooms.participants.update': RoomsParticipantsUpdateParams,
+  'rooms.participants.wake': RoomsParticipantsRemoveParams,
   'rooms.pins.remove': RoomsPinsRemoveParams,
   'rooms.pins.set': RoomsPinsSetParams,
   'rooms.read': RoomsReadParams,

@@ -7,6 +7,7 @@ import {
   AGENT_SESSION_ACCEPTED_SEND_RUNTIME_CAPABILITY,
   AGENT_SESSION_CONVERSATION_STOP_RUNTIME_CAPABILITY,
   AGENT_SESSION_PENDING_SEND_RESULT_RUNTIME_CAPABILITY,
+  CLAUDE_STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
   RUNTIME_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION,
   STRUCTURED_AGENT_SESSION_HOLD_RUNTIME_CAPABILITY,
@@ -504,10 +505,17 @@ describe('method routing', () => {
 
   it('routes Claude create support and create through the provider-aware runtime', async () => {
     const worktree = 'id:workspace-1'
+    const claudeClient = {
+      ...STRUCTURED_CLIENT,
+      clientCapabilities: [
+        ...STRUCTURED_CLIENT.clientCapabilities,
+        CLAUDE_STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
+      ]
+    }
     const support = await call(
       'agentSession.createSupport',
       { worktree, agent: 'claude' },
-      STRUCTURED_CLIENT
+      claudeClient
     )
     expect(support).toMatchObject({ ok: true, result: { supported: true } })
     expect(runtimeCalls.getStructuredAgentSessionCreateSupport).toHaveBeenCalledWith(
@@ -527,7 +535,7 @@ describe('method routing', () => {
       worktree,
       agent: 'claude'
     }
-    const created = await call('agentSession.create', params, STRUCTURED_CLIENT)
+    const created = await call('agentSession.create', params, claudeClient)
     expect(created).toMatchObject({ ok: true, result: { ok: true } })
     expect(runtimeCalls.resolveStructuredAgentSessionCreateIntent).toHaveBeenCalledWith({
       ...params,
@@ -727,6 +735,24 @@ describe('parameter validation', () => {
     )
   })
 
+  it('rejects unsupported structured agent create shapes', async () => {
+    await rejects('agentSession.createSupport', {
+      worktree: 'id:workspace-1',
+      agent: 'gemini'
+    })
+    const fields = { worktree: 'id:workspace-1', agent: 'gemini' }
+    await rejects('agentSession.create', {
+      envelope: envelope({
+        expectedRuntimeFence: null,
+        payloadFingerprint: computeAgentSessionPayloadFingerprint({
+          method: 'agentSession.create',
+          sessionId: SESSION,
+          fields
+        })
+      }),
+      ...fields
+    })
+  })
   it('requires a sha256 fingerprint and a positive fence', async () => {
     await rejects(
       'agentSession.send',

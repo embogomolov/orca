@@ -95,13 +95,14 @@ export type NativeChatEditPatch = {
 /** The result returned to the agent for a prior tool call. */
 export type NativeChatToolResultBlock = {
   type: 'tool-result'
-  callId?: string
   output: string
   isError?: boolean
   /** The call this result answers, when the producer knows it; otherwise pairing is positional. */
   callId?: string
   /** Present only for edit tools whose result reported resolved hunks. */
   editPatch?: NativeChatEditPatch
+  /** Provider output received before the tool itself completed. */
+  isPartial?: boolean
 }
 
 /** A reference to an image, by local path or remote URL. Exactly the field

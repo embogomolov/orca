@@ -12,10 +12,20 @@ import {
 } from './room-attachment-transfer'
 import { RoomImagePreviewDialog, type RoomImagePreview } from './RoomImagePreviewDialog'
 
-export type RoomComposerAttachment = PendingRoomAttachment & {
-  mimeType: string
-  previewUrl: string | null
-}
+export type RoomComposerAttachment =
+  | (PendingRoomAttachment & {
+      source: 'upload'
+      mimeType: string
+      previewUrl: string | null
+    })
+  | {
+      source: 'existing'
+      attachmentId: string
+      fileName: string
+      byteSize: number
+      mimeType: string
+      previewUrl: string | null
+    }
 
 export type UploadingRoomAttachment = {
   id: string
@@ -75,7 +85,13 @@ export function RoomComposerAttachments({
             : undefined
           return (
             <AttachmentCard
-              key={isUploading ? attachment.id : attachment.uploadId}
+              key={
+                isUploading
+                  ? attachment.id
+                  : attachment.source === 'upload'
+                    ? attachment.uploadId
+                    : attachment.attachmentId
+              }
               fileName={attachment.fileName}
               byteSize={attachment.byteSize}
               imageUrl={attachment.previewUrl}
@@ -99,7 +115,7 @@ export function RoomMessageAttachments({
   message,
   align = 'start'
 }: {
-  data: RoomData
+  data: Pick<RoomData, 'target'>
   message: RoomMessage
   align?: 'start' | 'end'
 }): React.JSX.Element | null {
@@ -163,7 +179,7 @@ function RoomMessageAttachmentCard({
   onPreview,
   onPreviewReady
 }: {
-  data: RoomData
+  data: Pick<RoomData, 'target'>
   message: RoomMessage
   attachment: RoomAttachment
   onPreview: () => void
@@ -332,7 +348,7 @@ function formatBytes(bytes: number): string {
 }
 
 async function saveAttachment(
-  data: RoomData,
+  data: Pick<RoomData, 'target'>,
   message: RoomMessage,
   attachment: RoomAttachment
 ): Promise<void> {

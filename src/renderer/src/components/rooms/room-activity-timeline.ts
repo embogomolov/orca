@@ -1,11 +1,13 @@
 import type {
+  NativeChatBlock,
   NativeChatMessage,
   NativeChatToolCallBlock,
   NativeChatToolResultBlock
 } from '../../../../shared/native-chat-types'
 import { roomActivityKindFromTool } from '../../../../shared/room-activity'
-import type { RoomActivityKind, RoomCompletedActivity } from '../../../../shared/rooms'
-
+import { isRecord } from '../../../../shared/agent-status-child-work-value-guards'
+import type { RoomActivityKind, RoomSettledActivity } from '../../../../shared/rooms'
+import { visibleRoomReplyText } from '../native-chat/native-chat-room-transport'
 import { codexSubagentProviderFrame } from '../../../../shared/codex-subagent-items'
 
 export type RoomActivityToolStep = {
@@ -18,6 +20,7 @@ export type RoomActivityToolStep = {
 
 export type RoomActivitySection =
   | { kind: 'commentary'; id: string; text: string }
+  | { kind: 'diagnostic'; id: string; block: NativeChatBlock }
   | { kind: 'tools'; id: string; tools: RoomActivityToolStep[] }
 
 export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomActivitySection[] {
@@ -26,7 +29,7 @@ export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomAc
   const pendingById = new Map<string, RoomActivityToolStep>()
   let resultCursor = 0
 
-  for (const message of [...messages].sort(compareMessages)) {
+  for (const message of messages) {
     for (const [blockIndex, original] of message.blocks.entries()) {
       const event =
         original.type === 'text' && original.providerFrame
@@ -35,11 +38,19 @@ export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomAc
       const block = event
         ? { type: 'tool-call' as const, name: event.name, input: event.input, state: event.state }
         : original
+      if (block.type === 'text' && block.providerFrame) {
+        sections.push({ kind: 'diagnostic', id: `${message.id}:diagnostic:${blockIndex}`, block })
+        continue
+      }
       if (block.type === 'text') {
+        if (message.role === 'user') {
+          continue
+        }
         if (message.role !== 'assistant' && message.role !== 'reasoning') {
           continue
         }
-        const text = block.text.trim()
+        const text =
+          message.role === 'assistant' ? visibleRoomReplyText(block.text).trim() : block.text.trim()
         const previous = sections.at(-1)
         if (!text || (previous?.kind === 'commentary' && previous.text === text)) {
           continue
@@ -87,23 +98,34 @@ export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomAc
   return sections
 }
 
-export function completedRoomActivity(
-  metadata: Record<string, unknown>
-): RoomCompletedActivity | null {
+export function settledRoomActivity(metadata: Record<string, unknown>): RoomSettledActivity | null {
   const value = metadata.activity
-  if (!value || typeof value !== 'object') {
+  if (!isRecord(value)) {
     return null
   }
-  const activity = value as Partial<RoomCompletedActivity>
+  const activity = value
   if (
-    activity.state !== 'completed' ||
+    (activity.state !== 'completed' && activity.state !== 'interrupted') ||
+    typeof activity.startedAt !== 'number' ||
     !Number.isFinite(activity.startedAt) ||
+    typeof activity.completedAt !== 'number' ||
     !Number.isFinite(activity.completedAt) ||
     !Array.isArray(activity.messages)
   ) {
     return null
   }
-  return activity as RoomCompletedActivity
+  const { startedAt, completedAt } = activity
+  return {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Provider replies persist typed settled activity; its discriminator, timestamps and message array were checked above.
+    ...(activity as RoomSettledActivity),
+    messages: activity.messages.filter(
+      (message) =>
+        message.timestamp === null ||
+        (Number.isFinite(message.timestamp) &&
+          message.timestamp >= startedAt &&
+          message.timestamp <= completedAt)
+    )
+  }
 }
 
 export function roomFinalFadeId(participantId: string, startedAt: number): string {
@@ -118,8 +140,4 @@ export function formatRoomActivityDuration(startedAt: number, completedAt: numbe
   return [hours ? `${hours}h` : '', minutes ? `${minutes}m` : '', seconds ? `${seconds}s` : '']
     .filter(Boolean)
     .join(' ')
-}
-
-function compareMessages(left: NativeChatMessage, right: NativeChatMessage): number {
-  return (left.timestamp ?? -1) - (right.timestamp ?? -1) || left.id.localeCompare(right.id)
 }

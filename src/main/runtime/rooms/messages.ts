@@ -6,10 +6,11 @@ import type {
   RoomMessagePage,
   RoomUnread
 } from '../../../shared/rooms'
-import { attachmentFromRow, type RoomRow } from './rows'
+import { attachmentFromRow } from './rows'
 import { RoomDeliveryStore } from './deliveries'
 import { getRoomUnread, hydrateRoomMessages } from './message-queries'
 import type { CreateRoomMessage } from './message-input'
+import { createRoomMessageDeliveries } from './message-delivery-creation'
 
 export class RoomMessageStore {
   readonly deliveries: RoomDeliveryStore
@@ -29,9 +30,7 @@ export class RoomMessageStore {
     ]
     this.db.exec('SAVEPOINT room_message_create')
     try {
-      const room = this.db
-        .prepare('SELECT loop_limit FROM rooms WHERE id = ?')
-        .get(input.roomId) as RoomRow | undefined
+      const room = this.db.prepare('SELECT loop_limit FROM rooms WHERE id = ?').get(input.roomId)
       if (!room) {
         throw new Error('room_not_found')
       }
@@ -41,9 +40,7 @@ export class RoomMessageStore {
             `SELECT id FROM room_participants
              WHERE id = ? AND room_id = ? AND actor_kind = ? AND identity = ? COLLATE NOCASE`
           )
-          .get(input.senderId, input.roomId, input.actorKind, input.senderIdentity) as
-          | RoomRow
-          | undefined
+          .get(input.senderId, input.roomId, input.actorKind, input.senderIdentity)
         if (!sender) {
           throw new Error('room_message_sender_invalid')
         }
@@ -51,12 +48,12 @@ export class RoomMessageStore {
         throw new Error('room_message_sender_required')
       }
       const parent = input.replyToId
-        ? (this.db
+        ? this.db
             .prepare(
               `SELECT id, root_message_id, hop_count FROM room_messages
                WHERE id = ? AND room_id = ? AND deleted_at IS NULL`
             )
-            .get(input.replyToId, input.roomId) as RoomRow | undefined)
+            .get(input.replyToId, input.roomId)
         : undefined
       if (input.replyToId && !parent) {
         throw new Error('room_reply_not_found')
@@ -119,34 +116,7 @@ export class RoomMessageStore {
         )
       }
 
-      const deliveryStatement = this.db.prepare(
-        `INSERT OR IGNORE INTO room_deliveries
-         (id, message_id, participant_id, state, next_attempt_at) VALUES (?, ?, ?, ?, ?)`
-      )
-      const targets =
-        input.enqueueDeliveries !== false
-          ? (this.db
-              .prepare(
-                `SELECT id FROM room_participants
-                 WHERE room_id = ? AND actor_kind = 'agent' AND participation = 'active'`
-              )
-              .all(input.roomId) as RoomRow[])
-          : []
-      const loopLimit = Number(room.loop_limit)
-      const suppressed =
-        input.actorKind === 'agent' && loopLimit > 0 && hopCount > 0 && hopCount % loopLimit === 0
-      for (const target of targets) {
-        if (target.id === input.senderId) {
-          continue
-        }
-        deliveryStatement.run(
-          randomUUID(),
-          id,
-          String(target.id),
-          suppressed ? 'suppressed' : 'pending',
-          now
-        )
-      }
+      createRoomMessageDeliveries(this.db, input, id, hopCount, Number(room.loop_limit), now)
       this.db.exec('RELEASE room_message_create')
     } catch (error) {
       this.db.exec('ROLLBACK TO room_message_create')
@@ -157,9 +127,7 @@ export class RoomMessageStore {
   }
 
   get(id: string): RoomMessage {
-    const row = this.db.prepare('SELECT * FROM room_messages WHERE id = ?').get(id) as
-      | RoomRow
-      | undefined
+    const row = this.db.prepare('SELECT * FROM room_messages WHERE id = ?').get(id)
     if (!row) {
       throw new Error('room_message_not_found')
     }
@@ -183,7 +151,7 @@ export class RoomMessageStore {
          JOIN room_messages m ON m.id = a.message_id
          WHERE a.id = ? AND m.room_id = ? AND m.deleted_at IS NULL`
       )
-      .get(id, roomId) as RoomRow | undefined
+      .get(id, roomId)
     if (!row) {
       throw new Error('room_attachment_not_found')
     }
@@ -191,14 +159,13 @@ export class RoomMessageStore {
   }
 
   listAttachments(roomId: string): RoomAttachment[] {
-    return (
-      this.db
-        .prepare(
-          `SELECT a.* FROM room_attachments a
+    return this.db
+      .prepare(
+        `SELECT a.* FROM room_attachments a
            JOIN room_messages m ON m.id = a.message_id WHERE m.room_id = ?`
-        )
-        .all(roomId) as RoomRow[]
-    ).map(attachmentFromRow)
+      )
+      .all(roomId)
+      .map(attachmentFromRow)
   }
 
   linkReply(id: string, replyToId: string): void {
@@ -236,7 +203,7 @@ export class RoomMessageStore {
          WHERE room_id = ? AND (? IS NULL OR sequence < ?)
          ORDER BY sequence DESC LIMIT ?`
       )
-      .all(roomId, beforeSequence, beforeSequence, boundedLimit + 1) as RoomRow[]
+      .all(roomId, beforeSequence, beforeSequence, boundedLimit + 1)
     const hasMore = rows.length > boundedLimit
     const pageRows = rows.slice(0, boundedLimit).toReversed()
     const messages = hydrateRoomMessages(this.db, pageRows)
@@ -248,12 +215,28 @@ export class RoomMessageStore {
     }
   }
 
+  listQueued(roomId: string): Pick<RoomMessagePage, 'messages' | 'deliveries'> {
+    const rows = this.db
+      .prepare(
+        `SELECT DISTINCT m.* FROM room_messages m
+         JOIN room_deliveries d ON d.message_id = m.id
+         WHERE m.room_id = ? AND m.deleted_at IS NULL AND m.queue_edit_token IS NULL AND (
+           d.state IN ('pending', 'failed') OR
+           (d.state = 'suppressed' AND d.error = 'room_stopped' AND d.attempts = 0 AND d.intent = 'next') OR
+           (d.state = 'suppressed' AND d.error = 'room_participant_paused' AND d.attempts = 0 AND d.intent = 'next' AND m.actor_kind = 'user' AND m.delivery_attempted = 0 AND NOT EXISTS (SELECT 1 FROM room_deliveries invalid WHERE invalid.message_id = m.id AND NOT (invalid.attempts = 0 AND (invalid.state = 'pending' OR (invalid.state = 'suppressed' AND (invalid.error IN ('room_delivery_retargeted', 'room_participant_paused') OR (invalid.error = 'room_stopped' AND invalid.intent = 'next')))))))
+         )
+         ORDER BY m.sequence`
+      )
+      .all(roomId)
+    const messages = hydrateRoomMessages(this.db, rows)
+    return { messages, deliveries: this.deliveries.listForMessages(messages.map(({ id }) => id)) }
+  }
+
   update(id: string, body: string, metadata?: Record<string, unknown>): RoomMessage {
     const current = this.get(id)
-    const editedAt = Date.now()
     this.db
-      .prepare('UPDATE room_messages SET body = ?, metadata_json = ?, edited_at = ? WHERE id = ?')
-      .run(body, JSON.stringify(metadata ?? current.metadata), editedAt, id)
+      .prepare('UPDATE room_messages SET body = ?, metadata_json = ? WHERE id = ?')
+      .run(body, JSON.stringify(metadata ?? current.metadata), id)
     return this.get(id)
   }
 
@@ -265,7 +248,7 @@ export class RoomMessageStore {
     const paths = this.db
       .prepare(`SELECT local_path FROM room_attachments WHERE message_id IN (${placeholders})`)
       .all(...ids)
-      .map((row) => String((row as RoomRow).local_path))
+      .map((row) => String(row.local_path))
     this.db.exec('BEGIN IMMEDIATE')
     try {
       this.db
@@ -289,7 +272,7 @@ export class RoomMessageStore {
     const now = Date.now()
     const row = this.db
       .prepare('SELECT max(sequence) AS sequence FROM room_messages WHERE room_id = ?')
-      .get(roomId) as RoomRow | undefined
+      .get(roomId)
     const boundedSequence = Math.min(Math.max(0, sequence), Number(row?.sequence ?? 0))
     this.db
       .prepare(

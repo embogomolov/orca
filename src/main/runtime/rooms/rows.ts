@@ -1,27 +1,30 @@
 import {
   EMPTY_ROOM_CONTEXT,
+  ROOM_HARNESS_AGENTS,
   type Room,
   type RoomAttachment,
-  type RoomContextSnapshot,
   type RoomDelivery,
   type RoomMessage,
   type RoomParticipant,
   type RoomPin,
-  type RoomProviderSession,
   type RoomRole
 } from '../../../shared/rooms'
+import {
+  parseRoomJson,
+  roomAttemptHistorySchema,
+  roomContextSchema,
+  roomMetadataSchema,
+  roomProviderSessionSchema
+} from './row-json'
 
 export type RoomRow = Record<string, unknown>
 
-export function parseRoomJson<T>(value: unknown, fallback: T): T {
-  if (typeof value !== 'string' || value.length === 0) {
-    return fallback
+function literal<const T extends string>(value: unknown, values: readonly T[]): T {
+  const found = values.find((candidate) => candidate === value)
+  if (found === undefined) {
+    throw new Error('room_invalid_row_value')
   }
-  try {
-    return JSON.parse(value) as T
-  } catch {
-    return fallback
-  }
+  return found
 }
 
 function string(value: unknown): string {
@@ -66,23 +69,23 @@ export function roleFromRow(row: RoomRow): RoomRole {
 }
 
 export function participantFromRow(row: RoomRow): RoomParticipant {
-  const rawContext = parseRoomJson<Partial<RoomContextSnapshot>>(row.context_json, {})
+  const rawContext = parseRoomJson(row.context_json, roomContextSchema, {})
   return {
     id: string(row.id),
     roomId: string(row.room_id),
     identity: string(row.identity),
     displayName: string(row.display_name),
-    actorKind: row.actor_kind as RoomParticipant['actorKind'],
-    agent: (nullableString(row.agent) as RoomParticipant['agent']) ?? null,
+    actorKind: literal(row.actor_kind, ['user', 'agent']),
+    agent: row.agent == null ? null : literal(row.agent, ROOM_HARNESS_AGENTS),
     roleId: nullableString(row.role_id),
     worktreeId: nullableString(row.worktree_id),
     paneKey: nullableString(row.pane_key),
     terminalHandle: nullableString(row.terminal_handle),
-    providerSession: parseRoomJson<RoomProviderSession | null>(row.provider_session_json, null),
+    providerSession: parseRoomJson(row.provider_session_json, roomProviderSessionSchema, null),
     processIncarnation: nullableString(row.process_incarnation),
     terminalSurfaceVisible: number(row.terminal_surface_visible) === 1,
     participation: row.participation === 'paused' ? 'paused' : 'active',
-    state: row.state as RoomParticipant['state'],
+    state: literal(row.state, ['starting', 'online', 'busy', 'sleeping', 'offline', 'error']),
     context: { ...EMPTY_ROOM_CONTEXT, ...rawContext },
     lastSeenAt: nullableNumber(row.last_seen_at),
     createdAt: number(row.created_at),
@@ -113,13 +116,15 @@ export function messageFromRow(
     sequence: number(row.sequence),
     senderId: nullableString(row.sender_id),
     senderIdentity: string(row.sender_identity),
-    actorKind: row.actor_kind as RoomMessage['actorKind'],
-    kind: row.kind as RoomMessage['kind'],
+    actorKind: literal(row.actor_kind, ['user', 'agent', 'system']),
+    kind: literal(row.kind, ['chat', 'system', 'decision', 'proposal']),
     body: string(row.body),
     replyToId: nullableString(row.reply_to_id),
     rootMessageId: nullableString(row.root_message_id),
     hopCount: number(row.hop_count),
-    metadata: parseRoomJson<Record<string, unknown>>(row.metadata_json, {}),
+    metadata: parseRoomJson(row.metadata_json, roomMetadataSchema, {}),
+    deliveryAttempted: number(row.delivery_attempted) === 1,
+    queueEditing: nullableString(row.queue_edit_token) !== null,
     mentions,
     attachments,
     createdAt: number(row.created_at),
@@ -128,12 +133,15 @@ export function messageFromRow(
   }
 }
 
-export function deliveryFromRow(row: RoomRow): RoomDelivery {
+export function deliveryFromRow(row: RoomRow | undefined): RoomDelivery {
+  if (!row) {
+    throw new Error('room_delivery_not_found')
+  }
   return {
     id: string(row.id),
     messageId: string(row.message_id),
     participantId: string(row.participant_id),
-    state: row.state as RoomDelivery['state'],
+    state: literal(row.state, ['pending', 'delivering', 'delivered', 'failed', 'suppressed']),
     attempts: number(row.attempts),
     error: nullableString(row.error),
     nextAttemptAt: number(row.next_attempt_at),
@@ -141,8 +149,10 @@ export function deliveryFromRow(row: RoomRow): RoomDelivery {
     providerTurnId: nullableString(row.provider_turn_id),
     responseMessageId: nullableString(row.response_message_id),
     respondedAt: nullableNumber(row.responded_at),
-    phase: nullableString(row.phase) as RoomDelivery['phase'],
-    attemptHistory: parseRoomJson(row.attempt_history_json, [])
+    intent: row.intent === 'steer' ? 'steer' : 'next',
+    queuePosition: nullableNumber(row.queue_position) ?? undefined,
+    phase: row.phase == null ? null : literal(row.phase, ['waking', 'submitting', 'awaiting-turn']),
+    attemptHistory: parseRoomJson(row.attempt_history_json, roomAttemptHistorySchema, [])
   }
 }
 
@@ -150,7 +160,7 @@ export function pinFromRow(row: RoomRow): RoomPin {
   return {
     roomId: string(row.room_id),
     messageId: string(row.message_id),
-    status: row.status as RoomPin['status'],
+    status: literal(row.status, ['todo', 'done']),
     createdBy: string(row.created_by),
     createdAt: number(row.created_at),
     updatedAt: number(row.updated_at)
