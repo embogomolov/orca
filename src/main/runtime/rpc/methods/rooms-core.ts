@@ -13,6 +13,8 @@ import {
 import { withoutRoomAgentOwners } from '../../rooms/participant-ownership'
 import { ROOM_WORK_METHODS } from './rooms-work'
 import { ROOM_NOTIFICATION_METHODS } from './rooms-notifications'
+import { ROOM_QUEUE_METHODS } from './rooms-queue'
+import { updateRoomParticipant } from '../../rooms/participant-participation'
 
 const Unsubscribe = z.object({ subscriptionId: z.string().trim().min(1).max(256) }).strict()
 
@@ -105,6 +107,7 @@ export const ROOM_CORE_METHODS: readonly RpcAnyMethod[] = [
         .listMessages(params.roomId, params.beforeSequence ?? null, params.limit)
     })
   }),
+  ...ROOM_QUEUE_METHODS,
   defineMethod({
     name: 'rooms.messages.send',
     params: z
@@ -113,7 +116,8 @@ export const ROOM_CORE_METHODS: readonly RpcAnyMethod[] = [
         body: z.string().max(262_144),
         replyToId: MessageId.nullable().optional(),
         mentions: z.array(RoomIdentity).max(50).optional(),
-        attachmentUploadIds: z.array(z.string().uuid()).max(10).optional()
+        attachmentUploadIds: z.array(z.string().uuid()).max(10).optional(),
+        targetParticipantIds: z.array(z.string().uuid()).max(50).optional()
       })
       .strict(),
     handler: async (params, { runtime }) => {
@@ -241,10 +245,14 @@ export const ROOM_CORE_METHODS: readonly RpcAnyMethod[] = [
       .strict(),
     handler: async (params, { runtime }) => {
       const service = runtime.getRoomService()
-      const current = service.db.participants.get(params.participantId)
-      service.assertWritable(current.roomId)
-      const participant = service.db.participants.update(current.id, params)
-      service.emitEvent(participant.roomId, { type: 'participant.updated', participant })
+      const participant = updateRoomParticipant(
+        service.db,
+        params.participantId,
+        params,
+        service.assertWritable,
+        (roomId, event) => service.emitEvent(roomId, event),
+        () => service.queue.wake()
+      )
       return { participant }
     }
   }),

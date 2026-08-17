@@ -1,11 +1,5 @@
 import { spawn } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
-import {
-  query,
-  type CanUseTool,
-  type Query,
-  type SDKUserMessage
-} from '@anthropic-ai/claude-agent-sdk'
+import { query, type CanUseTool, type Query } from '@anthropic-ai/claude-agent-sdk'
 import type { HarnessConversationDriver, HarnessConversationDriverSink } from './driver'
 import {
   claudeTextMessage,
@@ -16,7 +10,6 @@ import {
   emitClaudeToolResults
 } from './claude-message'
 import { harnessProcessInvocation } from './harness-process-invocation'
-import { providerImageData } from './provider-image-input'
 import type { SessionOptionValue } from '../../shared/native-chat-session-options'
 import type { StructuredProviderConfiguration } from '../../shared/structured-agent-provider'
 import { claudeConversationConfiguration } from './claude-configuration'
@@ -24,8 +17,12 @@ import { ClaudeInteractionController } from './claude-interaction-controller'
 import { resolveSessionFilePath } from '../native-chat/session-file-resolver'
 import { ClaudeConversationActivity } from './claude-activity'
 import type { AgentPermissionMode } from '../../shared/tui-agent-permissions'
+import { claudeUserMessage } from './claude-user-message'
+import { ClaudeSteerController, type ClaudeTurn } from './claude-steer-controller'
+import { ClaudePromptQueue } from './claude-prompt-queue'
 
 type ClaudeDriverOptions = {
+  agent: 'claude' | 'openclaude'
   cwd: string
   providerSessionId: string | null
   newProviderSessionId?: string
@@ -40,9 +37,9 @@ type ClaudeDriverOptions = {
 export class ClaudeConversationDriver implements HarnessConversationDriver {
   private readonly current: Query
   private sessionId: string | null
-  private readonly prompts: SDKUserMessage[] = []
-  private readonly promptWaiters: ((message: SDKUserMessage | null) => void)[] = []
-  private readonly turns: { resolve: () => void; reject: (error: Error) => void }[] = []
+  private readonly prompts = new ClaudePromptQueue()
+  private readonly turns: ClaudeTurn[] = []
+  private readonly steers = new ClaudeSteerController(this.turns)
   private readonly interactions: ClaudeInteractionController
   private readonly activity: ClaudeConversationActivity
   private readonly readyPromise: Promise<void>
@@ -62,12 +59,13 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
     const canUseTool: CanUseTool = this.interactions.request
     const bypassPermissions = options.permissionMode === 'yolo'
     this.current = query({
-      prompt: this.promptStream(),
+      prompt: this.prompts.stream(),
       options: {
         abortController,
         cwd: this.options.cwd,
         env: this.options.env,
         includePartialMessages: true,
+        extraArgs: { 'replay-user-messages': null },
         pathToClaudeCodeExecutable: this.options.command,
         permissionMode: bypassPermissions ? 'bypassPermissions' : 'default',
         allowDangerouslySkipPermissions: bypassPermissions,
@@ -119,34 +117,42 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
     void this.readMessages()
   }
 
-  ready(): Promise<void> {
-    return this.readyPromise
-  }
+  ready = (): Promise<void> => this.readyPromise
 
-  async send(text: string, imagePaths?: readonly string[]): Promise<void> {
+  async send(
+    text: string,
+    imagePaths?: readonly string[],
+    submission?: Parameters<HarnessConversationDriver['send']>[2]
+  ): Promise<void> {
     await this.readyPromise
     if (this.closed) {
       throw new Error('claude_session_closed')
     }
-    const content: SDKUserMessage['message']['content'] = [
-      ...(text ? [{ type: 'text' as const, text }] : []),
-      ...(imagePaths ?? []).map((path) => {
-        const image = providerImageData(path)
-        return {
-          type: 'image' as const,
-          source: { type: 'base64' as const, media_type: image.mediaType, data: image.data }
-        }
-      })
-    ]
-    const message: SDKUserMessage = {
-      type: 'user',
-      message: { role: 'user', content },
-      parent_tool_use_id: null,
-      uuid: randomUUID()
-    }
+    const message = claudeUserMessage(text, imagePaths, submission?.clientMessageId)
     const completion = new Promise<void>((resolve, reject) => this.turns.push({ resolve, reject }))
-    this.enqueuePrompt(message)
+    this.prompts.enqueue(message)
+    submission?.accepted()
     return completion
+  }
+
+  async steer(
+    text: string,
+    imagePaths: readonly string[] | undefined,
+    clientMessageId: string,
+    accept: Parameters<NonNullable<HarnessConversationDriver['steer']>>[3]
+  ): Promise<void> {
+    await this.readyPromise
+    const originalTurn = this.turns[0]
+    if (this.closed || !originalTurn) {
+      throw new Error('conversation_not_working')
+    }
+    const message = {
+      ...claudeUserMessage(text, imagePaths, clientMessageId),
+      priority: 'next' as const
+    }
+    const accepted = this.steers.waitForReplay(message.uuid!, originalTurn, accept)
+    this.prompts.enqueue(message)
+    return accepted
   }
 
   async setOption(optionId: string, value: SessionOptionValue): Promise<void> {
@@ -180,6 +186,7 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
 
   private async readMessages(): Promise<void> {
     let streamingId: string | null = null
+    let lastAssistantId: string | null = null
     const streamedText = new Map<string, string>()
     try {
       for await (const message of this.current) {
@@ -192,17 +199,28 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
         if (message.type === 'stream_event') {
           const event = message.event as unknown as Record<string, unknown>
           if (event.type === 'message_start') {
-            const providerId = (event.message as { id?: unknown } | undefined)?.id
-            streamingId = `claude:${typeof providerId === 'string' ? providerId : message.uuid}`
+            streamingId = `claude:${message.uuid}`
             streamedText.clear()
           } else if (event.type === 'content_block_delta') {
             emitClaudeStreamDelta(this.options.sink, event, message.uuid, streamingId, streamedText)
           }
         } else if (message.type === 'assistant' && message.parent_tool_use_id === null) {
-          if (emitClaudeAssistant(this.options.sink, message, streamingId, streamedText)) {
-            streamingId = null
-          }
+          lastAssistantId = emitClaudeAssistant(
+            this.options.sink,
+            message,
+            streamingId,
+            streamedText
+          )
+          streamingId = null
         } else if (message.type === 'user' && message.parent_tool_use_id === null) {
+          if (
+            message.uuid &&
+            'isReplay' in message &&
+            message.isReplay === true &&
+            (await this.steers.observeReplay(message.uuid))
+          ) {
+            continue
+          }
           emitClaudeToolResults(this.options.sink, message)
         } else if (message.type === 'system' && message.subtype === 'local_command_output') {
           this.options.sink.emit({
@@ -231,7 +249,7 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
           }
           this.options.sink.setConfiguration(this.configuration)
         } else if (message.type === 'result' && message.is_error) {
-          void this.publishCurrentTranscriptPath()
+          void (this.sessionId && this.publishTranscriptPath(this.sessionId))
           emitClaudeBufferedCommentary(this.options.sink, streamedText)
           const failure =
             'result' in message && typeof message.result === 'string'
@@ -240,24 +258,28 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
           this.turns.shift()?.reject(new Error(failure))
           streamedText.clear()
           streamingId = null
+          lastAssistantId = null
         } else if (message.type === 'result') {
-          void this.publishCurrentTranscriptPath()
+          void (this.sessionId && this.publishTranscriptPath(this.sessionId))
           emitClaudeFinal(
             this.options.sink,
-            streamingId ?? `claude:${message.uuid}`,
+            lastAssistantId ?? streamingId ?? `claude:${message.uuid}`,
             'result' in message ? message.result : ''
           )
           this.turns.shift()?.resolve()
           streamedText.clear()
           streamingId = null
+          lastAssistantId = null
         }
       }
     } catch (error) {
       emitClaudeBufferedCommentary(this.options.sink, streamedText)
       this.rejectTurns(error)
+      this.steers.rejectAll()
     } finally {
       this.rejectTurns(new Error('claude_session_closed'))
       this.options.sink.end?.(this.closed ? 'requested-close' : 'provider stream ended')
+      this.steers.rejectAll()
     }
   }
 
@@ -266,6 +288,7 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
       await this.current.interrupt()
     } finally {
       this.interactions.cancel()
+      this.steers.rejectAll()
     }
   }
 
@@ -279,32 +302,11 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
 
   async close(): Promise<void> {
     this.closed = true
-    for (const waiter of this.promptWaiters.splice(0)) {
-      waiter(null)
-    }
+    this.prompts.close()
     this.current.close()
     this.interactions.cancel()
     this.rejectTurns(new Error('claude_session_closed'))
-  }
-
-  private async *promptStream(): AsyncGenerator<SDKUserMessage> {
-    while (!this.closed) {
-      const message =
-        this.prompts.shift() ??
-        (await new Promise<SDKUserMessage | null>((resolve) => this.promptWaiters.push(resolve)))
-      if (message) {
-        yield message
-      }
-    }
-  }
-
-  private enqueuePrompt(message: SDKUserMessage): void {
-    const waiter = this.promptWaiters.shift()
-    if (waiter) {
-      waiter(message)
-    } else {
-      this.prompts.push(message)
-    }
+    this.steers.rejectAll()
   }
 
   private rejectTurns(error: unknown): void {
@@ -315,13 +317,9 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
   }
 
   private async publishTranscriptPath(sessionId: string): Promise<void> {
-    const path = await resolveSessionFilePath('claude', sessionId).catch(() => null)
+    const path = await resolveSessionFilePath(this.options.agent, sessionId).catch(() => null)
     if (path && this.sessionId === sessionId) {
       this.options.sink.setTranscriptPath(path)
     }
-  }
-
-  private publishCurrentTranscriptPath(): Promise<void> {
-    return this.sessionId ? this.publishTranscriptPath(this.sessionId) : Promise.resolve()
   }
 }

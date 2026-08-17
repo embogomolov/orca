@@ -46,6 +46,7 @@ import {
   respondToStructuredAgentSessionPrompt,
   sendStructuredAgentSessionTurn,
   setStructuredAgentSessionOption,
+  steerStructuredAgentSessionTurn,
   type StructuredAgentSessionMutationContext
 } from './structured-agent-session-host-mutations'
 import { StructuredAgentSessionReadableRestorer } from './structured-agent-session-readable-restorer'
@@ -272,6 +273,12 @@ export class StructuredAgentSessionHost {
     params: Parameters<typeof sendStructuredAgentSessionTurn>[2]
   ): ReturnType<typeof sendStructuredAgentSessionTurn> =>
     sendStructuredAgentSessionTurn(this.mutationContext(), caller, params)
+
+  steer = (
+    caller: StructuredAgentSessionCaller,
+    params: Parameters<typeof steerStructuredAgentSessionTurn>[2]
+  ): ReturnType<typeof steerStructuredAgentSessionTurn> =>
+    steerStructuredAgentSessionTurn(this.mutationContext(), caller, params)
 
   cancel = (
     caller: StructuredAgentSessionCaller,

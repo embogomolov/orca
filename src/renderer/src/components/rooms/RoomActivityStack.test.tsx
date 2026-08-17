@@ -86,7 +86,7 @@ describe('RoomActivityStack', () => {
     expect(isOutsideActivityStackSafeArea({ x: 113, y: 50 }, rect)).toBe(true)
   })
 
-  it('renders an explicit final outside the live activity card', () => {
+  it('keeps an early final-looking message inside the live activity card', () => {
     const finalizing: RoomAgentActivity = {
       ...activity('codex', 10),
       messages: [
@@ -113,9 +113,11 @@ describe('RoomActivityStack', () => {
       <RoomActivityStack activities={[finalizing]} participants={[participant('codex')]} />
     )
 
-    expect(screen.getByText('Worked for 1s')).toBeTruthy()
+    expect(container.textContent).not.toContain('Worked for')
+    expect(container.textContent).not.toContain('Visible answer')
+    fireEvent.click(container.querySelector('button')!)
     expect(container.textContent).toContain('Visible answer')
-    expect(container.querySelector('[class~="border-border/70"]')).toBeNull()
+    expect(container.querySelector('[class~="border-border/70"]')).not.toBeNull()
   })
 
   it('does not render a silent control final as completed activity', () => {
@@ -138,5 +140,47 @@ describe('RoomActivityStack', () => {
     )
 
     expect(container.textContent).not.toContain('Worked for')
+  })
+
+  it('brings the last steered agent and its real response to the front', () => {
+    const first = activity('first', 10)
+    const second: RoomAgentActivity = {
+      ...activity('second', 20),
+      messages: [
+        {
+          id: 'steer',
+          role: 'user',
+          blocks: [{ type: 'text', text: 'Change course' }],
+          timestamp: 21,
+          source: 'stream'
+        },
+        {
+          id: 'response',
+          role: 'assistant',
+          blocks: [{ type: 'text', text: 'Course changed' }],
+          timestamp: 22,
+          source: 'stream'
+        },
+        {
+          id: 'tool',
+          role: 'assistant',
+          blocks: [{ type: 'tool-call', name: 'Read', input: {} }],
+          timestamp: 23,
+          source: 'stream'
+        }
+      ]
+    }
+
+    render(
+      <RoomActivityStack
+        activities={[first, second]}
+        lastSteeredParticipantId="second"
+        participants={[participant('first'), participant('second')]}
+      />
+    )
+
+    const trigger = screen.getByLabelText('Show 2 activity updates')
+    expect(trigger.textContent).toContain('@second')
+    expect(trigger.textContent).toContain('Course changed')
   })
 })

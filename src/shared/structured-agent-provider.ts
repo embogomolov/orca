@@ -1,6 +1,6 @@
 import type { SessionOptionDescriptor } from './native-chat-session-options'
 
-export const STRUCTURED_MACHINE_AGENTS = ['claude', 'codex', 'grok', 'omp'] as const
+export const STRUCTURED_MACHINE_AGENTS = ['claude', 'openclaude', 'codex', 'grok', 'omp'] as const
 export type StructuredMachineAgent = (typeof STRUCTURED_MACHINE_AGENTS)[number]
 
 export function isStructuredMachineAgent(agent: string): agent is StructuredMachineAgent {
@@ -36,4 +36,5 @@ export type StructuredProviderConfiguration = {
   options: SessionOptionDescriptor[]
   canCompact: boolean
   canFork: boolean
+  canSteer?: boolean
 }

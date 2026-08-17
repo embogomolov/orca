@@ -21,6 +21,7 @@ import {
   NativeChatImageAttachments,
   type NativeChatImageLoadContext
 } from './NativeChatImageAttachments'
+import { ProviderFrameRow } from './NativeChatTranscriptChrome'
 
 function proseToMarkdown(blocks: NativeChatBlock[]): string {
   return blocks
@@ -116,6 +117,7 @@ export function NativeChatMessageRow({
   const isReasoning = message.role === 'reasoning'
   const isSystem = message.role === 'system'
   const isSubagentTask = message.subagentEvent?.kind === 'task'
+  const providerFrame = message.blocks.find((block) => block.type === 'text' && block.providerFrame)
   const literalTransport = literalRoomTransportText(markdown)
   const renderedText = literalTransport ?? markdown
 
@@ -127,6 +129,14 @@ export function NativeChatMessageRow({
 
   if (markdown.length === 0 && !hasImages && tools.length === 0) {
     return null
+  }
+
+  if (providerFrame) {
+    return (
+      <div ref={rowRef}>
+        <ProviderFrameRow block={providerFrame} />
+      </div>
+    )
   }
 
   if (isUser) {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { NativeChatMessage } from '../../../../shared/native-chat-types'
 import {
   buildRoomActivitySections,
-  completedRoomActivity,
+  settledRoomActivity,
   formatRoomActivityDuration
 } from './room-activity-timeline'
 
@@ -64,9 +64,35 @@ describe('room activity timeline', () => {
       startedAt: 1_000,
       completedAt: 129_000
     }
-    expect(completedRoomActivity({ activity })).toEqual(activity)
-    expect(completedRoomActivity({ activity: { state: 'completed' } })).toBeNull()
+    expect(settledRoomActivity({ activity })).toEqual(activity)
+    expect(settledRoomActivity({ activity: { state: 'completed' } })).toBeNull()
     expect(formatRoomActivityDuration(activity.startedAt, activity.completedAt)).toBe('2m 8s')
+  })
+
+  it('preserves receive order when timestamps tie', () => {
+    const sections = buildRoomActivitySections([
+      message('z', 'assistant', 1, [{ type: 'text', text: 'First' }]),
+      message('a', 'assistant', 1, [{ type: 'text', text: 'Second' }])
+    ])
+
+    expect(sections).toMatchObject([
+      { kind: 'commentary', text: 'First' },
+      { kind: 'commentary', text: 'Second' }
+    ])
+  })
+
+  it('keeps user and system prompts out of agent activity', () => {
+    const sections = buildRoomActivitySections([
+      message('before', 'assistant', 1, [{ type: 'text', text: 'Before' }]),
+      message('steer', 'user', 2, [{ type: 'text', text: 'Change course' }]),
+      message('system', 'system', 3, [{ type: 'text', text: 'Internal prompt' }]),
+      message('after', 'assistant', 4, [{ type: 'text', text: 'After' }])
+    ])
+
+    expect(sections).toMatchObject([
+      { kind: 'commentary', text: 'Before' },
+      { kind: 'commentary', text: 'After' }
+    ])
   })
 })
 

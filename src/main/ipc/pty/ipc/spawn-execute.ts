@@ -8,7 +8,12 @@ import { track } from '../../../telemetry/client'
 import { getCohortAtEmit } from '../../../telemetry/cohort-classifier'
 import { agentKindSchema } from '../../../../shared/telemetry-events'
 import { normalizeNodePtySpawnError } from '../provider/liveness'
-import { resolveStablePaneOwner, spawnForStablePane } from '../pane/stable-owner'
+import {
+  capturePtyOutputBoundary,
+  resolveStablePaneOwner,
+  spawnForStablePane,
+  type PtyOutputBoundary
+} from '../pane/stable-owner'
 import { assertSpawnReplyWasLive } from '../pane/agent-session-owners'
 import { deletePtyOwnership } from '../provider/ownership-state'
 import { ptySizes } from '../delivery/visibility-state'
@@ -42,9 +47,17 @@ export async function executePtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<void> {
           preserveExisting: !ctx.isMintedSessionId || Boolean(stablePaneOwnerCandidate)
         }) ?? false
     }
-    const sequenceBeforeProviderSpawn = expectedPtyId
-      ? (ctx.deps.runtime?.getPtyOutputSequence?.(expectedPtyId) ?? 0)
-      : 0
+    let outputBoundary: PtyOutputBoundary = capturePtyOutputBoundary(
+      ctx.deps.runtime,
+      expectedPtyId
+    )
+    if (
+      ctx.preAdoptedStablePane &&
+      'outputBoundary' in ctx.preAdoptedStablePane &&
+      ctx.preAdoptedStablePane.outputBoundary
+    ) {
+      outputBoundary = ctx.preAdoptedStablePane.outputBoundary as PtyOutputBoundary
+    }
     const stablePaneSpawn = ctx.preAdoptedStablePane
       ? ctx.preAdoptedStablePane
       : await spawnForStablePane({
@@ -52,6 +65,7 @@ export async function executePtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<void> {
           store: ctx.deps.store,
           provider: ctx.provider,
           spawnOptions: ctx.spawnOptions,
+          expectedPtyId,
           owner: stablePaneOwnerCandidate,
           worktreeId: args.worktreeId,
           connectionId: args.connectionId,
@@ -66,6 +80,10 @@ export async function executePtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<void> {
         })
     ctx.result = stablePaneSpawn.result
     ctx.stablePaneOwner = stablePaneSpawn.owner
+    if ('outputBoundary' in stablePaneSpawn) {
+      outputBoundary =
+        (stablePaneSpawn.outputBoundary as PtyOutputBoundary | undefined) ?? outputBoundary
+    }
     if (
       ctx.stablePaneOwner &&
       ctx.isMintedSessionId &&
@@ -85,6 +103,7 @@ export async function executePtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<void> {
     assertSpawnReplyWasLive(ctx.result)
     ctx.deps.runtime?.assertPtyRegistrationAllowed?.(ctx.result.id, ctx.result.incarnationId)
     if (ctx.result.providerSequence) {
+      const providerBoundary = outputBoundary.ptyId === ctx.result.id ? outputBoundary : null
       const runtimeSequenceBeforeReconcile =
         ctx.deps.runtime?.getPtyOutputSequence?.(ctx.result.id) ?? 0
       // Why kept: this is the reattach boundary in the RENDERER's sequence
@@ -94,9 +113,10 @@ export async function executePtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<void> {
         ctx.deps.runtime?.synchronizePtyOutputSequenceFromProvider?.(
           ctx.result.id,
           ctx.result.providerSequence,
-          sequenceBeforeProviderSpawn
+          providerBoundary?.sequence ?? 0,
+          providerBoundary?.recentOutputMark ?? null
         ) ?? null
-      if (runtimeSequenceBeforeReconcile > sequenceBeforeProviderSpawn) {
+      if (runtimeSequenceBeforeReconcile > (providerBoundary?.sequence ?? 0)) {
         ctx.snapshotKittyFlagsCoverReconciledSeq = false
       }
     }

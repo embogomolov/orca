@@ -63,6 +63,8 @@ export type NativeChatToolResultBlock = {
   toolCallId?: string
   output: string
   isError?: boolean
+  /** Provider output received before the tool itself completed. */
+  isPartial?: boolean
 }
 
 /** A reference to an image, by local path or remote URL. Exactly the field

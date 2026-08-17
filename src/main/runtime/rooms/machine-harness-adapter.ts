@@ -129,6 +129,32 @@ export class MachineRoomHarnessAdapter {
     }
   }
 
+  async steer(
+    value: RoomMachineHarnessBinding,
+    prompt: string,
+    options?: { imagePaths?: readonly string[] }
+  ): Promise<{ handle: string; accepted: boolean; bytesWritten: number }> {
+    const body: AgentJournalMessageItem = {
+      kind: 'message',
+      role: 'user',
+      blocks: [
+        ...(prompt ? [{ type: 'text' as const, text: prompt }] : []),
+        ...(options?.imagePaths ?? []).map((path) => ({ type: 'image-ref' as const, path }))
+      ]
+    }
+    const result = await structuredRoomHost().steer(structuredRoomCaller(value), {
+      envelope: structuredRoomMutationEnvelope(value.conversationId, 'agentSession.steer', {
+        body
+      }),
+      body
+    })
+    return {
+      handle: value.conversationId,
+      accepted: result.ok && result.value.submission.dispatchState === 'accepted',
+      bytesWritten: result.ok ? Buffer.byteLength(prompt) : 0
+    }
+  }
+
   async interrupt(value: RoomMachineHarnessBinding): Promise<void> {
     const turnId = activeStructuredAgentSessionTurnId(
       readStructuredRoomState(value.conversationId).items

@@ -62,6 +62,7 @@ let host: StructuredAgentSessionHost
 let acquire: Mock<StructuredAgentSessionAdapter['acquire']>
 let releaseAcquisition: Mock<NonNullable<StructuredAgentSessionAdapter['releaseAcquisition']>>
 let dispatch: Mock<StructuredAgentSessionAdapter['dispatch']>
+let steer: Mock<NonNullable<StructuredAgentSessionAdapter['steer']>>
 let cancelTurn: Mock<StructuredAgentSessionAdapter['cancelTurn']>
 let answerPrompt: Mock<StructuredAgentSessionAdapter['answerPrompt']>
 let setOption: Mock<StructuredAgentSessionAdapter['setOption']>
@@ -80,6 +81,7 @@ function adapter(): StructuredAgentSessionAdapter {
     acquire,
     releaseAcquisition,
     dispatch,
+    steer,
     cancelTurn,
     answerPrompt,
     setOption
@@ -142,6 +144,7 @@ beforeEach(async () => {
   }))
   releaseAcquisition = vi.fn(async () => true)
   dispatch = vi.fn(async () => accepted())
+  steer = vi.fn(async () => accepted())
   cancelTurn = vi.fn(async () => ({ cancelled: true }))
   answerPrompt = vi.fn(async () => undefined)
   setOption = vi.fn(async () => undefined)
@@ -446,6 +449,44 @@ describe('send', () => {
     expect(
       await host.send(CALLER, { envelope: envelope('agentSession.send', { body }), body })
     ).toMatchObject({ ok: false, refusal: { code: 'agent_session_ownership_unknown' } })
+  })
+})
+
+describe('steer', () => {
+  it('dispatches against the active turn through the durable mutation path', async () => {
+    await attach()
+    const journal = (
+      host as unknown as { sessions: Map<string, { journal: AgentSessionJournal }> }
+    ).sessions.get(SESSION)!.journal
+    await journal.appendItem(
+      {
+        provider: 'legacy',
+        agent: 'codex',
+        sessionId: SESSION,
+        recordId: 'turn-lifecycle:turn-1'
+      },
+      {
+        kind: 'status',
+        text: 'working',
+        turnLifecycle: { turnId: 'turn-1', state: 'running' }
+      },
+      { fence: 1 }
+    )
+    const body = hostTestMessage('change course')
+
+    const result = await host.steer(CALLER, {
+      envelope: envelope('agentSession.steer', { body }),
+      body
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { submission: { dispatchState: 'accepted' } }
+    })
+    expect(steer).toHaveBeenCalledWith(
+      expect.objectContaining({ body, turnId: 'turn-1', fence: 1 })
+    )
+    expect(dispatch).not.toHaveBeenCalled()
   })
 })
 

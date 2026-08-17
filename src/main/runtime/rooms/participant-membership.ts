@@ -76,9 +76,7 @@ export class RoomParticipantMembership {
       return await this.waitUntilReady(participant, binding.disposition === 'created')
     } catch (error) {
       if (added) {
-        this.transcriptBridge.forgetParticipants([added.id])
-        this.db.participants.remove(added.id)
-        this.emit(added.roomId, { type: 'participant.removed', participantId: added.id })
+        this.removePersistedParticipant(added.id)
       }
       if (binding.disposition === 'created' && !this.bindingOwned(binding, input.agent)) {
         await adapter.stop(binding).catch(() => {})
@@ -93,9 +91,35 @@ export class RoomParticipantMembership {
     if (participant.agent && binding) {
       await stopRoomParticipantProcess(this.adapters[participant.agent], binding)
     }
+    this.removePersistedParticipant(id)
+  }
+
+  private removePersistedParticipant(id: string): void {
+    const { participant, deliveries } = this.db.transaction(() => {
+      const participant = this.db.participants.get(id)
+      const previousBroadcastIds =
+        participant.participation === 'active'
+          ? this.db.messages.deliveries.listMutableBroadcastIds(participant.roomId)
+          : []
+      this.db.participants.remove(id)
+      const deliveries =
+        participant.participation === 'active'
+          ? this.db.messages.deliveries.normalizeNewBroadcasts(
+              participant.roomId,
+              previousBroadcastIds
+            )
+          : []
+      return { participant, deliveries }
+    })
     this.transcriptBridge.forgetParticipants([id])
-    this.db.participants.remove(id)
+    for (const delivery of deliveries) {
+      this.emit(participant.roomId, { type: 'delivery.updated', delivery })
+    }
     this.emit(participant.roomId, { type: 'participant.removed', participantId: id })
+    this.emit(participant.roomId, {
+      type: 'room.updated',
+      room: this.db.core.get(participant.roomId)
+    })
   }
 
   private async connect(

@@ -9,6 +9,7 @@ import { structuredAgentSessionPaneKey } from '../../../../shared/structured-age
 import type { NativeChatLiveSession } from './use-native-chat-live-session'
 import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 import { Button } from '@/components/ui/button'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { NativeChatApprovalCard } from './NativeChatApprovalCard'
 import { NativeChatComposer, type NativeChatComposerHandle } from './NativeChatComposer'
 import { NativeChatEmptyState } from './NativeChatEmptyState'
@@ -24,6 +25,29 @@ import { NativeChatOrchestrationPausedNotice } from './NativeChatOrchestrationPa
 import { useNativeChatPasteBridge } from './use-native-chat-paste-bridge'
 import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 import { nativeChatImageLoadContext } from './native-chat-image-load-context'
+import { QueuedMessageStack } from './QueuedMessageStack'
+import type { StructuredAgentSessionOutboxEntry } from '../../../../shared/structured-agent-session-outbox'
+
+function queuedMessage(entry: StructuredAgentSessionOutboxEntry) {
+  const imagePaths = entry.body.blocks.flatMap((block) =>
+    block.type === 'image-ref' && block.path ? [block.path] : []
+  )
+  return {
+    id: entry.clientMessageId,
+    text: entry.body.blocks
+      .flatMap((block) => (block.type === 'text' ? [block.text] : []))
+      .join('\n'),
+    imagePaths,
+    state:
+      entry.state === 'unconfirmed'
+        ? ('uncertain' as const)
+        : entry.state === 'dispatching'
+          ? ('submitting' as const)
+          : ('pending' as const),
+    canEdit: entry.state === 'queued',
+    canRemove: entry.state === 'queued'
+  }
+}
 
 function encodeQuestionAnswer(questionId: string, answer: string): string {
   return `${encodeURIComponent(questionId)}:${encodeURIComponent(answer)}`
@@ -44,6 +68,7 @@ export function NativeChatStructuredSession(props: {
     id: string
     sequence: number
   } | null>(null)
+  const [editingOutboxId, setEditingOutboxId] = useState<string | null>(null)
   const paneKey = useMemo(
     () => structuredAgentSessionPaneKey(props.tabId, props.sessionId),
     [props.sessionId, props.tabId]
@@ -96,14 +121,19 @@ export function NativeChatStructuredSession(props: {
     null
   const structuredTransport = useMemo(
     () => ({
-      send: (text: string, attachments: readonly { id: string; path: string }[]): boolean =>
-        controller.send(
-          text,
-          attachments.map((attachment) => ({
-            path: attachment.path,
-            previewUri: attachment.path
-          }))
-        ),
+      send: (text: string, attachments: readonly { id: string; path: string }[]): boolean => {
+        const values = attachments.map((attachment) => ({
+          path: attachment.path,
+          previewUri: attachment.path
+        }))
+        const sent = editingOutboxId
+          ? controller.edit(editingOutboxId, text, values)
+          : controller.send(text, values)
+        if (sent) {
+          setEditingOutboxId(null)
+        }
+        return sent
+      },
       dispatchCommand: (text: string) =>
         dispatchStructuredAgentSessionComposerCommand(text, {
           agent: props.agent,
@@ -121,8 +151,18 @@ export function NativeChatStructuredSession(props: {
       onError: setComposerError,
       runtime: (props.target.kind === 'local' ? 'local' : 'remote') as 'local' | 'remote'
     }),
-    [controller, fileLinkContext?.worktreeId, optionPickerRequest, props.agent, props.target.kind]
+    [
+      controller,
+      editingOutboxId,
+      fileLinkContext?.worktreeId,
+      optionPickerRequest,
+      props.agent,
+      props.target.kind
+    ]
   )
+  const queuedMessages = controller.outbox
+    .filter((entry) => entry.clientMessageId !== retryableOutboxEntry?.clientMessageId)
+    .map(queuedMessage)
 
   return (
     <div
@@ -147,7 +187,6 @@ export function NativeChatStructuredSession(props: {
             expandSignal={false}
             fontScale={fontScale.scale}
             workingStartedAt={null}
-            showTurnStatus={props.agent === 'codex'}
             onLinkClick={fileLinkClick}
             allowFileUriLinks={fileLinkClick !== undefined}
             imageLoadContext={imageLoadContext}
@@ -170,18 +209,17 @@ export function NativeChatStructuredSession(props: {
       {prompt && questionBody ? (
         <NativeChatQuestionCard
           prompt={{
-            questions:
-              questionBody.questions?.map((question) => ({
-                ...question,
-                multiSelect: question.multiSelect ?? false,
-                options: question.options ?? []
-              })) ?? [
-                {
-                  question: questionBody.question,
-                  multiSelect: false,
-                  options: questionBody.options.map((option) => ({ label: option.label }))
-                }
-              ]
+            questions: questionBody.questions?.map((question) => ({
+              ...question,
+              multiSelect: question.multiSelect ?? false,
+              options: question.options ?? []
+            })) ?? [
+              {
+                question: questionBody.question,
+                multiSelect: false,
+                options: questionBody.options.map((option) => ({ label: option.label }))
+              }
+            ]
           }}
           allowOther={
             questionBody.questions?.some((question) => question.allowOther) ??
@@ -222,6 +260,39 @@ export function NativeChatStructuredSession(props: {
           }}
         />
       ) : null}
+      <TooltipProvider>
+        <div className="mx-auto w-full max-w-4xl px-4 pt-2">
+          <QueuedMessageStack
+            items={queuedMessages}
+            editingMessageId={editingOutboxId}
+            disabled={Boolean(editingOutboxId)}
+            canSteer={controller.isWorking && controller.canSteer}
+            imageLoadContext={imageLoadContext}
+            onEdit={(id, text) => {
+              const entry = controller.outbox.find((candidate) => candidate.clientMessageId === id)
+              if (entry) {
+                controller.edit(
+                  id,
+                  text,
+                  entry.body.blocks.flatMap((block, index) =>
+                    block.type === 'image-ref' && block.path
+                      ? [{ path: block.path, previewUri: entry.previewUris[index] ?? block.path }]
+                      : []
+                  )
+                )
+              }
+            }}
+            onEditInComposer={(item) => {
+              setEditingOutboxId(item.id)
+              composerRef.current?.replaceDraft(item.text, item.imagePaths ?? [])
+            }}
+            onRemove={controller.remove}
+            onSteer={controller.steer}
+            onRetry={controller.retry}
+            onReorder={controller.reorder}
+          />
+        </div>
+      </TooltipProvider>
       {retryableOutboxEntry ? (
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3 px-4 py-1 text-xs text-muted-foreground">
           <span>

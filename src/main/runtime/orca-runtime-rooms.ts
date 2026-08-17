@@ -4,10 +4,7 @@ import { getAppEnvironment } from '../../shared/app-environment'
 import type { AgentHookEventPayload } from '../../shared/agent-hook-listener'
 import type { AgentProviderSessionMetadata } from '../../shared/agent-session-resume'
 import { isAiVaultSessionInWorkspacePath } from '../../shared/ai-vault-session-filters'
-import {
-  isAiVaultSessionResumableContent,
-  type AiVaultSession
-} from '../../shared/ai-vault-types'
+import { isAiVaultSessionResumableContent, type AiVaultSession } from '../../shared/ai-vault-types'
 import type { ClaudeStatusLineRateLimits } from '../../shared/claude-statusline-rate-limits'
 import { isWindowsAbsolutePathLike } from '../../shared/cross-platform-path'
 import { AGENT_COMPACT_COMMAND } from '../../shared/agent-compaction'
@@ -39,9 +36,17 @@ import { runtimeWorktreeIdsEqual } from './runtime-worktree-path-identity'
 import { resolveTerminalSessionWorktreeId } from './runtime-worktree-path-identity'
 import { terminalLayoutContainsLeaf } from './headless-terminal-split-layout'
 import { waitForWorktreeStartupDraft } from './runtime-worktree-startup-readiness'
+import { NativeChatQueueStore } from '../native-chat/queue-store'
 
 export class OrcaRuntimeWithRooms extends OrcaRuntimeWithResolveWaiter {
   private roomService: RoomService | null = null
+  private nativeChatQueueStore: NativeChatQueueStore | null = null
+
+  getNativeChatQueueStore(): NativeChatQueueStore {
+    return (this.nativeChatQueueStore ??= new NativeChatQueueStore(
+      getAppEnvironment().getPath('userData')
+    ))
+  }
 
   getRoomService(): RoomService {
     if (!this.roomService) {
@@ -444,7 +449,11 @@ export class OrcaRuntimeWithRooms extends OrcaRuntimeWithResolveWaiter {
   }
 
   override getTerminalPaneKey(handle: string): string | null {
-    return super.getTerminalPaneKey(handle) ?? this.roomService?.participantForTerminal(handle)?.paneKey ?? null
+    return (
+      super.getTerminalPaneKey(handle) ??
+      this.roomService?.participantForTerminal(handle)?.paneKey ??
+      null
+    )
   }
 
   private async removeRoomTerminalSurface(

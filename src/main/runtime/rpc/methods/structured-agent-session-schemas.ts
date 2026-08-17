@@ -137,22 +137,24 @@ const SendBlock = z.discriminatedUnion('type', [
     )
 ])
 
-export const SendParams = z
+const SendBody = z
   .object({
-    envelope: MutationEnvelope,
-    retryUnknown: z.literal(true).optional(),
-    body: z
-      .object({
-        kind: z.literal('message'),
-        role: z.literal('user'),
-        blocks: z.array(SendBlock).min(1).max(MAX_BLOCKS)
-      })
-      .strict()
-      .refine(
-        (value) => Buffer.byteLength(JSON.stringify(value.blocks), 'utf8') <= MAX_PROMPT_BYTES,
-        'Message is too large'
-      )
+    kind: z.literal('message'),
+    role: z.literal('user'),
+    blocks: z.array(SendBlock).min(1).max(MAX_BLOCKS)
   })
+  .strict()
+  .refine(
+    (value) => Buffer.byteLength(JSON.stringify(value.blocks), 'utf8') <= MAX_PROMPT_BYTES,
+    'Message is too large'
+  )
+
+export const SendParams = z
+  .object({ envelope: MutationEnvelope, retryUnknown: z.literal(true).optional(), body: SendBody })
+  .strict()
+
+export const SteerParams = z
+  .object({ envelope: MutationEnvelope, retryUnknown: z.literal(true).optional(), body: SendBody })
   .strict()
 
 export const CancelParams = z

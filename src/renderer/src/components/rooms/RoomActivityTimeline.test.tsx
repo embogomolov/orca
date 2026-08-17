@@ -2,12 +2,12 @@
 
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { RoomCompletedActivity } from '../../../../shared/rooms'
-import { RoomCompletedActivityTimeline } from './RoomActivityTimeline'
+import type { RoomSettledActivity } from '../../../../shared/rooms'
+import { RoomSettledActivityTimeline } from './RoomActivityTimeline'
 
-describe('RoomCompletedActivityTimeline', () => {
+describe('RoomSettledActivityTimeline', () => {
   it('keeps completed work expandable and opens captured file diffs', () => {
-    const activity: RoomCompletedActivity = {
+    const activity: RoomSettledActivity = {
       state: 'completed',
       startedAt: 1_000,
       completedAt: 129_000,
@@ -37,7 +37,7 @@ describe('RoomCompletedActivityTimeline', () => {
       ]
     }
 
-    render(<RoomCompletedActivityTimeline activity={activity} />)
+    render(<RoomSettledActivityTimeline activity={activity} />)
     fireEvent.click(screen.getByRole('button', { name: 'Worked for 2m 8s' }))
     expect(screen.getByText('Inspecting the implementation.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Edited files' }))
@@ -49,8 +49,8 @@ describe('RoomCompletedActivityTimeline', () => {
   })
 
   it('shows provider-independent tool labels', () => {
-    const activity: RoomCompletedActivity = {
-      state: 'completed',
+    const activity: RoomSettledActivity = {
+      state: 'interrupted',
       startedAt: 1_000,
       completedAt: 2_000,
       messages: [
@@ -64,7 +64,7 @@ describe('RoomCompletedActivityTimeline', () => {
       ]
     }
 
-    render(<RoomCompletedActivityTimeline activity={activity} />)
+    render(<RoomSettledActivityTimeline activity={activity} />)
     fireEvent.click(screen.getByRole('button', { name: 'Worked for 1s' }))
     fireEvent.click(screen.getByRole('button', { name: 'Searched the web' }))
     expect(screen.getByText('Search the web')).toBeTruthy()

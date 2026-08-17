@@ -115,6 +115,13 @@ export type StructuredAgentSessionAdapter = {
     body: AgentJournalMessageItem
     fence: number
   }): Promise<AgentSessionDispatchOutcome>
+  steer?(input: {
+    sessionId: string
+    clientMessageId: string
+    body: AgentJournalMessageItem
+    turnId: string
+    fence: number
+  }): Promise<AgentSessionDispatchOutcome>
   /** Cancels one turn, not the session: a session-wide interrupt would also kill
    *  a turn the client never asked to stop. */
   cancelTurn(input: {

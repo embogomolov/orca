@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentSessionJournalIdentity } from '../../shared/agent-session-journal-types'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
-import type { HarnessConversationDriverFactory } from './driver'
+import type { HarnessConversationDriverFactory, HarnessConversationSubmission } from './driver'
 import { MachineStructuredSessionAdapter } from './machine-structured-session-adapter'
 
 const identity: AgentSessionJournalIdentity = {
@@ -20,7 +20,15 @@ describe('MachineStructuredSessionAdapter', () => {
       appendTombstone: vi.fn(),
       publish: vi.fn()
     }
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(
+      async (
+        _text: string,
+        _imagePaths?: readonly string[],
+        submission?: HarnessConversationSubmission
+      ) => {
+        submission?.accepted()
+      }
+    )
     const createDriver = vi.fn<HarnessConversationDriverFactory>(async (input) => {
       input.sink.setProcessId?.(123)
       return {
@@ -68,6 +76,10 @@ describe('MachineStructuredSessionAdapter', () => {
       link: { handle: { provider: 'claude' }, origin: 'created', mintedAtFence: 7 }
     })
     expect(outcome.state).toBe('accepted')
-    expect(send).toHaveBeenCalledWith('ship it', [])
+    expect(send).toHaveBeenCalledWith(
+      'ship it',
+      [],
+      expect.objectContaining({ clientMessageId: 'message-1' })
+    )
   })
 })

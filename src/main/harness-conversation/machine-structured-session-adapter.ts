@@ -56,7 +56,7 @@ export class MachineStructuredSessionAdapter implements StructuredAgentSessionAd
   constructor(private readonly deps: MachineStructuredSessionAdapterDeps) {}
 
   supportsCreate = (_location: unknown, agent: string): boolean =>
-    agent === 'claude' || agent === 'grok' || agent === 'omp' || agent === 'acp'
+    agent === 'claude' || agent === 'openclaude' || agent === 'grok' || agent === 'omp'
 
   async acquire(input: StructuredAgentSessionAcquireInput): Promise<AgentSessionAcquisition> {
     const { identity } = input
@@ -101,7 +101,9 @@ export class MachineStructuredSessionAdapter implements StructuredAgentSessionAd
       }
     })
     const newProviderSessionId =
-      agent === 'claude' && !state.providerSessionId ? randomUUID() : undefined
+      (agent === 'claude' || agent === 'openclaude') && !state.providerSessionId
+        ? randomUUID()
+        : undefined
     const driver = await this.deps.createDriver({
       conversationId: identity.sessionId,
       agent,
@@ -174,7 +176,19 @@ export class MachineStructuredSessionAdapter implements StructuredAgentSessionAd
       turnLifecycle: { turnId, state: 'running' }
     })
     const { text, imagePaths } = providerPrompt(input.body)
-    void session.driver.send(text, imagePaths).then(
+    let accepted = false
+    let markAccepted = (): void => undefined
+    const acceptance = new Promise<void>((resolve) => {
+      markAccepted = () => {
+        accepted = true
+        resolve()
+      }
+    })
+    const completion = session.driver.send(text, imagePaths, {
+      clientMessageId: input.clientMessageId,
+      accepted: markAccepted
+    })
+    void completion.then(
       () => this.completeTurn(input.sessionId, turnId, 'completed'),
       (error) =>
         this.completeTurn(
@@ -184,7 +198,71 @@ export class MachineStructuredSessionAdapter implements StructuredAgentSessionAd
           error
         )
     )
-    return { state: 'accepted', providerIdentity: identity }
+    try {
+      await Promise.race([acceptance, completion])
+    } catch (error) {
+      return { state: 'rejected', reason: error instanceof Error ? error.message : String(error) }
+    }
+    return accepted
+      ? { state: 'accepted', providerIdentity: identity }
+      : { state: 'unknown', reason: 'provider completed without accepting the submission' }
+  }
+
+  async steer(input: {
+    sessionId: string
+    clientMessageId: string
+    body: AgentJournalMessageItem
+    turnId: string
+  }): Promise<AgentSessionDispatchOutcome> {
+    const session = this.session(input.sessionId)
+    if (session.activeTurn !== input.turnId || !session.driver.steer) {
+      return { state: 'rejected', reason: 'conversation_steer_unsupported' }
+    }
+    const identity: AgentJournalItemIdentity = {
+      provider: 'legacy',
+      agent: session.agent,
+      sessionId: input.sessionId,
+      recordId: `user:${input.clientMessageId}`
+    }
+    const { text, imagePaths } = providerPrompt(input.body)
+    let outcome: AgentSessionDispatchOutcome | null = null
+    try {
+      await session.driver.steer(text, imagePaths, input.clientMessageId, async (accepted) => {
+        this.append(session, identity, input.body)
+        if (accepted.placement === 'next') {
+          this.completeTurn(input.sessionId, input.turnId, 'completed')
+          session.activeTurn = input.clientMessageId
+          this.append(
+            session,
+            lifecycleIdentity(session.agent, input.sessionId, input.clientMessageId),
+            {
+              kind: 'status',
+              text: 'Working',
+              turnLifecycle: { turnId: input.clientMessageId, state: 'running' }
+            }
+          )
+          void accepted.completion.then(
+            () => this.completeTurn(input.sessionId, input.clientMessageId, 'completed'),
+            (error) =>
+              this.completeTurn(
+                input.sessionId,
+                input.clientMessageId,
+                error instanceof Error && error.message === 'turn_interrupted'
+                  ? 'interrupted'
+                  : 'failed',
+                error
+              )
+          )
+        }
+        outcome = { state: 'accepted', providerIdentity: identity }
+      })
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      return /(?:unsupported|rejected|not_working|busy|turn_mismatch)$/.test(reason)
+        ? { state: 'rejected', reason }
+        : { state: 'unknown', reason }
+    }
+    return outcome ?? { state: 'unknown', reason: 'provider did not confirm steering' }
   }
 
   async cancelTurn(input: { sessionId: string; turnId: string }): Promise<{ cancelled: boolean }> {

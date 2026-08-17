@@ -58,6 +58,14 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
     return this.sessionAdapter(input.sessionId).dispatch(input)
   }
 
+  steer(input: Parameters<NonNullable<StructuredAgentSessionAdapter['steer']>>[0]) {
+    const adapter = this.sessionAdapter(input.sessionId)
+    return (
+      adapter.steer?.(input) ??
+      Promise.resolve({ state: 'rejected' as const, reason: 'conversation_steer_unsupported' })
+    )
+  }
+
   cancelTurn(input: { sessionId: string; turnId: string; fence: number }) {
     return this.sessionAdapter(input.sessionId).cancelTurn(input)
   }

@@ -8,7 +8,12 @@ import {
   assertSpawnReplyWasLive,
   reconcileAgentSessionOwnerListings
 } from '../pane/agent-session-owners'
-import { spawnForStablePane, resolveStablePaneOwner } from '../pane/stable-owner'
+import {
+  capturePtyOutputBoundary,
+  spawnForStablePane,
+  resolveStablePaneOwner,
+  type PtyOutputBoundary
+} from '../pane/stable-owner'
 import { clearProviderPtyState } from '../provider/state-cleanup'
 import { isProviderAgentSessionOwnerLive, normalizeNodePtySpawnError } from '../provider/liveness'
 import {
@@ -52,9 +57,17 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
           preserveExisting: !ctx.isNewDaemonSession || Boolean(stablePaneOwnerCandidate)
         }) ?? false
     }
-    const sequenceBeforeProviderSpawn = expectedPtyId
-      ? (ctx.deps.runtime?.getPtyOutputSequence?.(expectedPtyId) ?? 0)
-      : 0
+    let outputBoundary: PtyOutputBoundary = capturePtyOutputBoundary(
+      ctx.deps.runtime,
+      expectedPtyId
+    )
+    if (
+      ctx.preAdoptedStablePane &&
+      'outputBoundary' in ctx.preAdoptedStablePane &&
+      ctx.preAdoptedStablePane.outputBoundary
+    ) {
+      outputBoundary = ctx.preAdoptedStablePane.outputBoundary as PtyOutputBoundary
+    }
     const assertClientStillConnected = (): void => {
       if (args.signal?.aborted) {
         throw new Error('client_disconnected')
@@ -81,6 +94,7 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
         surface: args.agentSessionEnsure.surface,
         spawn: async () => {
           assertClientStillConnected()
+          outputBoundary = capturePtyOutputBoundary(ctx.deps.runtime, expectedPtyId)
           providerResult = await ctx.provider.spawn(ctx.spawnOptions)
           ctx.rejectedRegistrationCandidate = providerResult
           // Why: a successful lower-owner return proves physical work committed even if admission sees an early exit.
@@ -133,6 +147,7 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
             store: ctx.deps.store,
             provider: ctx.provider,
             spawnOptions: ctx.spawnOptions,
+            expectedPtyId,
             owner: stablePaneOwnerCandidate,
             worktreeId: args.worktreeId,
             connectionId: args.connectionId,
@@ -148,6 +163,10 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
           })
       ctx.result = stablePaneSpawn.result
       ctx.stablePaneOwner = stablePaneSpawn.owner
+      if ('outputBoundary' in stablePaneSpawn) {
+        outputBoundary =
+          (stablePaneSpawn.outputBoundary as PtyOutputBoundary | undefined) ?? outputBoundary
+      }
       if (
         ctx.stablePaneOwner &&
         ctx.isNewDaemonSession &&
@@ -170,6 +189,7 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
     // Why: admission precedes sequence/context state and every durable publication below.
     ctx.deps.runtime?.assertPtyRegistrationAllowed?.(ctx.result.id, ctx.result.incarnationId)
     if (ctx.result.providerSequence) {
+      const providerBoundary = outputBoundary.ptyId === ctx.result.id ? outputBoundary : null
       const runtimeSequenceBeforeReconcile =
         ctx.deps.runtime?.getPtyOutputSequence?.(ctx.result.id) ?? 0
       // Why kept: this is the reattach boundary in the RENDERER's sequence
@@ -179,9 +199,10 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
         ctx.deps.runtime?.synchronizePtyOutputSequenceFromProvider?.(
           ctx.result.id,
           ctx.result.providerSequence,
-          sequenceBeforeProviderSpawn
+          providerBoundary?.sequence ?? 0,
+          providerBoundary?.recentOutputMark ?? null
         ) ?? null
-      if (runtimeSequenceBeforeReconcile > sequenceBeforeProviderSpawn) {
+      if (runtimeSequenceBeforeReconcile > (providerBoundary?.sequence ?? 0)) {
         ctx.snapshotKittyFlagsCoverReconciledSeq = false
       }
     }

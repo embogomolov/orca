@@ -20,6 +20,7 @@ export function useRoomData(
   const [error, setError] = useState<string | null>(null)
   const readerKey = 'user'
   const snapshotRef = useRef<RoomSnapshot | null>(null)
+  const historyCursorRef = useRef<{ roomId: string; beforeSequence: number | null } | null>(null)
   const roomsRequestRef = useRef(0)
   const roomIdRef = useRef(roomId)
   const loadingOlderRef = useRef(false)
@@ -115,11 +116,32 @@ export function useRoomData(
   }, [roomId, target])
 
   useEffect(() => {
+    if (!roomId || state.snapshot?.deliveryQueueVersion !== 1) {
+      return
+    }
+    let disposed = false
+    void roomRpc<{
+      queue: Pick<RoomMessagePage, 'messages' | 'deliveries'>
+    }>(target, 'rooms.deliveries.queue', { roomId }).then(
+      ({ queue }) => {
+        if (!disposed) {
+          dispatch({ type: 'local.messages.loaded', ...queue })
+        }
+      },
+      (cause) => !disposed && setError(message(cause))
+    )
+    return () => {
+      disposed = true
+    }
+  }, [roomId, state.snapshot?.deliveryQueueVersion, target])
+
+  useEffect(() => {
     if (!roomId) {
       return
     }
     let disposed = false
     dispatch({ type: 'local.messages.cleared' })
+    historyCursorRef.current = { roomId, beforeSequence: null }
     setHasMore(false)
     void roomRpc<{ page: RoomMessagePage }>(target, 'rooms.messages.list', {
       roomId,
@@ -135,6 +157,7 @@ export function useRoomData(
           messages: page.messages,
           deliveries: page.deliveries
         })
+        historyCursorRef.current = { roomId, beforeSequence: page.beforeSequence }
         setHasMore(page.hasMore)
       },
       (cause) => setError(message(cause))
@@ -145,8 +168,14 @@ export function useRoomData(
   }, [roomId, target])
 
   const loadOlder = useCallback(async () => {
-    const beforeSequence = state.messages[0]?.sequence
-    if (!roomId || !beforeSequence || !hasMore || loadingOlderRef.current) {
+    const cursor = historyCursorRef.current
+    if (
+      !roomId ||
+      cursor?.roomId !== roomId ||
+      cursor.beforeSequence === null ||
+      !hasMore ||
+      loadingOlderRef.current
+    ) {
       return
     }
     loadingOlderRef.current = true
@@ -154,7 +183,7 @@ export function useRoomData(
       const requestedRoom = roomId
       const { page } = await roomRpc<{ page: RoomMessagePage }>(target, 'rooms.messages.list', {
         roomId,
-        beforeSequence,
+        beforeSequence: cursor.beforeSequence,
         limit: 100
       })
       if (roomIdRef.current !== requestedRoom) {
@@ -165,11 +194,12 @@ export function useRoomData(
         messages: page.messages,
         deliveries: page.deliveries
       })
+      historyCursorRef.current = { roomId, beforeSequence: page.beforeSequence }
       setHasMore(page.hasMore)
     } finally {
       loadingOlderRef.current = false
     }
-  }, [hasMore, roomId, state.messages, target])
+  }, [hasMore, roomId, target])
 
   return useMemo(
     () => ({
@@ -200,5 +230,8 @@ function updateSnapshotRef(snapshot: RoomSnapshot | null, event: RoomEvent): Roo
   if (!snapshot) {
     return null
   }
-  return reduceRoomEvent({ snapshot, messages: [], deliveries: {}, activities: {} }, event).snapshot
+  return reduceRoomEvent(
+    { snapshot, messages: [], deliveries: {}, activities: {}, lastSteeredParticipantId: null },
+    event
+  ).snapshot
 }

@@ -105,12 +105,14 @@ export async function attachPtyFromRuntimeController(
   }
   try {
     const sequenceBeforeProviderAttach = deps.runtime?.getPtyOutputSequence?.(ptyId) ?? 0
+    const recentOutputMark = deps.runtime?.markRecentPtyOutput?.(ptyId)
     const attachResult = await provider.attach(ptyId)
     if (attachResult?.providerSequence) {
       deps.runtime?.synchronizePtyOutputSequenceFromProvider?.(
         ptyId,
         attachResult.providerSequence,
-        sequenceBeforeProviderAttach
+        sequenceBeforeProviderAttach,
+        recentOutputMark
       )
     }
     return true

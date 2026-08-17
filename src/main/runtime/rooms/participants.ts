@@ -108,7 +108,7 @@ export class RoomParticipantStore {
       }
     }
     const now = Date.now()
-    this.db.exec('BEGIN IMMEDIATE')
+    this.db.exec('SAVEPOINT room_participant_update')
     try {
       this.db
         .prepare(
@@ -148,9 +148,10 @@ export class RoomParticipantStore {
       if (identity && identity !== current.identity) {
         this.renameReferences(current, identity)
       }
-      this.db.exec('COMMIT')
+      this.db.exec('RELEASE room_participant_update')
     } catch (error) {
-      this.db.exec('ROLLBACK')
+      this.db.exec('ROLLBACK TO room_participant_update')
+      this.db.exec('RELEASE room_participant_update')
       throw error
     }
     return this.get(id)
@@ -179,6 +180,14 @@ export class RoomParticipantStore {
       .prepare('SELECT * FROM room_participants WHERE room_id = ? AND identity = ? COLLATE NOCASE')
       .get(roomId, identity) as RoomRow | undefined
     return row ? participantFromRow(row) : null
+  }
+
+  getUser(roomId: string): RoomParticipant {
+    const user = this.list(roomId).find((participant) => participant.actorKind === 'user')
+    if (!user) {
+      throw new Error('room_user_participant_required')
+    }
+    return user
   }
 
   findByPaneKey(paneKey: string): RoomParticipant | null {

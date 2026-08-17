@@ -1,36 +1,22 @@
 import type { NativeChatMessage } from '../../../shared/native-chat-types'
 import type {
   RoomAgentActivity,
-  RoomCompletedActivity,
   RoomDelivery,
   RoomEvent,
   RoomMessage,
-  RoomParticipant
+  RoomParticipant,
+  RoomSettledActivity
 } from '../../../shared/rooms'
 import type { RoomDatabase } from './database'
 import type { RoomHarnessLifecycleEvent } from './harness-adapter'
 import { extractRoomReplyRecipients } from './mentions'
+import {
+  isRoomActivityMessage,
+  selectRoomTranscriptFinal,
+  type PendingProviderMessage
+} from './transcript-final-selection'
 
-export type PendingProviderMessage = { message: NativeChatMessage; publishable: boolean }
-
-export function selectRoomTranscriptFinal(
-  pending: PendingProviderMessage[],
-  explicitBody: string | null
-): { candidate: PendingProviderMessage | null; body: string | null } {
-  const classified = pending.filter(({ message }) => message.assistantPhase !== undefined)
-  if (classified.length > 0) {
-    const final = classified.findLast(({ message }) => message.assistantPhase === 'final') ?? null
-    return { candidate: final, body: final ? assistantBody(final.message) : null }
-  }
-  const matching = explicitBody
-    ? pending.findLast(({ message }) => finalBodyMatches(assistantBody(message), explicitBody))
-    : null
-  const candidate =
-    matching ??
-    (explicitBody ? null : pending.findLast(({ message }) => assistantBody(message) !== null)) ??
-    null
-  return { candidate, body: candidate ? assistantBody(candidate.message) : explicitBody }
-}
+export { selectRoomTranscriptFinal } from './transcript-final-selection'
 
 export class RoomTranscriptTurnState {
   private readonly pending = new Map<string, Map<string, PendingProviderMessage>>()
@@ -58,6 +44,25 @@ export class RoomTranscriptTurnState {
     this.pending.clear()
     this.startedAt.clear()
     this.anchorSequence.clear()
+  }
+
+  failResponse(
+    participant: RoomParticipant,
+    delivery: RoomDelivery,
+    error: string,
+    timestamp: number
+  ): void {
+    const failed = delivery.providerTurnId
+      ? this.db.messages.deliveries.failResponseGroup(
+          participant.id,
+          delivery.providerTurnId,
+          error,
+          timestamp
+        )
+      : [this.db.messages.deliveries.failResponse(delivery.id, error, timestamp)]
+    for (const item of failed) {
+      this.emit(participant.roomId, { type: 'delivery.updated', delivery: item })
+    }
   }
 
   remember(participantId: string, messages: NativeChatMessage[], publishable: boolean): void {
@@ -108,6 +113,11 @@ export class RoomTranscriptTurnState {
     if (!activity) {
       return
     }
+    if (activity.state !== 'working') {
+      this.db.activities.remove(participant.id)
+      this.emit(participant.roomId, { type: 'activity.cleared', participantId: participant.id })
+      return
+    }
     this.pending.set(
       participant.id,
       new Map(
@@ -135,15 +145,16 @@ export class RoomTranscriptTurnState {
     }
   }
 
-  completed(
+  settled(
     participantId: string,
     pending: PendingProviderMessage[],
     finalMessage: PendingProviderMessage | null,
-    event: RoomHarnessLifecycleEvent
-  ): RoomCompletedActivity | null {
+    event: RoomHarnessLifecycleEvent,
+    state: RoomSettledActivity['state']
+  ): RoomSettledActivity | null {
     const messages = pending
       .map(({ message }) => message)
-      .filter((message) => message !== finalMessage?.message && isActivityMessage(message))
+      .filter((message) => message !== finalMessage?.message && isRoomActivityMessage(message))
     const messageStart = messages
       .map((message) => message.timestamp)
       .filter((timestamp): timestamp is number => timestamp !== null)
@@ -153,11 +164,8 @@ export class RoomTranscriptTurnState {
         undefined
       )
     const startedAt = this.startedAt.get(participantId) ?? messageStart
-    const completedAt =
-      finalMessage?.message.assistantPhase === 'final'
-        ? (finalMessage.message.timestamp ?? event.timestamp)
-        : event.timestamp
-    return startedAt === undefined ? null : { state: 'completed', messages, startedAt, completedAt }
+    const completedAt = event.timestamp
+    return startedAt === undefined ? null : { state, messages, startedAt, completedAt }
   }
 
   ignorePending(
@@ -193,15 +201,10 @@ export class RoomTranscriptTurnState {
     const finalProviderMessageId = candidate?.publishable
       ? providerMessageId(candidate.message)
       : `status:${event.turnId ?? event.timestamp}`
-    const completedActivity = this.completed(participant.id, pending, candidate, event)
+    const completedActivity = this.settled(participant.id, pending, candidate, event, 'completed')
     if (candidate?.message.providerError) {
       this.ignorePending(participant.id, providerSessionId)
-      const failed = this.db.messages.deliveries.failResponse(
-        delivery.id,
-        'room_provider_error',
-        event.timestamp
-      )
-      this.emit(participant.roomId, { type: 'delivery.updated', delivery: failed })
+      this.failResponse(participant, delivery, 'room_provider_error', event.timestamp)
       onSettled()
       return true
     }
@@ -210,12 +213,7 @@ export class RoomTranscriptTurnState {
         return false
       }
       this.ignorePending(participant.id, providerSessionId)
-      const failed = this.db.messages.deliveries.failResponse(
-        delivery.id,
-        'room_empty_response',
-        event.timestamp
-      )
-      this.emit(participant.roomId, { type: 'delivery.updated', delivery: failed })
+      this.failResponse(participant, delivery, 'room_empty_response', event.timestamp)
       onSettled()
       return true
     }
@@ -223,14 +221,20 @@ export class RoomTranscriptTurnState {
     const reply = extractRoomReplyRecipients(body, roomParticipants, participant.identity)
     if (reply.silent) {
       this.ignorePending(participant.id, providerSessionId, finalProviderMessageId)
-      this.db.transaction(() => {
+      const responded = this.db.transaction(() => {
         this.db.providerMessages.ignore(participant.id, providerSessionId, finalProviderMessageId)
-        this.db.messages.deliveries.markResponded(delivery.id, null, event.timestamp)
+        return delivery.providerTurnId
+          ? this.db.messages.deliveries.markRespondedGroup(
+              participant.id,
+              delivery.providerTurnId,
+              null,
+              event.timestamp
+            )
+          : [this.db.messages.deliveries.markResponded(delivery.id, null, event.timestamp)]
       })
-      this.emit(participant.roomId, {
-        type: 'delivery.updated',
-        delivery: this.db.messages.deliveries.get(delivery.id)
-      })
+      for (const item of responded) {
+        this.emit(participant.roomId, { type: 'delivery.updated', delivery: item })
+      }
       onSettled()
       return true
     }
@@ -248,40 +252,63 @@ export class RoomTranscriptTurnState {
       return false
     }
     this.ignorePending(participant.id, providerSessionId, finalProviderMessageId)
-    this.emit(participant.roomId, {
-      type: 'delivery.updated',
-      delivery: this.db.messages.deliveries.get(delivery.id)
+    const settledDeliveries = delivery.providerTurnId
+      ? this.db.messages.deliveries.listForTurn(participant.id, delivery.providerTurnId)
+      : [this.db.messages.deliveries.get(delivery.id)]
+    for (const item of settledDeliveries) {
+      this.emit(participant.roomId, { type: 'delivery.updated', delivery: item })
+    }
+    this.emit(participant.roomId, { type: 'message.created', message })
+    onSettled(message)
+    return true
+  }
+
+  publishInterrupted(
+    participant: RoomParticipant,
+    delivery: RoomDelivery,
+    providerSessionId: string,
+    event: RoomHarnessLifecycleEvent,
+    onSettled: (message?: RoomMessage) => void
+  ): boolean {
+    const pending = this.entries(participant.id)
+    const { candidate, body } = selectRoomTranscriptFinal(pending, null)
+    const activity = this.settled(participant.id, pending, candidate, event, 'interrupted')
+    if (!activity) {
+      return false
+    }
+    const finalProviderMessageId =
+      candidate?.publishable === true
+        ? providerMessageId(candidate.message)
+        : `interrupted:${event.turnId ?? event.timestamp}`
+    const settleDelivery = delivery.state === 'suppressed' && delivery.error === 'room_stopping'
+    const message = this.db.providerMessages.createReply({
+      participant,
+      delivery,
+      providerSessionId,
+      providerMessageId: finalProviderMessageId,
+      body: body ?? '',
+      mentions: [],
+      createdAt: candidate?.message.timestamp ?? event.timestamp,
+      activity,
+      settleDelivery,
+      enqueueDeliveries: false
     })
+    if (!message) {
+      return false
+    }
+    this.ignorePending(participant.id, providerSessionId, finalProviderMessageId)
+    if (settleDelivery) {
+      const settledDeliveries = delivery.providerTurnId
+        ? this.db.messages.deliveries.listForTurn(participant.id, delivery.providerTurnId)
+        : [this.db.messages.deliveries.get(delivery.id)]
+      for (const item of settledDeliveries) {
+        this.emit(participant.roomId, { type: 'delivery.updated', delivery: item })
+      }
+    }
     this.emit(participant.roomId, { type: 'message.created', message })
     onSettled(message)
     return true
   }
 }
 
-export function providerMessageId(message: NativeChatMessage): string {
-  return message.turnId ?? message.id
-}
-
-function isActivityMessage(message: NativeChatMessage): boolean {
-  return (
-    (message.role === 'assistant' && message.assistantPhase !== 'final') ||
-    message.role === 'reasoning' ||
-    message.role === 'tool'
-  )
-}
-
-function assistantBody(message: NativeChatMessage): string | null {
-  if (message.role !== 'assistant') {
-    return null
-  }
-  const body = message.blocks
-    .filter((block) => block.type === 'text')
-    .map((block) => block.text.trim())
-    .filter(Boolean)
-    .join('\n\n')
-  return body || null
-}
-
-function finalBodyMatches(candidate: string | null, explicit: string): boolean {
-  return candidate === explicit || candidate?.startsWith(explicit) === true
-}
+export const providerMessageId = (message: NativeChatMessage): string => message.id

@@ -88,16 +88,19 @@ function runtimeStub(): RoomHarnessRuntime {
 }
 
 describe('machine room harness', () => {
-  it('keeps untrusted Claude launches on the trust-owning terminal transport', async () => {
-    const runtime = runtimeStub()
+  it.each(['claude', 'openclaude'] as const)(
+    'keeps untrusted %s launches on the trust-owning terminal transport',
+    async (agent) => {
+      const runtime = runtimeStub()
 
-    const binding = await createRoomHarnessAdapters(runtime).claude.launch('worktree-1', {
-      machineStreaming: true,
-      trusted: false
-    })
+      const binding = await createRoomHarnessAdapters(runtime)[agent].launch('worktree-1', {
+        machineStreaming: true,
+        trusted: false
+      })
 
-    expect(binding.transport).toBe('terminal')
-  })
+      expect(binding.transport).toBe('terminal')
+    }
+  )
 })
 
 it('registers the canonical idle wait before interrupting a room agent', async () => {
@@ -468,14 +471,26 @@ describe('room transcript lifecycle normalization', () => {
     const toolMessage = {
       id: 'tool-1',
       role: 'assistant' as const,
-      blocks: [{ type: 'tool-call' as const, name: 'Bash', input: { command: 'git status' } }],
+      blocks: [
+        {
+          type: 'tool-call' as const,
+          toolCallId: 'tool-1',
+          name: 'Bash',
+          input: { command: 'git status' }
+        },
+        {
+          type: 'tool-result' as const,
+          toolCallId: 'tool-1',
+          output: 'still running',
+          isPartial: true
+        }
+      ],
       timestamp: 10,
       source: 'transcript' as const
     }
     expect(transcriptLifecycleEvent([toolMessage])).toMatchObject({
       type: 'activity',
-      activity: { kind: 'command', detail: 'git status' },
-      messages: [toolMessage]
+      activity: { kind: 'command', detail: 'git status' }
     })
     expect(
       transcriptLifecycleEvent([], { state: 'completed', turnId: 'turn-1', timestamp: 20 })

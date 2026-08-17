@@ -258,4 +258,5 @@ export type AgentSessionOptionsResult = {
   }
   descriptors?: SessionOptionDescriptor[]
   canCompact?: boolean
+  canSteer?: boolean
 }

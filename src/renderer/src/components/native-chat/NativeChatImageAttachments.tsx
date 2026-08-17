@@ -27,11 +27,13 @@ type ResolvedImage = NativeChatImageAttachment & { src: string }
 export function NativeChatImageAttachments({
   images,
   loadContext,
-  onRemove
+  onRemove,
+  compact = false
 }: {
   images: readonly NativeChatImageAttachment[]
   loadContext?: NativeChatImageLoadContext
   onRemove?: (id: string) => void
+  compact?: boolean
 }): React.JSX.Element | null {
   const [sources, setSources] = useState<Record<string, string>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -67,7 +69,7 @@ export function NativeChatImageAttachments({
   }
   return (
     <>
-      <div className="mb-2 flex flex-wrap gap-1.5">
+      <div className={compact ? 'flex flex-wrap gap-1' : 'mb-2 flex flex-wrap gap-1.5'}>
         {images.map((image) => (
           <NativeChatImageThumbnail
             key={image.id}
@@ -76,6 +78,7 @@ export function NativeChatImageAttachments({
             onResolved={registerSource}
             onOpen={() => setSelectedId(image.id)}
             onRemove={onRemove ? () => onRemove(image.id) : undefined}
+            compact={compact}
           />
         ))}
       </div>
@@ -89,13 +92,15 @@ function NativeChatImageThumbnail({
   loadContext,
   onResolved,
   onOpen,
-  onRemove
+  onRemove,
+  compact
 }: {
   image: NativeChatImageAttachment
   loadContext?: NativeChatImageLoadContext
   onResolved: (id: string, src: string) => void
   onOpen: () => void
   onRemove?: () => void
+  compact: boolean
 }): React.JSX.Element {
   const runtimeContext = loadContext?.runtimeContext
   const runtimeEnvironmentId = runtimeContext?.settings?.activeRuntimeEnvironmentId?.trim()
@@ -117,7 +122,10 @@ function NativeChatImageThumbnail({
     }
   }, [image.id, onResolved, src])
   return (
-    <div className="relative size-20 shrink-0" title={image.path ?? image.url ?? image.fileName}>
+    <div
+      className={compact ? 'relative size-6 shrink-0' : 'relative size-20 shrink-0'}
+      title={image.path ?? image.url ?? image.fileName}
+    >
       <button
         type="button"
         className="size-full overflow-hidden rounded-lg border border-border bg-muted/30 text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default"
@@ -128,10 +136,10 @@ function NativeChatImageThumbnail({
         {src ? (
           <img src={src} alt={image.fileName} className="size-full object-cover" />
         ) : (
-          <ImageIcon className="mx-auto size-6" />
+          <ImageIcon className={compact ? 'mx-auto size-3.5' : 'mx-auto size-6'} />
         )}
       </button>
-      {onRemove ? (
+      {onRemove && !compact ? (
         <button
           type="button"
           className="absolute top-1 right-1 z-10 flex size-4 items-center justify-center rounded-full bg-foreground text-background shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"

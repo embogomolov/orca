@@ -32,7 +32,7 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
     if (
       options?.machineStreaming &&
       this.machine &&
-      (this.agent !== 'claude' || options.trusted === true)
+      ((this.agent !== 'claude' && this.agent !== 'openclaude') || options.trusted === true)
     ) {
       return this.machine.launch(worktreeId, options)
     }
@@ -57,6 +57,17 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
     options?: Parameters<RoomHarnessAdapter['send']>[2]
   ) {
     return this.forBinding(binding).send(binding, prompt, options)
+  }
+
+  steer(
+    binding: RoomHarnessBinding,
+    prompt: string,
+    options?: Parameters<NonNullable<RoomHarnessAdapter['steer']>>[2]
+  ) {
+    if (binding.transport !== 'machine') {
+      throw new Error('conversation_steer_unsupported')
+    }
+    return this.machine!.steer(binding, prompt, options)
   }
 
   interrupt(binding: RoomHarnessBinding) {

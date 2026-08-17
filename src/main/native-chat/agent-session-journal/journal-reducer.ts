@@ -141,16 +141,23 @@ export function resolveJournalItemId(
   ) {
     return itemId
   }
-  const fingerprint = structuredAgentSessionPayloadFingerprint({
-    method: 'agentSession.send',
-    sessionId: state.sessionId,
-    fields: { body }
-  })
+  const fingerprints = new Set(
+    ['agentSession.send', 'agentSession.steer'].map((method) =>
+      structuredAgentSessionPayloadFingerprint({
+        method,
+        sessionId: state.sessionId,
+        fields: { body }
+      })
+    )
+  )
   // Exact payload plus queue order preserves repeated identical sends one-for-one.
   const submission = [...state.submissions.values()]
     .sort((left, right) => left.submittedAt - right.submittedAt)
     .find((candidate) => {
-      if (candidate.dispatchState === 'rejected' || candidate.payloadFingerprint !== fingerprint) {
+      if (
+        candidate.dispatchState === 'rejected' ||
+        !fingerprints.has(candidate.payloadFingerprint)
+      ) {
         return false
       }
       return state.items.get(agentJournalSubmissionKey(candidate.clientMessageId))?.revision === 0

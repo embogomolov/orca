@@ -159,6 +159,11 @@ export type RoomHarnessAdapter = {
       imagePaths?: readonly string[]
     }
   ): Promise<RuntimeTerminalSend>
+  steer?(
+    binding: RoomHarnessBinding,
+    prompt: string,
+    options?: { imagePaths?: readonly string[] }
+  ): Promise<RuntimeTerminalSend>
   interrupt(binding: RoomHarnessBinding): Promise<void>
   prepareControl?(binding: RoomHarnessBinding, command: string): Promise<void>
   stop(binding: RoomHarnessBinding): Promise<RuntimeTerminalClose>

@@ -53,6 +53,8 @@ import type { NativeChatResolvedViewProps } from './native-chat-view-types'
 import { useNativeChatFileLinkContext } from './use-native-chat-file-link-context'
 import { NativeChatOrchestrationPausedNotice } from './NativeChatOrchestrationPausedNotice'
 import { nativeChatImageLoadContext } from './native-chat-image-load-context'
+import { NativeChatPtyQueue, type NativeChatPtyQueueHandle } from './NativeChatPtyQueue'
+import type { NativeChatQueuedMessage } from '../../../../shared/native-chat-queue'
 
 /** Renders the bridge UI after NativeChatSessionGate resolves its agent session. */
 export function NativeChatResolvedView({
@@ -120,8 +122,13 @@ export function NativeChatResolvedView({
   const previousWorkingEpochRef = useRef<number | null>(null)
   // True while a question card owns the input region, so the composer is hidden.
   const [questionActive, setQuestionActive] = useState(false)
+  const [ptyQueueHasItems, setPtyQueueHasItems] = useState(false)
+  const [editingQueuedMessage, setEditingQueuedMessage] = useState<NativeChatQueuedMessage | null>(
+    null
+  )
   const rootRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<NativeChatComposerHandle>(null)
+  const queueRef = useRef<NativeChatPtyQueueHandle>(null)
   // The question card's free-text row; keeps Paste working while the card
   // replaces the composer.
   const questionAnswerInputRef = useRef<HTMLInputElement>(null)
@@ -314,6 +321,7 @@ export function NativeChatResolvedView({
     // settles, so cancelPendingSends no longer sees the optimistic id. Clear
     // the echo cache here so a cancelled prompt cannot stick as a ghost bubble.
     setPending(writePendingSendCache(pendingScope, []))
+    void queueRef.current?.pause()
     interactiveSend.cancel()
   }, [interactiveSend, pendingScope])
   const nativeChatFileLinkClick = useNativeChatFileLinkClick(fileLinkContext)
@@ -375,7 +383,6 @@ export function NativeChatResolvedView({
             expandSignal={false}
             fontScale={fontScale.scale}
             workingStartedAt={hookWorkingEpoch}
-            showTurnStatus={false}
             onLinkClick={nativeChatFileLinkClick}
             allowFileUriLinks={fileLinkContext !== null}
             failedDeliveryMessageIds={failedLaunchPromptMessageIds}
@@ -399,27 +406,56 @@ export function NativeChatResolvedView({
           the pty, the composer shows its guarded state instead of racing the
           mobile driver (R8). */}
       {questionActive ? null : (
-        <NativeChatComposer
-          ref={composerRef}
-          terminalTabId={terminalTabId}
-          paneKey={paneKey}
-          targetPtyId={targetPtyId}
-          agent={agent}
-          reportedModel={session.context.model ?? reportedModel}
-          reportedEffort={session.context.effort ?? null}
-          context={session.context}
-          onCompactionRequested={session.markCompactionRequested}
-          restartSession={restartSession}
-          canSend={canSend}
-          isWorking={isWorking}
-          onStop={stopAgent}
-          onOptimisticSend={onOptimisticSend}
-          onOptimisticSendCanceled={onOptimisticSendCanceled}
-          onSlashCommand={onSlashCommand}
-          onSwitchToTerminal={onSwitchToTerminal}
-          readTerminalScreen={readTerminalScreen}
-          launchSeed={{ ...launchDraftSignal, ownsTabWideLaunchDraft }}
-        />
+        <>
+          <NativeChatPtyQueue
+            ref={queueRef}
+            paneKey={paneKey}
+            terminalTabId={terminalTabId}
+            targetPtyId={targetPtyId}
+            agent={agent}
+            isWorking={isWorking}
+            imageLoadContext={imageLoadContext}
+            onDelivered={onOptimisticSend}
+            onDeliveryCanceled={onOptimisticSendCanceled}
+            onCommand={onSlashCommand}
+            onQueueStateChange={setPtyQueueHasItems}
+            editingMessageId={editingQueuedMessage?.id ?? null}
+            onEditMessage={(message) => {
+              setEditingQueuedMessage(message)
+              composerRef.current?.replaceDraft(message.text, message.imagePaths)
+            }}
+          />
+          <NativeChatComposer
+            ref={composerRef}
+            terminalTabId={terminalTabId}
+            paneKey={paneKey}
+            targetPtyId={targetPtyId}
+            agent={agent}
+            reportedModel={session.context.model ?? reportedModel}
+            reportedEffort={session.context.effort ?? null}
+            context={session.context}
+            onCompactionRequested={session.markCompactionRequested}
+            restartSession={restartSession}
+            canSend={canSend}
+            isWorking={isWorking}
+            queueOnly={ptyQueueHasItems}
+            onStop={stopAgent}
+            onQueue={(text, imagePaths, kind) => {
+              const operation = editingQueuedMessage
+                ? queueRef.current?.edit(editingQueuedMessage.id, text, imagePaths, kind)
+                : queueRef.current?.enqueue(text, imagePaths, kind)
+              return (
+                operation ?? Promise.reject(new Error('conversation_queue_unavailable'))
+              ).then(() => setEditingQueuedMessage(null))
+            }}
+            onOptimisticSend={onOptimisticSend}
+            onOptimisticSendCanceled={onOptimisticSendCanceled}
+            onSlashCommand={onSlashCommand}
+            onSwitchToTerminal={onSwitchToTerminal}
+            readTerminalScreen={readTerminalScreen}
+            launchSeed={{ ...launchDraftSignal, ownsTabWideLaunchDraft }}
+          />
+        </>
       )}
       {contextMenu.menu}
     </div>

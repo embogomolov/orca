@@ -5,7 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import type { RoomAgentActivity, RoomParticipant } from '../../../../shared/rooms'
-import { roomActivityFinalMessage, RoomActivityCard, RoomActivitySummary } from './RoomActivityCard'
+import { RoomActivityCard, RoomActivitySummary } from './RoomActivityCard'
 import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 
 const SAFE_MARGIN_RATIO = 0.12
@@ -16,10 +16,12 @@ const OWNED_PORTAL_SELECTOR = '[data-room-activity-stack-portal]'
 
 export function RoomActivityStack({
   activities,
+  lastSteeredParticipantId,
   participants,
   target
 }: {
   activities: RoomAgentActivity[]
+  lastSteeredParticipantId?: string | null
   participants: RoomParticipant[]
   target?: RuntimeClientTarget
 }): React.JSX.Element | null {
@@ -31,29 +33,10 @@ export function RoomActivityStack({
     () => new Map(participants.map((participant) => [participant.id, participant])),
     [participants]
   )
-  const finalizing = activities.filter(roomActivityFinalMessage)
-  useActivityStackDismiss(open && finalizing.length === 0, rootRef, setOpen, triggerRef)
+  useActivityStackDismiss(open, rootRef, setOpen, triggerRef)
 
   if (activities.length === 0) {
     return null
-  }
-  if (finalizing.length > 0) {
-    const live = activities.filter((activity) => !roomActivityFinalMessage(activity))
-    return (
-      <div className="space-y-2">
-        {live.length > 0 ? (
-          <RoomActivityStack activities={live} participants={participants} target={target} />
-        ) : null}
-        {finalizing.map((activity) => (
-          <RoomActivityCard
-            key={`${activity.participantId}:${activity.startedAt}`}
-            activity={activity}
-            participant={participantById.get(activity.participantId)}
-            target={target}
-          />
-        ))}
-      </div>
-    )
   }
   if (activities.length === 1) {
     const activity = activities[0]!
@@ -66,7 +49,9 @@ export function RoomActivityStack({
     )
   }
 
-  const front = activities[0]!
+  const front =
+    activities.find((activity) => activity.participantId === lastSteeredParticipantId) ??
+    activities[0]!
   const additionalCount = activities.length - 1
   return (
     <Collapsible
@@ -129,7 +114,13 @@ export function RoomActivityStack({
         </div>
 
         <CollapsibleContent className="room-activity-disclosure-content [grid-area:1/1]">
-          <div className="space-y-2">
+          <div
+            className={cn(
+              'space-y-2',
+              activities.length > 4 &&
+                'queued-message-scroll-fade scrollbar-sleek max-h-[280px] overflow-y-auto'
+            )}
+          >
             {activities.map((activity) => (
               <RoomActivityCard
                 key={`${activity.participantId}:${activity.startedAt}`}

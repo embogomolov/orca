@@ -1,7 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { Readable, Writable } from 'node:stream'
-import { basename } from 'node:path'
 import {
   ClientSideConnection,
   ndJsonStream,
@@ -12,51 +11,42 @@ import {
   type SessionModeState,
   type SessionNotification
 } from '@agentclientprotocol/sdk'
-import type { HarnessConversationDriver, HarnessConversationDriverSink } from './driver'
-import { killCodexAppServerProcessTree } from '../codex/codex-app-server-session'
-import { waitForProcessExitUntil } from '../codex/codex-process-exit-deadline'
+import type { HarnessConversationDriver } from './driver'
 import { harnessProcessInvocation } from './harness-process-invocation'
-import { providerAttachmentUri } from './provider-image-input'
 import { acpConversationConfiguration } from './acp-session-configuration'
 import type { SessionOptionValue } from '../../shared/native-chat-session-options'
 import { startAcpSession } from './acp-session-start'
 import {
   acpPlanMessage,
-  acpToolMessage,
   acpUsageContext,
+  completeAcpResponse,
   completeAcpReasoning,
-  emitAcpFinal,
   emitAcpTextChunk,
-  flushAcpAssistantCommentary
+  flushAcpAssistantCommentary,
+  emitAcpTool,
+  type AcpToolState
 } from './acp-message'
 import { AcpPermissionController } from './acp-permission-controller'
-
-type AcpDriverOptions = {
-  cwd: string
-  providerSessionId: string | null
-  forkFromProviderSessionId: string | null
-  command: string
-  args: string[]
-  env: NodeJS.ProcessEnv
-  sink: HarnessConversationDriverSink
-}
+import { GrokSteerController } from './grok-steer-controller'
+import { closeAcpConversationProcess } from './acp-process-close'
+import { acpUserPrompt } from './acp-user-prompt'
+import { observeGrokResponseBoundary } from './grok-response-boundary'
+import type { AcpDriverOptions } from './acp-driver-options'
 
 export class AcpConversationDriver implements HarnessConversationDriver {
   private readonly child: ChildProcessWithoutNullStreams
   private readonly connection: ClientSideConnection
   private readonly permissions: AcpPermissionController
+  private readonly steers: GrokSteerController
   private readonly texts = new Map<string, { role: 'assistant' | 'reasoning'; text: string }>()
-  private readonly tools = new Map<
-    string,
-    { name: string; input: unknown; output?: unknown; failed?: boolean }
-  >()
+  private readonly tools: AcpToolState = new Map()
   private sessionId: string | null
   private initialized: Promise<void>
   private capabilities: AgentCapabilities = {}
   private commands: AvailableCommand[] = []
   private configOptions: SessionConfigOption[] = []
   private modes: SessionModeState | null = null
-  private fallbackMessageId = randomUUID()
+  private fallbackMessageId: string = randomUUID()
   private initializing = true
 
   constructor(private readonly options: AcpDriverOptions) {
@@ -80,7 +70,20 @@ export class AcpConversationDriver implements HarnessConversationDriver {
     this.child.stderr.on('data', () => undefined)
     const client: Client = {
       requestPermission: (request) => this.permissions.request(request),
-      sessionUpdate: (notification) => this.sessionUpdate(notification)
+      sessionUpdate: (notification) => this.sessionUpdate(notification),
+      extNotification: (method, params) => {
+        if (!this.initializing) {
+          this.fallbackMessageId = observeGrokResponseBoundary(
+            method,
+            params,
+            this.sessionId,
+            this.options.sink,
+            this.texts,
+            this.fallbackMessageId
+          )
+        }
+        this.steers.observeNotification(method, params, this.sessionId)
+      }
     }
     this.connection = new ClientSideConnection(
       () => client,
@@ -89,31 +92,33 @@ export class AcpConversationDriver implements HarnessConversationDriver {
         Readable.toWeb(this.child.stdout) as ReadableStream<Uint8Array>
       )
     )
+    this.steers = new GrokSteerController(
+      (method, params) => this.connection.request<{ status?: unknown }>(method, params),
+      () => this.publishConfiguration()
+    )
     this.initialized = this.initialize()
   }
 
-  ready(): Promise<void> {
-    return this.initialized
-  }
+  ready = (): Promise<void> => this.initialized
 
-  async send(text: string, imagePaths?: readonly string[]): Promise<void> {
+  async send(
+    text: string,
+    imagePaths?: readonly string[],
+    submission?: Parameters<HarnessConversationDriver['send']>[2]
+  ): Promise<void> {
     await this.initialized
     if (!this.sessionId) {
       throw new Error('acp_session_unavailable')
     }
-    this.fallbackMessageId = randomUUID()
+    this.fallbackMessageId =
+      (submission?.clientMessageId as ReturnType<typeof randomUUID> | undefined) ?? randomUUID()
     try {
-      const response = await this.connection.prompt({
+      const completion = this.connection.prompt({
         sessionId: this.sessionId,
-        prompt: [
-          ...(text ? [{ type: 'text' as const, text }] : []),
-          ...(imagePaths ?? []).map((path) => ({
-            type: 'resource_link' as const,
-            uri: providerAttachmentUri(path),
-            name: basename(path)
-          }))
-        ]
+        prompt: acpUserPrompt(text, imagePaths)
       })
+      submission?.accepted()
+      const response = await completion
       if (response.stopReason === 'cancelled') {
         completeAcpReasoning(this.options.sink, this.texts)
         flushAcpAssistantCommentary(this.options.sink, this.texts)
@@ -121,7 +126,7 @@ export class AcpConversationDriver implements HarnessConversationDriver {
       }
       completeAcpReasoning(this.options.sink, this.texts)
       if (response.stopReason === 'end_turn') {
-        emitAcpFinal(this.options.sink, this.texts)
+        completeAcpResponse(this.options.sink, this.texts, this.fallbackMessageId)
       } else {
         flushAcpAssistantCommentary(this.options.sink, this.texts)
       }
@@ -143,12 +148,25 @@ export class AcpConversationDriver implements HarnessConversationDriver {
       }
     } finally {
       this.permissions.cancel()
+      this.steers.rejectAll()
     }
   }
 
-  answerPermission(requestId: string, optionId: string): void {
-    this.permissions.answer(requestId, optionId)
+  async steer(
+    text: string,
+    imagePaths: readonly string[] | undefined,
+    clientMessageId: string,
+    accept: Parameters<NonNullable<HarnessConversationDriver['steer']>>[3]
+  ): Promise<void> {
+    await this.initialized
+    if (!this.sessionId) {
+      throw new Error('conversation_not_working')
+    }
+    return this.steers.steer(this.sessionId, text, imagePaths, clientMessageId, accept)
   }
+
+  answerPermission = (requestId: string, optionId: string): void =>
+    this.permissions.answer(requestId, optionId)
 
   answerInput(): void {}
 
@@ -190,23 +208,13 @@ export class AcpConversationDriver implements HarnessConversationDriver {
 
   async close(): Promise<void> {
     this.permissions.cancel()
-    try {
-      if (this.sessionId && this.capabilities.sessionCapabilities?.close) {
-        await waitForProcessExitUntil(
-          this.connection.closeSession({ sessionId: this.sessionId }).then(() => undefined),
-          1_000
-        )
-      }
-    } finally {
-      this.child.kill('SIGTERM')
-      await waitForProcessExitUntil(
-        this.connection.closed.catch(() => undefined),
-        1_000
-      )
-      if (this.child.exitCode === null) {
-        killCodexAppServerProcessTree(this.child)
-      }
-    }
+    this.steers.rejectAll()
+    await closeAcpConversationProcess(
+      this.connection,
+      this.child,
+      this.sessionId,
+      Boolean(this.capabilities.sessionCapabilities?.close)
+    )
   }
 
   private async initialize(): Promise<void> {
@@ -228,7 +236,8 @@ export class AcpConversationDriver implements HarnessConversationDriver {
     }
   }
 
-  private sessionUpdate(notification: SessionNotification): void {
+  private async sessionUpdate(notification: SessionNotification): Promise<void> {
+    await this.steers.observeTurn(notification)
     const update = notification.update
     if (
       update.sessionUpdate === 'agent_message_chunk' ||
@@ -250,7 +259,7 @@ export class AcpConversationDriver implements HarnessConversationDriver {
         name: update.name ?? update.title,
         input: update.rawInput
       })
-      this.emitTool(update.toolCallId)
+      emitAcpTool(this.options.sink, this.tools, update.toolCallId)
       return
     }
     if (update.sessionUpdate === 'tool_call_update') {
@@ -271,7 +280,7 @@ export class AcpConversationDriver implements HarnessConversationDriver {
         output: update.rawOutput ?? update.content ?? current.output,
         failed: update.status === 'failed'
       })
-      this.emitTool(update.toolCallId)
+      emitAcpTool(this.options.sink, this.tools, update.toolCallId)
       return
     }
     if (update.sessionUpdate === 'plan') {
@@ -300,24 +309,14 @@ export class AcpConversationDriver implements HarnessConversationDriver {
   }
 
   private publishConfiguration(): void {
-    this.options.sink.setConfiguration(
-      acpConversationConfiguration({
+    this.options.sink.setConfiguration({
+      ...acpConversationConfiguration({
         commands: this.commands,
         configOptions: this.configOptions,
         modes: this.modes,
         canFork: Boolean(this.capabilities.sessionCapabilities?.fork)
-      })
-    )
-  }
-
-  private emitTool(toolCallId: string): void {
-    const tool = this.tools.get(toolCallId)
-    if (!tool) {
-      return
-    }
-    this.options.sink.emit({
-      type: 'message.completed',
-      message: acpToolMessage(toolCallId, tool)
+      }),
+      canSteer: this.steers.supported
     })
   }
 }

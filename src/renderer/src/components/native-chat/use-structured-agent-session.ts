@@ -59,13 +59,16 @@ export function useStructuredAgentSession(args: {
   const [optionState, setOptionState] = useState(() =>
     createStructuredAgentSessionOptionState(agent)
   )
+  const [canSteer, setCanSteer] = useState(agent === 'codex')
   const activeOptionRecordRef = useRef(optionState.record)
   const optionCatalog = useMemo(() => getAgentSessionOptionCatalog(agent), [agent])
+  const turnId = activeStructuredAgentSessionTurnId(state.items)
   const outboxController = useStructuredAgentSessionOutbox({
     sessionId,
     target,
     fence: state.fence,
-    submissions: state.submissions
+    submissions: state.submissions,
+    isWorking: turnId !== null
   })
 
   useEffect(() => {
@@ -76,6 +79,7 @@ export function useStructuredAgentSession(args: {
     const next = createStructuredAgentSessionOptionState(agent)
     activeOptionRecordRef.current = next.record
     setOptionState(next)
+    setCanSteer(agent === 'codex')
   }, [agent, sessionId, state.fence])
 
   const mutate = useCallback(
@@ -146,6 +150,7 @@ export function useStructuredAgentSession(args: {
     })
       .then((result) => {
         if (!stale) {
+          setCanSteer(result.canSteer === true)
           setOptionState((current) =>
             current.record === activeOptionRecordRef.current
               ? applyStructuredAgentSessionOptions(current, optionCatalog, result)
@@ -219,7 +224,6 @@ export function useStructuredAgentSession(args: {
       (item.body.kind === 'approval' || item.body.kind === 'question') &&
       item.body.resolution.state === 'pending'
   )
-  const turnId = activeStructuredAgentSessionTurnId(state.items)
   return {
     messages: projectStructuredAgentSessionMessages(
       state.items,
@@ -235,7 +239,12 @@ export function useStructuredAgentSession(args: {
     outbox: outboxController.outbox,
     blockedClientMessageId: outboxController.blockedClientMessageId,
     send: outboxController.send,
+    edit: outboxController.edit,
+    remove: outboxController.remove,
+    reorder: outboxController.reorder,
+    steer: outboxController.steer,
     retry: outboxController.retry,
+    canSteer,
     isWorking: turnId !== null,
     turnId,
     cancel: (turnId: string) => mutate('agentSession.cancel', 'agentSession.cancel', { turnId }),

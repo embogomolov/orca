@@ -67,7 +67,9 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       restartSession,
       canSend = true,
       isWorking = false,
+      queueOnly = false,
       onStop,
+      onQueue,
       onOptimisticSend,
       onOptimisticSendCanceled,
       onSlashCommand,
@@ -173,6 +175,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
     })
     const {
       imageAttachments,
+      appendImageAttachments,
       attachResolvedPaths,
       clearImageAttachments,
       removeImageAttachment,
@@ -183,9 +186,13 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
     // A pasted image has no agent-readable path until its save lands; sending
     // mid-save would ship the message without the image the chip promises.
     const hasPendingAttachment = imageAttachments.some((attachment) => attachment.pending)
-    const sendButtonDisabled = isWorking
-      ? !hasPty || !onStop
-      : disabled || hasPendingAttachment || (draft.trim() === '' && imageAttachments.length === 0)
+    const sendWhileWorking = isWorking && Boolean(onQueue || structuredTransport)
+    const hasSendableDraft = draft.trim() !== '' || imageAttachments.length > 0
+    const sendButtonDisabled = sendWhileWorking
+      ? disabled || hasPendingAttachment || !hasSendableDraft
+      : isWorking
+        ? !hasPty || !onStop
+        : disabled || hasPendingAttachment || !hasSendableDraft
 
     const { insertTypedText, focus } = useNativeChatTypedInsertion({
       textareaRef,
@@ -196,6 +203,24 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       setHistory,
       setActiveSuggestion
     })
+
+    const replaceDraft = useCallback(
+      (text: string, imagePaths: readonly string[]) => {
+        setDraft(text)
+        setCaret(text.length)
+        setHistory(EMPTY_HISTORY)
+        setActiveSuggestion(0)
+        clearSkillOrigin()
+        clearImageAttachments()
+        appendImageAttachments([...imagePaths])
+        setNotice(null)
+        requestAnimationFrame(() => {
+          textareaRef.current?.focus()
+          textareaRef.current?.setSelectionRange(text.length, text.length)
+        })
+      },
+      [appendImageAttachments, clearImageAttachments, clearSkillOrigin, setDraft]
+    )
 
     const { attachExternalPaths, resolveAttachmentOwner } = useNativeChatExternalAttachments({
       terminalTabId,
@@ -221,8 +246,14 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
 
     useImperativeHandle(
       ref,
-      () => ({ focus, insertTypedText, handlePasteEvent: handlePaste, pasteFromClipboard }),
-      [focus, insertTypedText, handlePaste, pasteFromClipboard]
+      () => ({
+        focus,
+        insertTypedText,
+        replaceDraft,
+        handlePasteEvent: handlePaste,
+        pasteFromClipboard
+      }),
+      [focus, insertTypedText, replaceDraft, handlePaste, pasteFromClipboard]
     )
 
     const { pickAttachment } = useNativeChatFileAttachmentActions(attachExternalPaths)
@@ -272,6 +303,8 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       draft,
       imageAttachments,
       disabled,
+      isWorking,
+      queueOnly,
       isDispatchingSessionOption,
       launchDraft: launchSeed?.launchDraft,
       launchDraftResolved: launchSeed?.launchDraftResolved === true,
@@ -279,6 +312,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       resolveTarget,
       classifySend,
       onOptimisticSend,
+      onQueue,
       onSlashCommand,
       sessionOptionsSurface: sessionControl.sessionOptionsSurface,
       terminalTabId,
@@ -390,6 +424,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
         imageAttachments={imageAttachments}
         sendButtonDisabled={sendButtonDisabled}
         isWorking={isWorking}
+        sendWhileWorking={sendWhileWorking}
         attachDisabled={disabled}
         dictationDisabled={dictationDisabled}
         isDictating={isDictating}

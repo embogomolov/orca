@@ -4,7 +4,7 @@ import type {
   NativeChatToolResultBlock
 } from '../../../../shared/native-chat-types'
 import { roomActivityKindFromTool } from '../../../../shared/room-activity'
-import type { RoomActivityKind, RoomCompletedActivity } from '../../../../shared/rooms'
+import type { RoomActivityKind, RoomSettledActivity } from '../../../../shared/rooms'
 
 export type RoomActivityToolStep = {
   id: string
@@ -24,9 +24,12 @@ export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomAc
   const pendingById = new Map<string, RoomActivityToolStep>()
   let resultCursor = 0
 
-  for (const message of [...messages].sort(compareMessages)) {
+  for (const message of messages) {
     for (const [blockIndex, block] of message.blocks.entries()) {
       if (block.type === 'text') {
+        if (message.role === 'user') {
+          continue
+        }
         if (message.role !== 'assistant' && message.role !== 'reasoning') {
           continue
         }
@@ -78,23 +81,21 @@ export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomAc
   return sections
 }
 
-export function completedRoomActivity(
-  metadata: Record<string, unknown>
-): RoomCompletedActivity | null {
+export function settledRoomActivity(metadata: Record<string, unknown>): RoomSettledActivity | null {
   const value = metadata.activity
   if (!value || typeof value !== 'object') {
     return null
   }
-  const activity = value as Partial<RoomCompletedActivity>
+  const activity = value as Partial<RoomSettledActivity>
   if (
-    activity.state !== 'completed' ||
+    (activity.state !== 'completed' && activity.state !== 'interrupted') ||
     !Number.isFinite(activity.startedAt) ||
     !Number.isFinite(activity.completedAt) ||
     !Array.isArray(activity.messages)
   ) {
     return null
   }
-  return activity as RoomCompletedActivity
+  return activity as RoomSettledActivity
 }
 
 export function roomFinalFadeId(participantId: string, startedAt: number): string {
@@ -109,8 +110,4 @@ export function formatRoomActivityDuration(startedAt: number, completedAt: numbe
   return [hours ? `${hours}h` : '', minutes ? `${minutes}m` : '', seconds ? `${seconds}s` : '']
     .filter(Boolean)
     .join(' ')
-}
-
-function compareMessages(left: NativeChatMessage, right: NativeChatMessage): number {
-  return (left.timestamp ?? -1) - (right.timestamp ?? -1) || left.id.localeCompare(right.id)
 }

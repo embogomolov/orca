@@ -16,6 +16,8 @@ import {
 } from '../../../native-chat/session-context-reader'
 import { defineMethod, defineStreamingMethod, type RpcAnyMethod, type RpcContext } from '../core'
 import { sanitizeNativeChatRpcImageBlock } from './native-chat-rpc-image-block'
+import { NATIVE_CHAT_QUEUE_METHODS } from './native-chat-queue'
+import { truncateNativeChatRpcText } from './native-chat-rpc-text'
 
 // Why: native chat renders an agent's own transcript (Claude/Codex JSONL). The
 // desktop reaches the readers via Electron IPC; mobile/web clients reach the
@@ -83,14 +85,8 @@ const MOBILE_BLOCK_CHAR_CAP = 4000
 // record can legally reach 2MB, and shipping that much markdown in one block
 // would freeze the phone.
 const MOBILE_TEXT_BLOCK_CHAR_CAP = 64_000
-const MOBILE_TOOL_INPUT_ITEMS_CAP = 20
-const MOBILE_TOOL_INPUT_NODE_CAP = 100
-const TRUNCATION_MARKER = '\n… (truncated)'
-
-function clip(text: string, cap: number): string {
-  return text.length > cap ? text.slice(0, cap) + TRUNCATION_MARKER : text
-}
-
+const MOBILE_TOOL_INPUT_ITEMS_CAP = 20,
+  MOBILE_TOOL_INPUT_NODE_CAP = 100
 function sanitizeBlock(
   block: NativeChatBlock,
   clientKind: RpcContext['clientKind']
@@ -103,12 +99,12 @@ function sanitizeBlock(
   }
   if (block.type === 'text') {
     return block.text.length > MOBILE_TEXT_BLOCK_CHAR_CAP
-      ? { ...block, text: clip(block.text, MOBILE_TEXT_BLOCK_CHAR_CAP) }
+      ? { ...block, text: truncateNativeChatRpcText(block.text, MOBILE_TEXT_BLOCK_CHAR_CAP) }
       : block
   }
   if (block.type === 'tool-result') {
     return block.output.length > MOBILE_BLOCK_CHAR_CAP
-      ? { ...block, output: clip(block.output, MOBILE_BLOCK_CHAR_CAP) }
+      ? { ...block, output: truncateNativeChatRpcText(block.output, MOBILE_BLOCK_CHAR_CAP) }
       : block
   }
   if (block.type === 'tool-call') {
@@ -210,6 +206,7 @@ function windowForClient(
 }
 
 export const NATIVE_CHAT_METHODS: readonly RpcAnyMethod[] = [
+  ...NATIVE_CHAT_QUEUE_METHODS,
   defineMethod({
     name: 'nativeChat.readSession',
     params: NativeChatSession,

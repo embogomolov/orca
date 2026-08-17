@@ -19,6 +19,7 @@ import { waitForRoomParticipantReady } from './participant-readiness'
 import { RoomParticipantSessionControls } from './participant-session-controls'
 import { RoomParticipantMembership } from './participant-membership'
 import { stopRoomParticipants } from './participant-room-stop'
+import { beginParticipantRemoval, waitForParticipantRemoval } from './participant-removal'
 import {
   ingestRoomParticipantClaudeStatusLine,
   ingestRoomParticipantStatus,
@@ -31,10 +32,9 @@ export { ROOM_AGENT_IDLE_SLEEP_MS } from './participant-hibernation'
 
 const HIBERNATION_SWEEP_MS = 5 * 60 * 1000
 
-export type { RoomParticipantConnection } from './participant-membership'
-
 export class RoomParticipantController {
   private readonly restoring = new Map<string, Promise<RoomParticipant>>()
+  private readonly removing = new Map<string, Promise<void>>()
   private readonly blockedRooms = new Set<string>()
   private readonly membership: RoomParticipantMembership
   private readonly sessionControls: RoomParticipantSessionControls
@@ -86,16 +86,19 @@ export class RoomParticipantController {
     return this.membership.add(input)
   }
 
-  async remove(id: string): Promise<void> {
-    return this.membership.remove(id)
+  remove(id: string): Promise<void> {
+    return beginParticipantRemoval(id, this.removing, this.restoring.get(id), this.membership)
   }
 
-  async restore(participant: RoomParticipant, requireReady = false): Promise<RoomParticipant> {
+  restore(participant: RoomParticipant, requireReady = false): Promise<RoomParticipant> {
     this.assertAvailable(participant.roomId)
+    const removal = this.removing.get(participant.id)
+    if (removal) {
+      return waitForParticipantRemoval(removal)
+    }
     const active = this.restoring.get(participant.id)
     if (active) {
-      const restored = await active
-      return requireReady ? this.waitUntilReady(restored) : restored
+      return requireReady ? active.then((restored) => this.waitUntilReady(restored)) : active
     }
     const restore = this.restoreParticipant(participant, requireReady).finally(() => {
       this.restoring.delete(participant.id)

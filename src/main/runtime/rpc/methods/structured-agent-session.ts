@@ -30,6 +30,7 @@ import {
   RespondParams,
   SendParams,
   SetOptionParams,
+  SteerParams,
   SubscribeParams,
   UnsubscribeParams
 } from './structured-agent-session-schemas'
@@ -116,6 +117,11 @@ export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
     name: 'agentSession.send',
     params: SendParams,
     handler: async (params, ctx) => requireHost(ctx).send(callerFor(ctx), params)
+  }),
+  defineMethod({
+    name: 'agentSession.steer',
+    params: SteerParams,
+    handler: async (params, ctx) => requireHost(ctx).steer(callerFor(ctx), params)
   }),
   defineMethod({
     name: 'agentSession.cancel',

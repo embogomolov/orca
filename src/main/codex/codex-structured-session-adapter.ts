@@ -38,6 +38,7 @@ import {
 import { CodexStructuredTurnCancellation } from './codex-structured-turn-cancellation'
 import { createCodexStructuredNotificationRetry } from './codex-structured-notification-retry'
 import { acquireCodexStructuredSession } from './codex-structured-session-acquire'
+import { steerCodexTurn } from './codex-structured-turn-steer'
 
 export type {
   CodexStructuredLaunch,
@@ -171,6 +172,21 @@ export class CodexStructuredSessionAdapter implements StructuredAgentSessionAdap
     return dispatchCodexTurn(session, input, this.deps.requestTimeoutMs)
   }
 
+  steer(input: {
+    sessionId: string
+    clientMessageId: string
+    body: AgentJournalMessageItem
+    turnId: string
+    fence: number
+  }): Promise<AgentSessionDispatchOutcome> {
+    return steerCodexTurn(
+      input.sessionId,
+      this.session(input.sessionId),
+      input,
+      this.deps.requestTimeoutMs
+    )
+  }
+
   async cancelTurn(input: {
     sessionId: string
     turnId: string
@@ -206,8 +222,13 @@ export class CodexStructuredSessionAdapter implements StructuredAgentSessionAdap
     )
   }
 
-  readOptions = (input: { sessionId: string; fence: number }) =>
-    readLiveCodexSessionOptions(this.session(input.sessionId), this.deps.requestTimeoutMs)
+  readOptions = async (input: { sessionId: string; fence: number }) => ({
+    ...(await readLiveCodexSessionOptions(
+      this.session(input.sessionId),
+      this.deps.requestTimeoutMs
+    )),
+    canSteer: true
+  })
 
   historyFilePath = async (input: {
     identity: AgentSessionJournalIdentity

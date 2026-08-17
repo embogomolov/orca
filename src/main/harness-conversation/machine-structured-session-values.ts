@@ -33,7 +33,13 @@ export type MachineStructuredSession = {
 }
 
 export function machineAgent(agent: string): StructuredMachineAgent {
-  if (agent === 'claude' || agent === 'codex' || agent === 'grok' || agent === 'omp') {
+  if (
+    agent === 'claude' ||
+    agent === 'openclaude' ||
+    agent === 'codex' ||
+    agent === 'grok' ||
+    agent === 'omp'
+  ) {
     return agent
   }
   throw new Error(`unsupported structured machine agent ${agent}`)
@@ -57,7 +63,7 @@ export function providerHandleLink(
   return {
     linkId: `${agent}-${fence}-${randomUUID()}`.slice(0, 128),
     handle:
-      agent === 'claude'
+      agent === 'claude' || agent === 'openclaude'
         ? { provider: 'claude', sessionId, leafUuid: null }
         : { provider: 'acp', agent, sessionId },
     origin: sessionId === providerSessionId(identity) ? 'resumed' : 'created',
@@ -165,7 +171,8 @@ export function providerOptions(
         : {})
     },
     descriptors: configuration?.options ?? [],
-    canCompact: configuration?.canCompact === true
+    canCompact: configuration?.canCompact === true,
+    canSteer: configuration?.canSteer === true
   }
 }
 
