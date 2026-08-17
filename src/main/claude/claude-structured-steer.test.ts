@@ -59,7 +59,12 @@ describe('Claude steer acknowledgement', () => {
     const session = activeSession()
     const pending = dispatchClaudeTurn(session, input)
     await vi.waitFor(() => expect(session.dispatchWaiters).toHaveLength(1))
-    session.translator!.handle({ type: 'ended', sessionId: 'session-1', cause: 'unexpected-exit' })
+    session.translator!.handle({
+      type: 'ended',
+      sessionId: 'session-1',
+      cause: 'unexpected-exit',
+      reason: 'test exit'
+    })
     const uuid = session.dispatchWaiters[0]!.sentUuid
     expect(resolveClaudeReplayTurn(session, userReplayFrame(uuid, 'continue'))).toMatchObject({
       turn: { turnId: uuid, root: true }
@@ -76,8 +81,11 @@ describe('Claude steer acknowledgement', () => {
       const session = activeSession()
       const pending = dispatchClaudeTurn(session, input)
       await vi.waitFor(() => expect(session.dispatchWaiters).toHaveLength(1))
-      if (reason === 'cancel') cancelPendingClaudeSteers(session, 'root-1')
-      else childExited(session)
+      if (reason === 'cancel') {
+        cancelPendingClaudeSteers(session, 'root-1')
+      } else {
+        childExited(session)
+      }
       await expect(pending).resolves.toMatchObject({ state: 'unknown' })
       expect(session.dispatchWaiters).toHaveLength(0)
     }
@@ -91,5 +99,37 @@ describe('Claude steer acknowledgement', () => {
       reason: 'conversation_turn_mismatch'
     })
     expect(send).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('keeps a late steer on its own turn (retired: %s)', async (retired) => {
+    const session = activeSession()
+    const settled = vi.fn()
+    const pending = dispatchClaudeTurn(session, input)
+    await vi.waitFor(() => expect(session.dispatchWaiters).toHaveLength(1))
+    const uuid = session.dispatchWaiters[0]!.sentUuid
+    if (retired) {
+      cancelPendingClaudeSteers(session, 'root-1')
+    }
+    session.translator!.handle({
+      type: 'message',
+      sessionId: 'session-1',
+      startsTurn: true,
+      message: userReplayFrame('root-2', 'new work')
+    })
+    const turn = resolveClaudeReplayTurn(session, userReplayFrame(uuid, 'continue'), settled)
+    expect(turn).toMatchObject({ turn: { turnId: 'root-1' } })
+    expect(settled).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerIdentity: expect.objectContaining({ turn: { turnId: 'root-1' } })
+      })
+    )
+    session.translator!.handle({
+      type: 'message',
+      sessionId: 'session-1',
+      message: userReplayFrame(uuid, 'continue'),
+      turn: turn?.turn
+    })
+    expect(session.translator!.currentTurnId).toBe('root-2')
+    await expect(pending).resolves.toMatchObject({ state: retired ? 'unknown' : 'accepted' })
   })
 })

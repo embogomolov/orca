@@ -43,7 +43,6 @@ export type CodexPendingJournalPrompt = {
 }
 
 const ADMITTED: StructuredAgentSessionSinkAdmission = { accepted: true }
-
 export function settleCodexJournalSession(input: {
   event: Extract<CodexStructuredSessionEvent, { type: 'ended' }>
   sink: StructuredAgentSessionEventSink

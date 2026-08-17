@@ -46,15 +46,13 @@ function effortOption(model: AgentSessionOptionsResult['models'][number]): Catal
   }
 }
 
-function fastModeOption(): CatalogOption {
-  return {
-    id: 'fastMode',
-    label: 'Fast mode',
-    category: 'mode',
-    kind: { type: 'boolean', defaultValue: false },
-    apply: {}
-  }
-}
+const fastModeOption = (): CatalogOption => ({
+  id: 'fastMode',
+  label: 'Fast mode',
+  category: 'mode',
+  kind: { type: 'boolean', defaultValue: false },
+  apply: {}
+})
 
 function discoveredModel(
   model: AgentSessionOptionsResult['models'][number],
@@ -91,6 +89,7 @@ export function structuredAgentSessionOptionCatalog(
 }
 
 export type StructuredAgentSessionOptionState = {
+  descriptors?: readonly SessionOptionDescriptor[]
   catalog: AgentSessionOptionCatalog | null
   /** What produced `catalog`; a weaker source never replaces a stronger one. */
   catalogSource: 'seed' | 'host' | 'live' | null
@@ -173,9 +172,13 @@ export function applyStructuredAgentSessionModelCatalog(
 
 export function applyStructuredAgentSessionOptions(
   state: StructuredAgentSessionOptionState,
-  seed: AgentSessionOptionCatalog,
+  seed: AgentSessionOptionCatalog | null,
   result: AgentSessionOptionsResult
 ): StructuredAgentSessionOptionState {
+  state = { ...state, descriptors: result.descriptors }
+  if (!seed) {
+    return state
+  }
   if (!result.current.model) {
     clearNativeChatSessionModel(state.record)
     return { ...state, catalog: structuredAgentSessionOptionCatalog(seed, result) }
@@ -202,6 +205,9 @@ export function applyStructuredAgentSessionOptions(
 export function structuredAgentSessionOptionSnapshot(
   state: StructuredAgentSessionOptionState
 ): SessionOptionDescriptor[] {
+  if (state.descriptors) {
+    return [...state.descriptors]
+  }
   if (!state.catalog) {
     return []
   }
@@ -217,15 +223,14 @@ export function structuredAgentSessionOptionSnapshot(
 }
 
 /** No launch holds a pick and no fence can carry one yet, so the picker only shows. */
-export function lockedStructuredAgentSessionOptionSnapshot(
+export const lockedStructuredAgentSessionOptionSnapshot = (
   snapshot: readonly SessionOptionDescriptor[]
-): SessionOptionDescriptor[] {
-  return snapshot.map((descriptor) => ({
+): SessionOptionDescriptor[] =>
+  snapshot.map((descriptor) => ({
     ...descriptor,
     settable: false,
     disabledReason: 'available-after-session-start'
   }))
-}
 
 export function canSetStructuredAgentSessionOption(
   state: StructuredAgentSessionOptionState,
@@ -234,7 +239,7 @@ export function canSetStructuredAgentSessionOption(
 ): boolean {
   const descriptor = structuredAgentSessionOptionSnapshot(state).find((entry) => entry.id === id)
   return Boolean(
-    state.catalog &&
+    descriptor?.settable &&
     state.pendingId === null &&
     ((typeof value === 'string' &&
       descriptor?.kind.type === 'select' &&
@@ -275,7 +280,9 @@ export function commitStructuredAgentSessionOptionValues(
       next = commitStructuredAgentSessionOption(next, id, value)
     }
   }
-  return next
+  return state.descriptors
+    ? { ...next, descriptors: patchStructuredAgentSessionOptionSnapshot(state.descriptors, values) }
+    : next
 }
 
 export type StructuredSessionOptionPick = {

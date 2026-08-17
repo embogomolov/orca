@@ -22,6 +22,7 @@ export {
   RestartResumeParams,
   RewindParams,
   SendParams,
+  SteerParams,
   SessionId,
   SetOptionParams,
   SubscribeParams,

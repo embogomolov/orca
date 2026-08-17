@@ -16,6 +16,7 @@ import {
   agentSessionContextUsageEqual,
   readNativeChatSessionContext
 } from '../../../native-chat/session-context-reader'
+import { NATIVE_CHAT_QUEUE_METHODS } from './native-chat-queue'
 
 // Why: a long agent session can hold thousands of turns (with full tool I/O).
 // Shipping all of them over the paired connection and rendering them at once
@@ -68,6 +69,7 @@ function windowForClient(
 }
 
 export const NATIVE_CHAT_METHODS = [
+  ...NATIVE_CHAT_QUEUE_METHODS,
   defineMethod({
     name: 'nativeChat.readSession',
     params: NativeChatSession,

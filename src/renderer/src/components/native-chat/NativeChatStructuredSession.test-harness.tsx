@@ -20,6 +20,7 @@ function nullable<T>(): T | null {
 }
 
 type StructuredSessionMessageListProps = {
+  subagentSourceKey?: string
   allowFileUriLinks?: boolean
   isVisible?: boolean
   onLinkClick?: (...args: unknown[]) => void

@@ -8,7 +8,10 @@
 // for old mobile clients while structured chat is enabled so they receive a fallback row, and that
 // path constructs the host. `agentSession.*` stays refused either way, which is what this gate is for.
 
-import { STRUCTURED_AGENT_SESSION_MACHINE_PROVIDERS_CAPABILITY } from '../../../../shared/protocol-version'
+import {
+  CLAUDE_STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
+  STRUCTURED_AGENT_SESSION_MACHINE_PROVIDERS_CAPABILITY
+} from '../../../../shared/protocol-version'
 import { getStructuredAgentSessionHost } from '../../../native-chat/agent-session-wire/structured-agent-session-registry'
 import type { StructuredAgentSessionHost } from '../../../native-chat/agent-session-wire/structured-agent-session-host'
 import type { StructuredAgentSessionCaller } from '../../../native-chat/agent-session-wire/structured-agent-session-host-types'
@@ -37,6 +40,10 @@ export function requireStructuredAgentCapability(ctx: RpcContext, agent: string)
   if (
     agent !== 'codex' &&
     ctx.clientKind !== undefined &&
+    !(
+      agent === 'claude' &&
+      ctx.clientCapabilities?.includes(CLAUDE_STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY)
+    ) &&
     !ctx.clientCapabilities?.includes(STRUCTURED_AGENT_SESSION_MACHINE_PROVIDERS_CAPABILITY)
   ) {
     throw new Error('structured_agent_session_unsupported')

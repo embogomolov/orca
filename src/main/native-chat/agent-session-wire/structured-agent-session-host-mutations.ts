@@ -37,6 +37,7 @@ import {
   promptPlan,
   sendPlan,
   setOptionPlan,
+  steerPlan,
   type MutationPlan
 } from './structured-agent-session-mutation-plans'
 import type {
@@ -58,6 +59,18 @@ export type StructuredAgentSessionMutationContext = {
    *  the ledger answers without an owner. */
   restoreReadable: (sessionId: string) => Promise<boolean>
   now: () => number
+}
+
+export function steerStructuredAgentSessionTurn(
+  context: StructuredAgentSessionMutationContext,
+  caller: StructuredAgentSessionCaller,
+  params: {
+    envelope: AgentSessionMutationEnvelope
+    body: AgentJournalMessageItem
+    retryUnknown?: true
+  }
+): Promise<AgentSessionMutationResult<AgentSessionSendResult>> {
+  return mutate(context, caller, params.envelope, steerPlan(params))
 }
 
 function mutate<TValue>(

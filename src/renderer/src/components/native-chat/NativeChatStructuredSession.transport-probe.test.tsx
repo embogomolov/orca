@@ -1,7 +1,16 @@
 // @vitest-environment happy-dom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render as renderView,
+  screen,
+  waitFor
+} from '@testing-library/react'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import React from 'react'
+const render = (ui: React.ReactNode) => renderView(ui, { wrapper: TooltipProvider })
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { mocks, moduleFactories, resetStructuredSessionMocks } = await vi.hoisted(async () =>

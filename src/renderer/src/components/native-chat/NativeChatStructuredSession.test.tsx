@@ -193,7 +193,7 @@ describe('NativeChatStructuredSession', () => {
         />
       )
 
-      expect(mocks.messageListProps?.showTurnStatus).toBe(true)
+      expect(mocks.messageListProps?.subagentSourceKey).toBe('session-parity')
       expect(mocks.messageListProps?.runtimeContext).not.toBeUndefined()
     }
   )

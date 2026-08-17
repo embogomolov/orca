@@ -11,10 +11,12 @@ import {
   type AgentJournalItemBody,
   type AgentJournalMessageItem,
   type AgentJournalProducerLinkage,
+  type AgentJournalTurn,
   type AgentSessionProviderHandle
 } from '../../../shared/agent-session-journal-types'
 import {
   isAdmissibleAgentJournalItemBody,
+  AgentJournalTurnSchema,
   isAdmissibleAgentJournalMessageBody
 } from '../../../shared/agent-session-journal-schemas'
 import { isAdmissibleAgentSessionContextUsage } from '../../../shared/agent-session-context-usage-schema'
@@ -60,6 +62,7 @@ export type JournalItemRow = JournalRowBase & {
   itemId: string
   revision: number
   body: AgentJournalItemBody
+  turn?: AgentJournalTurn
 }
 
 export type JournalTombstoneRow = JournalRowBase & {
@@ -86,6 +89,7 @@ export type JournalDispatchRow = JournalRowBase & {
   /** Provider item identity adopted on accept. */
   providerItemId: string | null
   reason: string | null
+  turn?: AgentJournalTurn
 }
 
 /** An item mutation may name its own producer, because one batch can CREATE
@@ -98,6 +102,7 @@ export type JournalLifecycleMutation =
       itemId: string
       revision: number
       body: AgentJournalItemBody
+      turn?: AgentJournalTurn
     })
   | { kind: 'tombstone'; itemId: string; revision: number }
 
@@ -240,6 +245,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *  schema — their nested shapes are dereferenced unguarded all the way to the
  *  rendered surface, so a JSON-valid corruption must fail here, not there. */
 function isJournalRow(record: Record<string, unknown>): record is JournalRow {
+  if (record.turn !== undefined && !AgentJournalTurnSchema.safeParse(record.turn).success) {
+    return false
+  }
   if (typeof record.kind !== 'string' || !ROW_KINDS.has(record.kind)) {
     return false
   }
@@ -298,6 +306,9 @@ function isJournalRow(record: Record<string, unknown>): record is JournalRow {
 
 function isLifecycleMutation(value: unknown): value is JournalLifecycleMutation {
   if (!isPlainObject(value) || typeof value.itemId !== 'string') {
+    return false
+  }
+  if (value.turn !== undefined && !AgentJournalTurnSchema.safeParse(value.turn).success) {
     return false
   }
   if (value.kind === 'tombstone') {

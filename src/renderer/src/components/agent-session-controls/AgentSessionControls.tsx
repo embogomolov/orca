@@ -50,6 +50,7 @@ export type AgentSessionControlsProps = {
   snapshot: SessionOptionDescriptor[]
   isWorking: boolean
   context?: AgentSessionContextSnapshot
+  showContextIndicator?: boolean
   canCompact?: boolean
   onCompact?: () => Promise<void>
   onOpen?: () => void
@@ -79,6 +80,7 @@ function AgentSessionControlsInner({
   snapshot,
   isWorking,
   context = EMPTY_AGENT_SESSION_CONTEXT,
+  showContextIndicator = true,
   canCompact = false,
   onCompact,
   onOpen,
@@ -182,9 +184,9 @@ function AgentSessionControlsInner({
               {leading}
               {compacting ? (
                 <SynchronizedSpinner />
-              ) : (
+              ) : showContextIndicator ? (
                 <ContextDonut percent={displayedContext.usedPercent} />
-              )}
+              ) : null}
               <span className="truncate text-foreground">{modelLabel}</span>
               {optionLabel ? <span className="truncate">{optionLabel}</span> : null}
               <ChevronDown className="size-3" />

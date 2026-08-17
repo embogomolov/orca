@@ -30,6 +30,7 @@ import {
   AgentSessionPreDispatchError,
   AGENT_SESSION_ADMISSION_BARRIER_TIMEOUT_MS
 } from './structured-agent-session-operation-settlement'
+import { activeStructuredAgentSessionTurnId } from '../../../shared/structured-agent-session-projection'
 export { performSetOption } from './structured-agent-session-turns-options'
 export { performPrompt } from './structured-agent-session-turns-prompt'
 
@@ -70,10 +71,11 @@ async function dispatchSafely(
   ctx: AgentSessionTurnContext,
   clientMessageId: string,
   body: AgentJournalMessageItem,
-  requestedAt: number | undefined
+  requestedAt: number | undefined,
+  dispatch: StructuredAgentSessionAdapter['dispatch'] = (input) => ctx.adapter.dispatch(input)
 ): Promise<AgentSessionDispatchOutcome> {
   try {
-    return await ctx.adapter.dispatch({
+    return await dispatch({
       sessionId: ctx.sessionId,
       clientMessageId,
       body,
@@ -118,6 +120,8 @@ export async function performSend(
     clientMessageId: string
     payloadFingerprint: string
     body: AgentJournalMessageItem
+    retryUnknown?: true
+    dispatch?: StructuredAgentSessionAdapter['dispatch']
   }
 ): Promise<TurnOutcome<AgentSessionSendResult>> {
   const existing = ctx.journal
@@ -143,7 +147,7 @@ export async function performSend(
   const requestedAt = ctx.journal
     .submissions()
     .find((entry) => entry.clientMessageId === input.clientMessageId)?.submittedAt
-  const outcome = await dispatchSafely(ctx, input.clientMessageId, input.body, requestedAt).catch(
+  const outcome = await dispatchSafely(ctx, input.clientMessageId, input.body, requestedAt, input.dispatch).catch(
     async (error: unknown) => {
       if (error instanceof AgentSessionPreDispatchError) {
         const recorded = await withTimeout(
@@ -161,6 +165,7 @@ export async function performSend(
         if (!recorded) {
           console.warn('[structured-agent-session] pre-dispatch refusal persistence failed')
         }
+        ctx.publish()
       }
       throw error
     }
@@ -226,6 +231,28 @@ function requireSubmission(
     throw new Error('agent_session_submission_lost')
   }
   return submission
+}
+
+export function performSteer(
+  ctx: AgentSessionTurnContext,
+  input: {
+    clientMessageId: string
+    payloadFingerprint: string
+    body: AgentJournalMessageItem
+    retryUnknown?: true
+  }
+): Promise<TurnOutcome<AgentSessionSendResult>> {
+  const turnId = activeStructuredAgentSessionTurnId(ctx.journal.snapshot().items)
+  if (!turnId) {
+    return performSend(ctx, input)
+  }
+  if (!ctx.adapter.steer) {
+    return Promise.resolve(invalid('The provider does not support steering.'))
+  }
+  return performSend(ctx, {
+    ...input,
+    dispatch: (dispatchInput) => ctx.adapter.steer!({ ...dispatchInput, turnId })
+  })
 }
 
 export async function performCancel(

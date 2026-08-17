@@ -175,6 +175,9 @@ export function projectStructuredItemToNativeChat(
         id: item.itemId,
         role: projected.role,
         blocks: projected.blocks,
+        ...(item.body.kind === 'message' && item.body.assistantPhase
+          ? { assistantPhase: item.body.assistantPhase }
+          : {}),
         timestamp: item.observedAt,
         source: 'transcript',
         // A send mode this build cannot name renders as an ordinary message.

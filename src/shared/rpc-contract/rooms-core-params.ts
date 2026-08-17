@@ -50,7 +50,8 @@ export const RoomsMessagesSendParams = z
     body: z.string().max(262_144),
     replyToId: MessageId.nullable().optional(),
     mentions: z.array(RoomIdentity).max(50).optional(),
-    attachmentUploadIds: z.array(z.string().uuid()).max(10).optional()
+    attachmentUploadIds: z.array(z.string().uuid()).max(10).optional(),
+    targetParticipantIds: z.array(z.string().uuid()).max(50).optional()
   })
   .strict()
 
