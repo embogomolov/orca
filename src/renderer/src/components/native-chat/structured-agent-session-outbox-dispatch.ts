@@ -92,7 +92,11 @@ export function dispatchStructuredAgentSessionOutboxEntry(args: {
     try {
       const result = await callStructuredAgentSession<
         AgentSessionMutationResult<AgentSessionSendResult>
-      >(args.target, 'agentSession.send', structuredAgentSessionSendRequest(args.next, args.fence))
+      >(
+        args.target,
+        args.next.intent === 'steer' ? 'agentSession.steer' : 'agentSession.send',
+        structuredAgentSessionSendRequest(args.next, args.fence)
+      )
       if (args.dispatchGenerationRef.current !== args.dispatchGeneration) {
         return false
       }

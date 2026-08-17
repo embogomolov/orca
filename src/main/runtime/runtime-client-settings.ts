@@ -18,6 +18,7 @@ import type { TerminalQuickCommand } from '../../shared/terminal-quick-command-t
 import { recordManagedHookInstallFailure } from '../agent-hooks/install-telemetry'
 import { applyAgentStatusHooksEnabled } from '../agent-hooks/managed-agent-hook-controls'
 import type { RuntimeStore } from './runtime-store-contract'
+import { normalizeEnabledStructuredMachineAgents } from '../../shared/structured-agent-provider'
 
 export type RuntimeClientSettings = Pick<
   GlobalSettings,
@@ -38,6 +39,8 @@ export type RuntimeClientSettings = Pick<
   | 'experimentalNativeChat'
   | 'openAgentTabsInChatByDefault'
   | 'experimentalStructuredNativeChat'
+  | 'experimentalRoomLiveSteering'
+  | 'enabledHarnessStreamingAgents'
   | 'compactWorktreeCards'
   | 'minimaxGroupId'
   | 'minimaxUsageModels'
@@ -70,6 +73,9 @@ export type RuntimeClientSettingsUpdate = Pick<
   | 'defaultLinearTeamSelection'
   | 'githubProjects'
   | 'experimentalNewWorktreeCardStyle'
+  | 'experimentalStructuredNativeChat'
+  | 'experimentalRoomLiveSteering'
+  | 'enabledHarnessStreamingAgents'
   | 'compactWorktreeCards'
   | 'minimaxGroupId'
   | 'minimaxUsageModels'
@@ -118,6 +124,10 @@ export class RuntimeClientSettingsController {
       experimentalNativeChat: settings.experimentalNativeChat === true,
       openAgentTabsInChatByDefault: settings.openAgentTabsInChatByDefault === true,
       experimentalStructuredNativeChat: settings.experimentalStructuredNativeChat === true,
+      experimentalRoomLiveSteering: settings.experimentalRoomLiveSteering === true,
+      enabledHarnessStreamingAgents: normalizeEnabledStructuredMachineAgents(
+        settings.enabledHarnessStreamingAgents
+      ),
       compactWorktreeCards: settings.compactWorktreeCards === true,
       minimaxGroupId: settings.minimaxGroupId ?? '',
       minimaxUsageModels: settings.minimaxUsageModels ?? 'general',

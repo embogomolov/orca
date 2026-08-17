@@ -5,6 +5,7 @@ import { createDesktopTerminal } from './orca-runtime-create-terminal-desktop'
 import { buildRuntimeAgentTeamsLaunchPlan } from './orca-runtime-agent-teams-launch-plan'
 import { createPtySpawnCommitReporter } from './orca-runtime-report-pty-spawn-commit'
 import { recordPtySurface, spawnSurfaceClaimSequence } from './pty-recorded-surface-topology'
+import { createStablePaneCreateRelease } from './stable-pane-create-release'
 
 export class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTerminalCreateDeduplication {
   async createTerminal(
@@ -43,24 +44,16 @@ export class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTerminalCreate
       let tabId = canAdoptPaneIdentity ? (hintedTabId as string) : dependencies.randomUUID()
       let leafId = canAdoptPaneIdentity ? (launchOpts.leafId as string) : dependencies.randomUUID()
       let paneKey = dependencies.makePaneKey(tabId, leafId)
-      const claimedStablePaneCreate = this.ptyController.claimStablePaneCreate?.({
-        worktreeId: workspace.id,
-        connectionId: workspace.connectionId,
-        tabId,
-        leafId
-      })
-      let stablePaneCreateReleased = false
-      const releaseStablePaneCreate = (): void => {
-        if (stablePaneCreateReleased) {
-          return
-        }
-        stablePaneCreateReleased = true
-        claimedStablePaneCreate?.()
-      }
+      const releaseStablePaneCreate = createStablePaneCreateRelease(
+        this.ptyController.claimStablePaneCreate?.({
+          worktreeId: workspace.id,
+          connectionId: workspace.connectionId,
+          tabId,
+          leafId
+        })
+      )
       try {
-        if (launchOpts.signal?.aborted) {
-          throw new Error('client_disconnected')
-        }
+        dependencies.throwIfTerminalCreateAborted(launchOpts.signal)
         const adoptedBeforeLaunch =
           launchOpts.agentSessionClaim || launchOpts.agentSessionCreateOperationId
             ? null
@@ -122,14 +115,7 @@ export class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTerminalCreate
         const terminalColorQueryReplies =
           launchOpts.terminalColorQueryReplies ??
           dependencies.getTerminalViewColorQueryReplyColors()
-        if (launchOpts.signal?.aborted) {
-          throw new Error('client_disconnected')
-        }
-        const persistHostSessionBinding =
-          launchOpts.persistHostSessionBinding !== false &&
-          (launchOpts.persistHostSessionBinding === true ||
-            launchOpts.surfaceOwner === false ||
-            this.getAvailableAuthoritativeWindow() === null)
+        dependencies.throwIfTerminalCreateAborted(launchOpts.signal)
         let result: Awaited<ReturnType<NonNullable<dependencies.RuntimePtyController['spawn']>>>
         try {
           result = await this.ptyController.spawn({
@@ -180,8 +166,8 @@ export class OrcaRuntimeWithCreateTerminal extends OrcaRuntimeWithTerminalCreate
             ...(adoptedBeforeLaunch ? { adoptedStablePane: adoptedBeforeLaunch } : {}),
             ...(launchOpts.sessionId ? { sessionId: launchOpts.sessionId } : {}),
             ...(!adoptedBeforeLaunch && launchOpts.isNewSession ? { isNewSession: true } : {}),
-            ...(persistHostSessionBinding ? { persistHostSessionBinding: true } : {}),
-            ...dependencies.BACKGROUND_TERMINAL_SPAWN_FLAGS
+            ...dependencies.BACKGROUND_TERMINAL_SPAWN_FLAGS,
+            persistHostSessionBinding: launchOpts.persistHostSessionBinding !== false
           })
         } finally {
           releaseStablePaneCreate?.()

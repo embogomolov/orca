@@ -27,6 +27,7 @@ import { isWindowsAbsolutePathLike } from '../../shared/cross-platform-path'
 import { isWslUncPath } from '../../shared/wsl-paths'
 import { parseAppSshPtyId } from '../../shared/ssh-pty-id'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
+import type { StructuredMachineAgent } from '../../shared/structured-agent-provider'
 
 export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRuntimeWithGetStructuredAgentSessionCreateSupport {
   async replaceStructuredAgentSessionTab(replacement: ConversationReplacement): Promise<void> {
@@ -58,9 +59,8 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
     const profileIds = collectSavedStructuredAgentSessionIds(
       this.store?.getWorkspaceSession?.(LOCAL_EXECUTION_HOST_ID) ?? null
     )
-    await host?.restoreReadableSessions(
-      persistedVisibleIndex.present ? persistedVisibleIndex.sessionIds : profileIds
-    )
+    const visibleIds = persistedVisibleIndex.present ? persistedVisibleIndex.sessionIds : profileIds
+    await host?.restoreReadableSessions(visibleIds)
     for (const worktreeId of this.getKnownWorkspaceSessionWorktreeIds()) {
       this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession(worktreeId, {
         allowAttachedWindow: true,
@@ -72,7 +72,7 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
       await this.replaceStructuredAgentSessionTab(replacement)
     }
     for (const session of host?.listSessionTabs() ?? []) {
-      if (!isStructuredMachineAgent(session.agent)) {
+      if (!isStructuredMachineAgent(session.agent) || !visibleIds.includes(session.sessionId)) {
         continue
       }
       let sessionId = session.sessionId

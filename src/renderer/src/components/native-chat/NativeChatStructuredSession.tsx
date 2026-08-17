@@ -28,6 +28,8 @@ import { structuredAgentLabel } from '@/lib/structured-agent-session-launch-labe
 import { NativeChatThreadGoalBanner } from './NativeChatThreadGoalBanner'
 import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 import { nativeChatImageLoadContext } from './native-chat-image-load-context'
+import { QueuedMessageStack } from './QueuedMessageStack'
+import { structuredSessionQueuedMessage } from './structured-session-queued-message'
 
 export function NativeChatStructuredSession(
   props: Omit<NativeChatStructuredViewProps, 'mode'>
@@ -59,6 +61,7 @@ export function NativeChatStructuredSession(
     id: string
     sequence: number
   } | null>(null)
+  const [editingOutboxId, setEditingOutboxId] = useState<string | null>(null)
   const paneKey = useMemo(
     () => structuredAgentSessionPaneKey(props.tabId, props.sessionId),
     [props.sessionId, props.tabId]
@@ -154,16 +157,19 @@ export function NativeChatStructuredSession(
       ? (objective: string) => threadGoal.change({ kind: 'set', objective })
       : null
     return {
-      send: (text: string, attachments: readonly { id: string; path: string }[]): boolean =>
-        sendThroughRelaunch(() =>
-          controller.send(
-            text,
-            attachments.map((attachment) => ({
-              path: attachment.path,
-              previewUri: attachment.path
-            }))
-          )
-        ),
+      send: (text: string, attachments: readonly { id: string; path: string }[]): boolean => {
+        const values = attachments.map((attachment) => ({
+          path: attachment.path,
+          previewUri: attachment.path
+        }))
+        const sent = editingOutboxId
+          ? controller.edit(editingOutboxId, text, values)
+          : sendThroughRelaunch(() => controller.send(text, values))
+        if (sent) {
+          setEditingOutboxId(null)
+        }
+        return sent
+      },
       dispatchCommand: (text: string) =>
         dispatchStructuredAgentSessionComposerCommand(text, {
           agent: props.agent,
@@ -193,6 +199,7 @@ export function NativeChatStructuredSession(
     }
   }, [
     controller,
+    editingOutboxId,
     fileLinkContext?.worktreeId,
     optionPickerRequest,
     props.agent,
@@ -200,6 +207,7 @@ export function NativeChatStructuredSession(
     props.target,
     sendThroughRelaunch
   ])
+  const queuedMessages = controller.outbox.map(structuredSessionQueuedMessage)
 
   return (
     <div
@@ -323,6 +331,37 @@ export function NativeChatStructuredSession(
           onCancel={cancelPrompt}
         />
       ) : null}
+      <div className="mx-auto w-full max-w-4xl px-4 pt-2">
+        <QueuedMessageStack
+          items={queuedMessages}
+          editingMessageId={editingOutboxId}
+          disabled={Boolean(editingOutboxId)}
+          canSteer={controller.isWorking && controller.canSteer}
+          imageLoadContext={imageLoadContext}
+          onEdit={(id, text) => {
+            const entry = controller.outbox.find((candidate) => candidate.clientMessageId === id)
+            if (entry) {
+              controller.edit(
+                id,
+                text,
+                entry.body.blocks.flatMap((block, index) =>
+                  block.type === 'image-ref' && block.path
+                    ? [{ path: block.path, previewUri: entry.previewUris[index] ?? block.path }]
+                    : []
+                )
+              )
+            }
+          }}
+          onEditInComposer={(item) => {
+            setEditingOutboxId(item.id)
+            composerRef.current?.replaceDraft(item.text, item.imagePaths ?? [])
+          }}
+          onRemove={controller.remove}
+          onSteer={controller.steer}
+          onRetry={controller.retry}
+          onReorder={controller.reorder}
+        />
+      </div>
       {prompt ? null : (
         <NativeChatComposer
           ref={composerRef}

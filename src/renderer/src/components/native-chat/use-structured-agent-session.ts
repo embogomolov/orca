@@ -72,6 +72,7 @@ export function useStructuredAgentSession(args: {
   const transportState = useStructuredAgentSessionTransportState(state, transportEnabled)
   const {
     conversationCommands,
+    canSteer,
     optionSnapshot,
     optionSurface,
     setStructuredOption,
@@ -96,7 +97,8 @@ export function useStructuredAgentSession(args: {
     sessionId,
     target,
     fence: transportState.fence,
-    submissions: transportState.submissions
+    submissions: transportState.submissions,
+    isWorking: transportState.isWorking
   })
 
   const threadGoal = useStructuredAgentSessionThreadGoal({
@@ -159,6 +161,11 @@ export function useStructuredAgentSession(args: {
     send: (...input: Parameters<typeof outboxController.send>) =>
       !commandPending.current && outboxController.send(...input),
     retry: outboxController.retry,
+    edit: outboxController.edit,
+    remove: outboxController.remove,
+    reorder: outboxController.reorder,
+    steer: outboxController.steer,
+    canSteer,
     isWorking: transportState.isWorking,
     workingStartedAt: transportState.turnTiming.workingStartedAt,
     settledTurns: transportState.turnTiming.settledTurns,

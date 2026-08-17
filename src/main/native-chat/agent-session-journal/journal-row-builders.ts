@@ -4,6 +4,7 @@ import type {
   AgentJournalItemIdentity,
   AgentJournalMessageItem,
   AgentJournalProducerLinkage,
+  AgentJournalTurn,
   AgentSessionProviderHandle
 } from '../../../shared/agent-session-journal-types'
 import { journalRowSchemaVersion } from '../../../shared/agent-session-journal-types'
@@ -12,6 +13,7 @@ import {
   namesAgentJournalProducer
 } from '../../../shared/agent-session-journal-producer'
 import { agentJournalItemKey } from '../../../shared/agent-session-journal-item-key'
+import { agentJournalIdentityTurn } from '../../../shared/agent-session-journal-turn'
 import type { JournalReducerState } from './journal-reducer'
 import type {
   JournalDispatchRow,
@@ -83,6 +85,9 @@ export function journalDispatchRowBuilder(
       clientMessageId: input.clientMessageId,
       dispatchState: input.state,
       providerItemId,
+      ...(input.state === 'accepted' && agentJournalIdentityTurn(input.providerIdentity)
+        ? { turn: agentJournalIdentityTurn(input.providerIdentity) }
+        : {}),
       reason: boundedDispatchReason(input),
       seq,
       fence: input.fence,
@@ -140,6 +145,9 @@ export function journalLifecycleMutationRow(
         itemId,
         revision,
         body: mutation.body,
+        ...(agentJournalIdentityTurn(mutation.identity, mutation.body)
+          ? { turn: agentJournalIdentityTurn(mutation.identity, mutation.body) }
+          : {}),
         ...agentJournalLinkageFields(mutation.linkage)
       }
     : { kind: 'tombstone', itemId, revision }
@@ -230,7 +238,10 @@ export function buildJournalItemRow(input: {
     body: input.body,
     ...journalRowBase(input.state.epoch, input.seq, input.fence, input.ts, [input.body]),
     ...(input.recovered ? { recovered: input.recovered } : {}),
-    ...agentJournalLinkageFields(input.linkage)
+    ...agentJournalLinkageFields(input.linkage),
+    ...(agentJournalIdentityTurn(input.identity, input.body)
+      ? { turn: agentJournalIdentityTurn(input.identity, input.body) }
+      : {})
   }
 }
 
@@ -288,6 +299,7 @@ export function buildJournalDispatchRow(input: {
   fence: number
   ts: number
   recovered?: true
+  turn?: AgentJournalTurn
 }): JournalDispatchRow {
   return {
     kind: 'dispatch',
@@ -295,6 +307,7 @@ export function buildJournalDispatchRow(input: {
     state: input.dispatchState,
     providerItemId: input.providerItemId,
     reason: input.reason,
+    ...(input.turn ? { turn: input.turn } : {}),
     ...journalRowBase(input.state.epoch, input.seq, input.fence, input.ts),
     ...(input.recovered ? { recovered: input.recovered } : {})
   }

@@ -25,6 +25,7 @@ import {
 } from '../../../shared/agent-session-journal-producer'
 import { structuredAgentSessionPayloadFingerprint } from '../../../shared/structured-agent-session-mutation'
 import { journalItemRevisionIsStale } from './journal-item-revision'
+import { agentJournalIdentityTurn } from '../../../shared/agent-session-journal-turn'
 import type { JournalRow } from './journal-row-schema'
 import { dispatchRejectionWasTransportWriteFailure } from '../../../shared/structured-agent-session-dispatch-rejection'
 
@@ -106,7 +107,8 @@ export function applyJournalRow(state: JournalReducerState, row: JournalRow): vo
             mutation.revision,
             mutation.body,
             row,
-            journalBatchMutationProducer(row, mutation)
+            journalBatchMutationProducer(row, mutation),
+            mutation.turn
           )
         )
       } else {
@@ -156,11 +158,15 @@ export function resolveJournalItemId(
   ) {
     return itemId
   }
-  const fingerprint = structuredAgentSessionPayloadFingerprint({
-    method: 'agentSession.send',
-    sessionId: state.sessionId,
-    fields: { body }
-  })
+  const fingerprints = new Set(
+    ['agentSession.send', 'agentSession.steer'].map((method) =>
+      structuredAgentSessionPayloadFingerprint({
+        method,
+        sessionId: state.sessionId,
+        fields: { body }
+      })
+    )
+  )
   // Exact payload plus queue order preserves repeated identical sends one-for-one.
   // A submission an echo may not claim is one that says the message never reached
   // the provider, so an item resembling it is somebody else's. That is `rejected`
@@ -173,7 +179,7 @@ export function resolveJournalItemId(
       (candidate) =>
         candidate.dispatchState !== 'rejected' &&
         !dispatchRejectionWasTransportWriteFailure(candidate.reason) &&
-        candidate.payloadFingerprint === fingerprint &&
+        fingerprints.has(candidate.payloadFingerprint) &&
         state.items.get(agentJournalSubmissionKey(candidate.clientMessageId))?.revision === 0
     )
   if (!submission) {
@@ -225,7 +231,15 @@ function upsertItem(
     body: submitted ? existing.body : next.body,
     sequence: existing.sequence,
     observedAt: existing.observedAt,
-    updatedAt: next.observedAt
+    updatedAt: next.observedAt,
+    ...(next.turn || existing.turn
+      ? {
+          turn:
+            next.turn && existing.turn?.turnId === next.turn.turnId
+              ? { ...existing.turn, ...next.turn }
+              : (next.turn ?? existing.turn)
+        }
+      : {})
   })
   state.tombstones.delete(itemId)
 }
@@ -287,6 +301,13 @@ function applyDispatch(
     return
   }
   state.aliases.set(row.providerItemId, agentJournalSubmissionKey(row.clientMessageId))
+  const identity = parseAgentJournalItemKey(row.providerItemId)
+  const turn = row.turn ?? (identity ? agentJournalIdentityTurn(identity) : undefined)
+  const itemId = agentJournalSubmissionKey(row.clientMessageId)
+  const item = state.items.get(itemId)
+  if (item && turn) {
+    state.items.set(itemId, { ...item, turn })
+  }
   state.receipts.set(row.clientMessageId, {
     clientMessageId: row.clientMessageId,
     providerItemId: row.providerItemId,

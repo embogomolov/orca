@@ -87,7 +87,6 @@ export const NativeChatTranscriptRow = memo(function NativeChatTranscriptRow({
       {status && context.subagentSourceKey ? (
         <AgentSubagentTurnLink
           sourceKey={context.subagentSourceKey}
-          messages={turnKey ? context.turnMessagesByKey.get(turnKey) : undefined}
           startedAt={status.startedAt}
           completedAt={
             status.startedAt == null || status.workedSeconds == null

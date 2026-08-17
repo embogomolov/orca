@@ -1,4 +1,9 @@
-import { isAgentSessionHandleProvider } from '../../../shared/agent-session-provider-handle'
+import { isStructuredMachineAgent } from '../../../shared/structured-agent-provider'
+import { parseExecutionHostId } from '../../../shared/execution-host'
+import {
+  runtimeTargetForExecutionHostId,
+  type RuntimeClientTarget
+} from '@/runtime/runtime-client-target'
 import type { StructuredAgentSessionResumeSource } from '../../../shared/structured-agent-session-create'
 import type { TuiAgent } from '../../../shared/tui-agent'
 import {
@@ -32,6 +37,7 @@ export type AgentSessionLaunchRequest = AgentLaunchRouteArgs & {
  * (or a retry within the same session) re-enters here without re-resolving.
  */
 export type AgentSessionLaunchVerdict = {
+  runtimeTarget?: RuntimeClientTarget
   route: AgentLaunchRoute
   agent: TuiAgent
   worktreeId?: string
@@ -67,6 +73,7 @@ export type AgentSessionLaunchPlan = Readonly<AgentSessionLaunchVerdict> & {
 
 function structuredLaunchOptions(verdict: AgentSessionLaunchVerdict): StructuredAgentLaunchOptions {
   return {
+    ...(verdict.runtimeTarget ? { target: verdict.runtimeTarget } : {}),
     ...(verdict.prompt !== undefined ? { prompt: verdict.prompt } : {}),
     ...(verdict.promptDelivery ? { promptDelivery: verdict.promptDelivery } : {}),
     ...(verdict.resumeFrom ? { resumeFrom: verdict.resumeFrom } : {}),
@@ -79,7 +86,7 @@ function beginStructuredPlanLaunch(
   hooks: StructuredAgentLaunchHooks,
   target?: AgentSessionLaunchTarget
 ): StructuredAgentLaunchHandle | null {
-  if (verdict.route !== 'structured-native-chat' || !isAgentSessionHandleProvider(verdict.agent)) {
+  if (verdict.route !== 'structured-native-chat' || !isStructuredMachineAgent(verdict.agent)) {
     return null
   }
   const worktreeId = target?.worktreeId ?? verdict.worktreeId
@@ -128,8 +135,12 @@ export function planAgentSessionLaunch(
   store: AgentLaunchRouteStore,
   request: AgentSessionLaunchRequest
 ): AgentSessionLaunchPlan {
+  const input = buildAgentLaunchRouteInput(store, request)
+  const host = parseExecutionHostId(input.executionHostId)
+  const runtimeTarget = host ? runtimeTargetForExecutionHostId(host.id) : null
   return adoptAgentSessionLaunchVerdict({
-    route: resolveAgentLaunchRoute(buildAgentLaunchRouteInput(store, request)),
+    route: resolveAgentLaunchRoute(input),
+    ...(runtimeTarget?.kind === 'environment' ? { runtimeTarget } : {}),
     agent: request.agent,
     ...(request.workspace.worktreeId ? { worktreeId: request.workspace.worktreeId } : {}),
     ...(request.prompt !== undefined ? { prompt: request.prompt } : {}),

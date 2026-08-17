@@ -55,6 +55,7 @@ import {
   modelCatalogHostDeps,
   type RuntimeAgentAccountHomeResolver
 } from './structured-agent-model-catalog-wiring'
+import { canStartEmptyClaudeSession } from '../claude/claude-empty-session'
 
 /** Sibling of the journal tree rather than inside it: one file adjudicates every
  *  session's lease, while a journal is per session. */
@@ -236,6 +237,7 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
   const codex = new CodexStructuredSessionAdapter({
     resolveLaunch: createCodexStructuredLaunchResolver({
       store,
+      canStartEmptySession: canStartEmpty,
       resolveWorkspacePath: deps.resolveWorkspacePath,
       resolveEnvironment: resolveCodexEnvironment,
       ...(deps.resolveCodexPermissionPolicy

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 import type { StructuredMachineAgent } from '../../../shared/structured-agent-provider'
 import type { StructuredAgentSessionResumeSource } from '../../../shared/structured-agent-session-create'
 import type { StructuredLaunchRecoveryState } from './structured-agent-session-launch-recovery'
@@ -22,6 +23,7 @@ import {
 } from './structured-agent-session-launch-cancellation'
 
 export type StructuredLaunchState = StructuredLaunchRecoveryState & {
+  sessionOptions?: StructuredAgentLaunchOptions['sessionOptions']
   identity: string
   /** Fixed by the caller that opened this launch so coalesced prompts use one delivery mode. */
   promptDelivery: StructuredAgentLaunchOptions['promptDelivery']
@@ -69,11 +71,15 @@ export function subscribeStructuredAgentLaunchStatus(listener: () => void): () =
 export function structuredLaunchIdentity(
   worktreeId: string,
   agent: StructuredMachineAgent,
-  resumeFrom?: StructuredAgentSessionResumeSource
+  resumeFrom?: StructuredAgentSessionResumeSource,
+  target?: RuntimeClientTarget
 ): string {
-  return resumeFrom
+  const identity = resumeFrom
     ? `${agent}:${worktreeId}:resume:${resumeFrom.providerSessionId}`
     : `${agent}:${worktreeId}`
+  return target?.kind === 'environment'
+    ? JSON.stringify([target.environmentId, identity])
+    : identity
 }
 
 export function getStructuredLaunchState(identity: string): StructuredLaunchState | undefined {
@@ -118,6 +124,7 @@ function persistStructuredLaunchState(state: StructuredLaunchState): void {
     clientOperationId: envelope.clientOperationId,
     payloadFingerprint: envelope.payloadFingerprint,
     expectedRuntimeFence: envelope.expectedRuntimeFence,
+    ...(state.intent.target ? { target: state.intent.target } : {}),
     ...(resumeFrom ? { resumeFrom } : {})
   }
   writeStructuredAgentLaunchRecord(record)
@@ -325,12 +332,9 @@ export function getStructuredAgentLaunchStatus(
   agent: StructuredMachineAgent
 ): StructuredAgentLaunchStatus {
   // Any launch for this pair, including adopted conversations, means a chat is starting here.
-  const states = [
-    getStructuredLaunchState(structuredLaunchIdentity(worktreeId, agent)),
-    ...[...pendingStructuredLaunchesByIdentity.entries()]
-      .filter(([identity]) => identity.startsWith(`${agent}:${worktreeId}:resume:`))
-      .map(([, state]) => state)
-  ].filter((state): state is StructuredLaunchState => Boolean(state))
+  const states = [...pendingStructuredLaunchesByIdentity.values()].filter(
+    (state) => state.intent.worktreeId === worktreeId && state.intent.agent === agent
+  )
   if (states.length === 0) {
     return 'idle'
   }

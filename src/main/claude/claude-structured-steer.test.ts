@@ -59,7 +59,12 @@ describe('Claude steer acknowledgement', () => {
     const session = activeSession()
     const pending = dispatchClaudeTurn(session, input)
     await vi.waitFor(() => expect(session.dispatchWaiters).toHaveLength(1))
-    session.translator!.handle({ type: 'ended', sessionId: 'session-1', cause: 'unexpected-exit' })
+    session.translator!.handle({
+      type: 'ended',
+      sessionId: 'session-1',
+      cause: 'unexpected-exit',
+      reason: 'test exit'
+    })
     const uuid = session.dispatchWaiters[0]!.sentUuid
     expect(resolveClaudeReplayTurn(session, userReplayFrame(uuid, 'continue'))).toMatchObject({
       turn: { turnId: uuid, root: true }

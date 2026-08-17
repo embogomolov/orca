@@ -95,7 +95,7 @@ export function initializeMainProcessRuntime(): OrcaRuntimeService {
     getDesktopWindowStatus,
     // Why: worktree.ps pulls hook-reported agent status (same source as the desktop sidebar) at query time so mobile shows the same agents.
     getAgentStatusSnapshot: () =>
-            agentHookServer
+      agentHookServer
         .getStatusSnapshot()
         .filter(
           (entry) =>
@@ -175,6 +175,15 @@ export function initializeMainProcessRuntime(): OrcaRuntimeService {
     recordObservedAgentStatusPaneIdentity(observedPaneIdentities, enriched.paneKey, runtime)
   )
   runtime.getRoomService()
+  store.onSettingsChanged((updates) => {
+    if (
+      'experimentalStructuredNativeChat' in updates ||
+      'experimentalRoomLiveSteering' in updates ||
+      'enabledHarnessStreamingAgents' in updates
+    ) {
+      runtime.getRoomService().wakeDeliveries()
+    }
+  })
   // Why before anything can attach: a client host that reattaches to a restarted runtime is only
   // handed its pages back if the runtime found them first.
   runtime.rehydrateClientHostedBrowserPages()

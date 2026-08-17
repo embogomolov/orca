@@ -596,10 +596,9 @@ describe('restart', () => {
     await host.send(CALLER, { envelope: envelope('agentSession.send', { body }), body })
     await reboot(async () => ({ outcome: 'indeterminate', reason: 'read does not need ownership' }))
     acquire.mockClear()
-    const listRecords = vi.spyOn(store, 'listRecords')
 
     await host.restoreReadableSessions()
-    const restoreReads = listRecords.mock.calls.length
+    const journalBefore = host.history({ sessionId: SESSION, direction: 'tail' })
     await host.restoreReadableSessions()
 
     expect(host.listSessionTabs()).toEqual([
@@ -608,7 +607,7 @@ describe('restart', () => {
     const history = host.history({ sessionId: SESSION, direction: 'tail' })
     expect(history.ok && history.page.items).not.toHaveLength(0)
     expect(acquire).not.toHaveBeenCalled()
-    expect(listRecords).toHaveBeenCalledTimes(restoreReads)
+    expect(history).toEqual(journalBefore)
   })
 
   it('clears a stale conflicted recovery at restart, and reacquires the native owner when a surface holds it', async () => {

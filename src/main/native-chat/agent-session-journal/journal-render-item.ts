@@ -1,7 +1,8 @@
 import type {
   AgentJournalItemBody,
   AgentJournalProducerLinkage,
-  AgentJournalRenderItem
+  AgentJournalRenderItem,
+  AgentJournalTurn
 } from '../../../shared/agent-session-journal-types'
 import {
   agentJournalLinkageFields,
@@ -19,7 +20,8 @@ export function journalRenderItem(
   revision: number,
   body: AgentJournalItemBody,
   row: JournalRow,
-  producer: AgentJournalProducerLinkage = row
+  producer: AgentJournalProducerLinkage = row,
+  turn: AgentJournalTurn | undefined = 'turn' in row ? row.turn : undefined
 ): AgentJournalRenderItem {
   return {
     itemId,
@@ -29,7 +31,8 @@ export function journalRenderItem(
     observedAt: row.ts,
     ...(row.recovered ? { recoveredAt: row.ts } : {}),
     ...(row.recovered ? { recovered: row.recovered } : {}),
-    ...agentJournalLinkageFields(producer)
+    ...agentJournalLinkageFields(producer),
+    ...(turn ? { turn } : {})
   }
 }
 

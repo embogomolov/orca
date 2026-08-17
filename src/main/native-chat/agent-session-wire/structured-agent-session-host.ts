@@ -31,6 +31,7 @@ import * as sessionTabs from './structured-agent-session-host-tabs'
 import {
   structuredAgentSessionMutationDelegates,
   settleStructuredAgentSessionLateDispatch,
+  steerStructuredAgentSessionTurn,
   type StructuredAgentSessionMutationContext,
   releaseStructuredAgentSessionUnansweredDispatches
 } from './structured-agent-session-host-mutations'
@@ -143,10 +144,10 @@ export class StructuredAgentSessionHost {
   private now = (): number => this.deps.now?.() ?? Date.now()
 
   hasSession = (sessionId: string): boolean => this.sessions.has(sessionId)
+  hasProviderChild = (id: string): boolean => this.sessions.get(id)?.hasProviderChild === true
   isHeld = (sessionId: string): boolean => this.holds.isHeld(sessionId)
 
-  /** A surface bound to this session and wants it live. The FIRST hold on a session with no
-   *  provider child is what resumes one; a retained hold (a subscription) only keeps it. */
+  /** The first hold resumes a missing provider child; retained holds only keep it live. */
   hold = (
     sessionId: string,
     holderId: string,
@@ -257,6 +258,11 @@ export class StructuredAgentSessionHost {
   send = this.conversationCommands.send
 
   waitForSendSettlement = this.clientDelivery.waitForSendSettlement
+  steer = (
+    caller: StructuredAgentSessionCaller,
+    params: Parameters<typeof steerStructuredAgentSessionTurn>[2]
+  ): ReturnType<typeof steerStructuredAgentSessionTurn> =>
+    steerStructuredAgentSessionTurn(this.mutationContext(), caller, params)
 
   private mutations = structuredAgentSessionMutationDelegates(() => this.mutationContext())
   cancel = this.mutations.cancel

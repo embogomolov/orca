@@ -19,6 +19,7 @@ export type StructuredAgentSessionOutboxEntry = {
   lastAttemptAt: number | null
   retryAfterUnknownSubmittedAt: number | null
   source?: 'launch'
+  intent?: 'send' | 'steer'
 }
 
 export type StructuredAgentSessionAttachment = {
@@ -192,7 +193,8 @@ export function parseStructuredAgentSessionOutboxEntry(
       typeof entry.retryAfterUnknownSubmittedAt === 'number'
         ? entry.retryAfterUnknownSubmittedAt
         : null,
-    ...(entry.source === 'launch' ? { source: 'launch' as const } : {})
+    ...(entry.source === 'launch' ? { source: 'launch' as const } : {}),
+    ...(entry.intent === 'steer' ? { intent: 'steer' as const } : {})
   }
 }
 
@@ -208,13 +210,14 @@ export function structuredAgentSessionSendMutation(
   expectedRuntimeFence: number
 ): StructuredAgentSessionSendMutation {
   const fields = { body: entry.body }
+  const method = entry.intent === 'steer' ? 'agentSession.steer' : 'agentSession.send'
   return {
     envelope: {
       sessionId: entry.sessionId,
       clientOperationId: entry.clientMessageId,
       expectedRuntimeFence,
       payloadFingerprint: structuredAgentSessionPayloadFingerprint({
-        method: 'agentSession.send',
+        method,
         sessionId: entry.sessionId,
         fields
       })

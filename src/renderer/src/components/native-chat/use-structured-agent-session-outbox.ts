@@ -17,6 +17,7 @@ import {
 } from './structured-agent-session-outbox-dispatch'
 import { getStructuredAgentLaunchPromptDispatch } from '@/lib/structured-agent-session-launch-prompt'
 import { createBrowserUuid } from '@/lib/browser-uuid'
+import { useStructuredAgentSessionOutboxActions } from './use-structured-agent-session-outbox-actions'
 
 export function structuredSessionOperationId(): string {
   return createStructuredAgentSessionOperationId(createBrowserUuid)
@@ -34,8 +35,9 @@ export function useStructuredAgentSessionOutbox(args: {
   target: RuntimeClientTarget
   fence: number | null
   submissions: readonly AgentJournalSubmission[]
+  isWorking?: boolean
 }) {
-  const { fence, sessionId, submissions, target } = args
+  const { fence, isWorking = false, sessionId, submissions, target } = args
   const targetKey = target.kind === 'local' ? 'local' : `environment:${target.environmentId}`
   const [outbox, setOutbox] = useState<StructuredAgentSessionOutboxEntry[]>(() =>
     readMountedStructuredAgentSessionOutbox(sessionId, fence, readOutbox)
@@ -184,6 +186,7 @@ export function useStructuredAgentSessionOutbox(args: {
       return
     }
     const next = admission.entry
+    if (isWorking && next.intent !== 'steer') return
     // A launch settlement may have already admitted this entry and cleared its in-flight marker
     // before this effect observes the queued React snapshot. Storage is the shared ownership
     // record; only dispatch when the persisted entry is still queued.
@@ -216,7 +219,7 @@ export function useStructuredAgentSessionOutbox(args: {
       // local state, so mirror the settled state once the shared admission finishes.
       void dispatch.promise.then(mirrorPersisted)
     }
-  }, [applyDisposition, fence, outbox, sessionId, target])
+  }, [applyDisposition, fence, isWorking, outbox, sessionId, target])
 
   // A transport-side unknown may never have reached the host, and nothing else
   // moves it out of `unconfirmed`, so one wedges the whole FIFO queue. Re-issuing
@@ -341,5 +344,12 @@ export function useStructuredAgentSessionOutbox(args: {
     outboxRef.current = next
     setOutbox(next)
   }
-  return { outbox, error, blockedClientMessageId: blockedIdRef.current, send, retry }
+  const actions = useStructuredAgentSessionOutboxActions({
+    sessionId,
+    outboxRef,
+    blockedIdRef,
+    setOutbox,
+    setError
+  })
+  return { outbox, error, blockedClientMessageId: blockedIdRef.current, send, retry, ...actions }
 }

@@ -1,3 +1,4 @@
+import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 import type {
   AgentSessionMutationResult,
   AgentSessionSendResult
@@ -21,6 +22,7 @@ export type StructuredPromptDeliveryResult = {
 }
 
 export type StructuredLaunchPromptOptions = {
+  target?: RuntimeClientTarget
   prompt?: string
   promptDelivery?: 'auto-submit' | 'submit-after-ready' | 'draft'
   onPromptDelivered?: () => void
@@ -89,7 +91,8 @@ function mutateEntry(
 
 async function dispatchStructuredLaunchPrompt(
   entry: StructuredAgentSessionOutboxEntry,
-  receipt: LaunchReceipt
+  receipt: LaunchReceipt,
+  target: RuntimeClientTarget
 ): Promise<boolean> {
   if (
     !mutateEntry(entry, (current) => ({
@@ -103,11 +106,7 @@ async function dispatchStructuredLaunchPrompt(
   try {
     const result = await callStructuredAgentSession<
       AgentSessionMutationResult<AgentSessionSendResult>
-    >(
-      { kind: 'local' },
-      'agentSession.send',
-      structuredAgentSessionSendRequest(entry, receipt.fence)
-    )
+    >(target, 'agentSession.send', structuredAgentSessionSendRequest(entry, receipt.fence))
     if (!result.ok) {
       mutateEntry(entry, (current) =>
         requeueStructuredAgentSessionSendRefusal(
@@ -159,7 +158,7 @@ export function settleStructuredAgentLaunchPrompt(args: {
       entry.sessionId,
       entry.clientMessageId,
       receipt.fence,
-      () => dispatchStructuredLaunchPrompt(entry, receipt)
+      () => dispatchStructuredLaunchPrompt(entry, receipt, args.options.target ?? { kind: 'local' })
     )
     const delivered = await dispatch.promise
     if (delivered) {

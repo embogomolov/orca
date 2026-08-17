@@ -36,6 +36,7 @@ export function useNativeChatComposerAttachments({
   setNotice
 }: UseNativeChatComposerAttachmentsArgs): {
   imageAttachments: NativeChatComposerImageAttachment[]
+  appendImageAttachments: (paths: string[]) => void
   attachResolvedPaths: (
     paths: string[],
     connectionId?: string | null,
@@ -177,6 +178,7 @@ export function useNativeChatComposerAttachments({
 
   return {
     imageAttachments,
+    appendImageAttachments: (paths) => appendImageAttachments(paths.map((path) => ({ path }))),
     attachResolvedPaths,
     clearImageAttachments: () =>
       updateImageAttachments((prev) => {
