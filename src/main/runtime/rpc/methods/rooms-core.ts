@@ -10,10 +10,10 @@ import {
   RoomIdentity,
   RoomSubscription
 } from './rooms-schemas'
-import { withoutRoomAgentOwners } from '../../rooms/participant-ownership'
 import { ROOM_WORK_METHODS } from './rooms-work'
 import { ROOM_NOTIFICATION_METHODS } from './rooms-notifications'
 import { ROOM_QUEUE_METHODS } from './rooms-queue'
+import { ROOM_EXISTING_PARTICIPANT_METHOD } from './rooms-participant-existing'
 import { updateRoomParticipant } from '../../rooms/participant-participation'
 
 const Unsubscribe = z.object({ subscriptionId: z.string().trim().min(1).max(256) }).strict()
@@ -191,26 +191,7 @@ export const ROOM_CORE_METHODS: readonly RpcAnyMethod[] = [
       participant: await runtime.getRoomService().addParticipant(params)
     })
   }),
-  defineMethod({
-    name: 'rooms.participants.existing',
-    params: z
-      .object({
-        worktreeId: z.string().trim().min(1).max(1024),
-        agent: HarnessAgent
-      })
-      .strict(),
-    handler: async (params, { runtime }) => {
-      const service = runtime.getRoomService()
-      return {
-        participants: withoutRoomAgentOwners(
-          service.db.participants,
-          await runtime.listRoomExistingAgents(params.worktreeId, params.agent),
-          params.worktreeId,
-          params.agent
-        )
-      }
-    }
-  }),
+  ROOM_EXISTING_PARTICIPANT_METHOD,
   defineMethod({
     name: 'rooms.participants.remove',
     params: z.object({ participantId: ParticipantId }).strict(),

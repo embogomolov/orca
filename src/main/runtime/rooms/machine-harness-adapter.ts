@@ -34,6 +34,12 @@ import {
   structuredRoomOperationId
 } from './machine-harness-session'
 
+type MachineExistingInput = {
+  worktreeId: string
+  conversationId?: string
+  providerSessionId?: string
+}
+
 export class MachineRoomHarnessAdapter {
   constructor(
     readonly agent: StructuredMachineAgent,
@@ -43,6 +49,61 @@ export class MachineRoomHarnessAdapter {
   async launch(
     worktreeId: string,
     options?: RoomHarnessLaunchOptions
+  ): Promise<RoomMachineHarnessBinding> {
+    return this.attach(worktreeId, options)
+  }
+
+  async connectExisting(
+    input: MachineExistingInput,
+    options?: RoomHarnessLaunchOptions
+  ): Promise<RoomMachineHarnessBinding> {
+    if (!input.conversationId) {
+      if (!input.providerSessionId) {
+        throw new Error('room_historical_session_not_found')
+      }
+      return this.attach(input.worktreeId, options, input.providerSessionId)
+    }
+    const ensureHost = this.runtime.ensureStructuredAgentSessionHost?.bind(this.runtime)
+    if (!ensureHost) {
+      throw new Error('structured_agent_session_unsupported')
+    }
+    await ensureHost()
+    const host = structuredRoomHost()
+    if (!host.hasSession(input.conversationId)) {
+      await host.restoreReadableSessions([input.conversationId])
+    }
+    const session = host
+      .listSessionTabs()
+      .find((candidate) => candidate.sessionId === input.conversationId)
+    if (!session || session.workspaceId !== input.worktreeId || session.agent !== this.agent) {
+      throw new Error('conversation_identity_conflict')
+    }
+    const history = host.history({
+      sessionId: input.conversationId,
+      direction: 'tail',
+      limit: 1
+    })
+    const binding = createRoomMachineBinding(
+      input.worktreeId,
+      input.conversationId,
+      'adopted',
+      history.providerSession?.id
+    )
+    const holderId = structuredRoomHolderId(binding)
+    await host.hold(input.conversationId, holderId)
+    try {
+      await this.applyPreferences(binding, options?.preferences)
+      return binding
+    } catch (error) {
+      host.release(input.conversationId, holderId)
+      throw error
+    }
+  }
+
+  private async attach(
+    worktreeId: string,
+    options?: RoomHarnessLaunchOptions,
+    providerSessionId?: string
   ): Promise<RoomMachineHarnessBinding> {
     const sessionId = `room_${randomUUID().replaceAll('-', '_')}`
     const ensureHost = this.runtime.ensureStructuredAgentSessionHost?.bind(this.runtime)
@@ -54,7 +115,8 @@ export class MachineRoomHarnessAdapter {
     const params = await resolveIntent({
       envelope: { sessionId, clientOperationId: structuredRoomOperationId() },
       worktree: `id:${worktreeId}`,
-      agent: this.agent
+      agent: this.agent,
+      ...(providerSessionId ? { providerSessionId } : {})
     })
     params.envelope.payloadFingerprint = computeAgentSessionPayloadFingerprint({
       method: 'agentSession.attach',
@@ -68,10 +130,17 @@ export class MachineRoomHarnessAdapter {
     if (!result.ok) {
       throw new Error(result.refusal.message)
     }
-    const created = createRoomMachineBinding(worktreeId, sessionId, 'created')
-    await structuredRoomHost().hold(sessionId, structuredRoomHolderId(created))
-    await this.applyPreferences(created, options?.preferences)
-    return created
+    const created = createRoomMachineBinding(worktreeId, sessionId, 'created', providerSessionId)
+    try {
+      await structuredRoomHost().hold(sessionId, structuredRoomHolderId(created))
+      await this.applyPreferences(created, options?.preferences)
+      return created
+    } catch (error) {
+      await structuredRoomHost()
+        .close(sessionId)
+        .catch(() => undefined)
+      throw error
+    }
   }
 
   async locate(value: RoomMachineHarnessBinding): Promise<RoomMachineHarnessBinding | null> {

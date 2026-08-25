@@ -29,7 +29,10 @@ import { showRoomActionError } from './room-action-error'
 import type { Worktree } from '../../../../shared/worktree/types'
 import { isStructuredMachineAgent } from '../../../../shared/structured-agent-provider'
 import { useConfirmationDialog } from '@/components/confirmation-dialog-context'
-import { STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY } from '../../../../shared/protocol-version'
+import {
+  ROOM_EXISTING_STRUCTURED_SESSION_RUNTIME_CAPABILITY,
+  STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
+} from '../../../../shared/protocol-version'
 
 const AGENTS: RoomHarnessAgent[] = ['claude', 'openclaude', 'codex', 'grok', 'omp']
 type Mode = 'new' | 'existing'
@@ -72,6 +75,7 @@ export function RoomAddAgentDialog({
   const [loadingChoices, setLoadingChoices] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [choosing, setChoosing] = useState(false)
+  const [existingMachineSupported, setExistingMachineSupported] = useState(false)
   const worktree = worktrees.find((item) => item.id === worktreeId)
   useEffect(() => setIdentity(agent), [agent])
   useEffect(() => {
@@ -80,67 +84,63 @@ export function RoomAddAgentDialog({
     }
     let disposed = false
     setChoices([])
+    setExistingMachineSupported(false)
     setLoadingChoices(true)
     setLoadError('')
-    void roomRpc<{ participants: RoomExistingAgentCandidate[] }>(
-      target,
-      'rooms.participants.existing',
-      { worktreeId: worktree.id, agent }
-    ).then(
-      ({ participants }) => {
-        if (disposed) {
-          return
+    const load = async (): Promise<void> => {
+      const machineSupported =
+        machineStreaming &&
+        isStructuredMachineAgent(agent) &&
+        (target.kind === 'local' ||
+          (await runtimeEnvironmentSupportsCapability(
+            target.environmentId,
+            ROOM_EXISTING_STRUCTURED_SESSION_RUNTIME_CAPABILITY
+          )))
+      const { participants } = await roomRpc<{ participants: RoomExistingAgentCandidate[] }>(
+        target,
+        'rooms.participants.existing',
+        {
+          worktreeId: worktree.id,
+          agent,
+          ...(machineSupported ? { machineStreaming: true } : {})
         }
+      )
+      if (!disposed) {
+        setExistingMachineSupported(machineSupported)
         setChoices(participants)
         setLoadingChoices(false)
-      },
-      (error) => {
-        if (disposed) {
-          return
-        }
+      }
+    }
+    void load().catch((error) => {
+      if (!disposed) {
         setChoices([])
         setLoadingChoices(false)
         setLoadError(error instanceof Error ? error.message : 'Failed to load sessions')
       }
-    )
+    })
     return () => {
       disposed = true
     }
-  }, [agent, mode, open, target, worktree?.id])
+  }, [agent, machineStreaming, mode, open, target, worktree?.id])
 
   const add = async (): Promise<void> => {
     if (!roomId || !worktree || !identity.trim()) {
       return
     }
     const selected = choices.find((item) => item.id === selection)
-    const connection =
-      mode === 'new'
-        ? { kind: 'new', worktreeId: worktree.id }
-        : selected
-          ? {
-              kind: 'existing',
-              worktreeId: worktree.id,
-              ...(selected.terminalHandle
-                ? { terminalHandle: selected.terminalHandle, paneKey: selected.paneKey }
-                : {}),
-              ...(selected.historyId ? { historyId: selected.historyId } : {})
-            }
-          : null
-    if (!connection) {
-      return
-    }
     const useMachineStreaming =
-      mode === 'new' &&
-      machineStreaming &&
-      isStructuredMachineAgent(agent) &&
-      (target.kind === 'local' ||
-        (await runtimeEnvironmentSupportsCapability(
-          target.environmentId,
-          STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
-        )))
+      mode === 'existing'
+        ? existingMachineSupported
+        : machineStreaming &&
+          isStructuredMachineAgent(agent) &&
+          (target.kind === 'local' ||
+            (await runtimeEnvironmentSupportsCapability(
+              target.environmentId,
+              STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
+            )))
     const trusted =
       !useMachineStreaming ||
-      agent !== 'claude' ||
+      (agent !== 'claude' && agent !== 'openclaude') ||
       (await confirm({
         title: translate('rooms.addAgent.trustTitle', 'Trust this workspace?'),
         description: translate(
@@ -151,6 +151,25 @@ export function RoomAddAgentDialog({
         confirmLabel: translate('rooms.addAgent.trustConfirm', 'Trust and continue')
       }))
     if (!trusted) {
+      return
+    }
+    const connection =
+      mode === 'new'
+        ? { kind: 'new', worktreeId: worktree.id }
+        : selected
+          ? {
+              kind: 'existing',
+              worktreeId: worktree.id,
+              ...(selected.terminalHandle
+                ? { terminalHandle: selected.terminalHandle, paneKey: selected.paneKey }
+                : {}),
+              ...(selected.historyId ? { historyId: selected.historyId } : {}),
+              ...(useMachineStreaming && selected.conversationId
+                ? { conversationId: selected.conversationId }
+                : {})
+            }
+          : null
+    if (!connection) {
       return
     }
     setSaving(true)

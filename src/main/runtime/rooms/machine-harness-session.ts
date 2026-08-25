@@ -128,13 +128,19 @@ export function structuredRoomHolderId(value: RoomMachineHarnessBinding): string
 export function createRoomMachineBinding(
   worktreeId: string,
   conversationId: string,
-  disposition: 'created' | 'adopted'
+  disposition: 'created' | 'adopted',
+  sourceSessionId?: string
 ): RoomMachineHarnessBinding {
   return {
     transport: 'machine',
     worktreeId,
     conversationId,
-    providerSession: { key: 'session_id', id: conversationId, transport: 'machine' },
+    providerSession: {
+      key: 'session_id',
+      id: conversationId,
+      transport: 'machine',
+      ...(sourceSessionId ? { sourceSessionId } : {})
+    },
     disposition
   }
 }

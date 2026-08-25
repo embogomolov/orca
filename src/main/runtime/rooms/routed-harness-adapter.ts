@@ -11,13 +11,14 @@ import type {
   RoomHarnessSubscriptionCallbacks
 } from './harness-adapter-types'
 import { MachineRoomHarnessAdapter } from './machine-harness-adapter'
+import { stopRoomParticipantProcess } from './participant-room-stop'
 
 class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
   private readonly machine: MachineRoomHarnessAdapter | null
 
   constructor(
     readonly agent: RoomHarnessAgent,
-    runtime: RoomHarnessRuntime,
+    private readonly runtime: RoomHarnessRuntime,
     private readonly terminal = new PtyRoomHarnessAdapter(agent, runtime)
   ) {
     this.machine = isStructuredMachineAgent(agent)
@@ -29,18 +30,65 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
     worktreeId: string,
     options?: RoomHarnessLaunchOptions
   ): Promise<RoomHarnessBinding> {
-    if (
-      options?.machineStreaming &&
-      this.machine &&
-      ((this.agent !== 'claude' && this.agent !== 'openclaude') || options.trusted === true)
-    ) {
-      return this.machine.launch(worktreeId, options)
+    if (this.shouldUseMachine(options)) {
+      return this.machine!.launch(worktreeId, options)
     }
     return this.terminal.launch(worktreeId, options?.preferences)
   }
 
-  connectExisting(input: Parameters<RoomHarnessAdapter['connectExisting']>[0]) {
-    return this.terminal.connectExisting(input)
+  async connectExisting(
+    input: Parameters<RoomHarnessAdapter['connectExisting']>[0],
+    options?: RoomHarnessLaunchOptions
+  ): Promise<RoomHarnessBinding> {
+    if (!this.shouldUseMachine(options)) {
+      return this.terminal.connectExisting(input)
+    }
+    if (input.conversationId) {
+      return this.machine!.connectExisting(input, options)
+    }
+    if (input.terminalHandle && input.paneKey) {
+      const terminal = await this.terminal.connectExisting(input)
+      const status = await this.terminal.status(terminal)
+      if (!status.isRunningAgent || status.status !== 'idle' || !terminal.providerSession) {
+        throw new Error('room_agent_not_ready')
+      }
+      await stopRoomParticipantProcess(this.terminal, terminal)
+      try {
+        const machine = await this.machine!.connectExisting(
+          {
+            worktreeId: input.worktreeId,
+            providerSessionId:
+              terminal.providerSession.sourceSessionId ?? terminal.providerSession.id
+          },
+          options
+        )
+        return { ...machine, handoffFrom: terminal }
+      } catch (error) {
+        try {
+          await this.terminal.restore(terminal)
+        } catch (restoreError) {
+          throw new Error('room_agent_handoff_restore_failed', {
+            cause: new AggregateError([error, restoreError], 'Machine handoff and rollback failed')
+          })
+        }
+        throw error
+      }
+    }
+    if (!input.historyId) {
+      throw new Error('room_historical_session_not_found')
+    }
+    const session = await this.runtime.resolveRoomHistoricalSession(
+      input.worktreeId,
+      this.agent,
+      input.historyId
+    )
+    return this.machine!.connectExisting(
+      {
+        worktreeId: input.worktreeId,
+        providerSessionId: session.sourceSessionId ?? session.id
+      },
+      options
+    )
   }
 
   locate(binding: RoomHarnessBinding) {
@@ -102,9 +150,7 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
   }
 
   incarnation(binding: RoomHarnessBinding): string | null {
-    return binding.transport === 'machine'
-      ? this.machine!.incarnation()
-      : this.terminal.incarnation(binding)
+    return binding.transport === 'machine' ? null : this.terminal.incarnation(binding)
   }
 
   awaitReady(binding: RoomHarnessBinding) {
@@ -147,6 +193,14 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
 
   private forBinding(binding: RoomHarnessBinding): RoomHarnessAdapter {
     return (binding.transport === 'machine' ? this.machine : this.terminal) as RoomHarnessAdapter
+  }
+
+  private shouldUseMachine(options?: RoomHarnessLaunchOptions): boolean {
+    return Boolean(
+      options?.machineStreaming &&
+      this.machine &&
+      ((this.agent !== 'claude' && this.agent !== 'openclaude') || options.trusted === true)
+    )
   }
 }
 

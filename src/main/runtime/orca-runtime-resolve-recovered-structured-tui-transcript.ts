@@ -115,22 +115,43 @@ export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends Orca
     envelope: { sessionId: string; clientOperationId: string }
     worktree: string
     agent: StructuredMachineAgent
+    providerSessionId?: string
   }): Promise<AgentSessionAttachParams> {
-    return this.resolveStructuredAgentSessionIntent(input, async ({ workspacePath, launchEnv }) => {
-      // A create has no process yet, so the current selection is what it must follow.
-      if (input.agent === 'codex') {
-        const preparedHome = await this.prepareCodexStructuredLaunchFn?.({ workspacePath, launchEnv })
-        const configuredHome = launchEnv.CODEX_HOME
-        return (
-          preparedHome?.trim() ||
-          (this.prepareCodexStructuredLaunchFn ? getSystemCodexHomePath() : configuredHome?.trim()) ||
-          getSystemCodexHomePath()
-        )
+    const params = await this.resolveStructuredAgentSessionIntent(
+      input,
+      async ({ workspacePath, launchEnv }) => {
+        // A create has no process yet, so the current selection is what it must follow.
+        if (input.agent === 'codex') {
+          const preparedHome = await this.prepareCodexStructuredLaunchFn?.({
+            workspacePath,
+            launchEnv
+          })
+          const configuredHome = launchEnv.CODEX_HOME
+          return (
+            preparedHome?.trim() ||
+            (this.prepareCodexStructuredLaunchFn
+              ? getSystemCodexHomePath()
+              : configuredHome?.trim()) ||
+            getSystemCodexHomePath()
+          )
+        }
+        return input.agent === 'claude' || input.agent === 'openclaude'
+          ? launchEnv.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), '.claude')
+          : launchEnv.HOME?.trim() || homedir()
       }
-      return input.agent === 'claude'
-        ? launchEnv.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), '.claude')
-        : launchEnv.HOME?.trim() || homedir()
-    })
+    )
+    if (!input.providerSessionId) {
+      return params
+    }
+    return {
+      ...params,
+      providerHandle:
+        params.provider === 'codex'
+          ? { kind: 'codex', threadId: input.providerSessionId }
+          : params.provider === 'claude'
+            ? { kind: 'claude', sessionId: input.providerSessionId, leafUuid: null }
+            : { kind: 'acp', agent: input.agent, sessionId: input.providerSessionId }
+    }
   }
 
   protected async resolveStructuredAgentSessionIntent(
@@ -160,13 +181,18 @@ export class OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript extends Orca
         payloadFingerprint: ''
       },
       location,
-      provider: input.agent === 'grok' || input.agent === 'omp' ? 'acp' : input.agent,
+      provider:
+        input.agent === 'grok' || input.agent === 'omp'
+          ? 'acp'
+          : input.agent === 'openclaude'
+            ? 'claude'
+            : input.agent,
       agent: input.agent,
       accountHome: {
         variable:
           input.agent === 'codex'
             ? 'CODEX_HOME'
-            : input.agent === 'claude'
+            : input.agent === 'claude' || input.agent === 'openclaude'
               ? 'CLAUDE_CONFIG_DIR'
               : 'HOME',
         path: await resolveAccountHomePath({ workspacePath, launchEnv })

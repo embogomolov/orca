@@ -13,6 +13,7 @@ import {
   type AgentSessionAttachParams
 } from './structured-agent-session-attach'
 import { computeAgentSessionPayloadFingerprint } from '../../../shared/agent-session-mutation-envelope'
+import { agentSessionProviderHandleChainHead } from '../../../shared/agent-session-provider-handle'
 
 export type RestoredStructuredAgentSessionRead = {
   journal: AgentSessionJournal
@@ -66,6 +67,7 @@ export function attachParamsForRecord(
     runtimeKind?: AgentSessionOwnerRuntimeKind
   }
 ): AgentSessionAttachParams {
+  const head = agentSessionProviderHandleChainHead(record.providerHandleChain)
   const params: AgentSessionAttachParams = {
     envelope: {
       sessionId: record.sessionId,
@@ -75,7 +77,7 @@ export function attachParamsForRecord(
     },
     location: record.location,
     provider: record.provider,
-    agent: record.provider,
+    agent: head?.handle.provider === 'acp' ? head.handle.agent : record.provider,
     accountHome: record.accountHome,
     runtimeKind: input.runtimeKind ?? record.lease.runtimeKind
   }

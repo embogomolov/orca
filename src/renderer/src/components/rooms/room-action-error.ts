@@ -8,6 +8,9 @@ const messages: Record<string, string> = {
   room_delivery_stopped: 'The room queue is paused.',
   room_stop_in_progress: 'The room is still stopping.',
   room_agent_not_ready: 'An agent is not ready.',
+  room_agent_handoff_restore_failed:
+    'Machine handoff failed and the terminal could not be restored.',
+  room_agent_cleanup_failed: 'The agent could not be cleaned up after the room action failed.',
   room_agent_control_unsupported: 'This agent does not support that control.',
   room_message_not_found: 'This message no longer exists.',
   room_participant_not_found: 'That agent is no longer in the room.',

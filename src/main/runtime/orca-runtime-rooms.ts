@@ -37,6 +37,8 @@ import { resolveTerminalSessionWorktreeId } from './runtime-worktree-path-identi
 import { terminalLayoutContainsLeaf } from './headless-terminal-split-layout'
 import { waitForWorktreeStartupDraft } from './runtime-worktree-startup-readiness'
 import { NativeChatQueueStore } from '../native-chat/queue-store'
+import { getStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
+import { projectStructuredAgentSessionStatus } from '../../shared/structured-agent-session-projection'
 
 export class OrcaRuntimeWithRooms extends OrcaRuntimeWithResolveWaiter {
   private roomService: RoomService | null = null
@@ -138,8 +140,12 @@ export class OrcaRuntimeWithRooms extends OrcaRuntimeWithResolveWaiter {
 
   async listRoomExistingAgents(
     worktreeId: string,
-    agent: RoomHarnessAgent
+    agent: RoomHarnessAgent,
+    machineStreaming = false
   ): Promise<RoomExistingAgentCandidate[]> {
+    if (machineStreaming) {
+      await this.ensureStructuredAgentSessionHost()
+    }
     const [running, history] = await Promise.all([
       this.listRoomRunningAgents(worktreeId),
       this.listRoomHistoricalSessions(worktreeId, agent)
@@ -149,6 +155,46 @@ export class OrcaRuntimeWithRooms extends OrcaRuntimeWithResolveWaiter {
     )
     const runningSessions = new Set<string>()
     const candidates: RoomExistingAgentCandidate[] = []
+    const host = machineStreaming ? getStructuredAgentSessionHost() : null
+    for (const session of host?.listSessionTabs() ?? []) {
+      if (session.workspaceId !== worktreeId || session.agent !== agent) {
+        continue
+      }
+      const result = host!.history({ sessionId: session.sessionId, direction: 'tail', limit: 200 })
+      const sourceSessionId = result.providerSession?.id
+      const sourceKey = sourceSessionId ? `session_id\0${sourceSessionId}` : null
+      if (sourceKey) {
+        runningSessions.add(sourceKey)
+        historyBySession.delete(sourceKey)
+      }
+      const firstUserMessage = result.page.items.find(
+        (item) => item.body.kind === 'message' && item.body.role === 'user'
+      )
+      const title =
+        firstUserMessage?.body.kind === 'message'
+          ? firstUserMessage.body.blocks.find((block) => block.type === 'text')?.text
+          : undefined
+      candidates.push({
+        id: `conversation:${session.sessionId}`,
+        agent,
+        title: title?.slice(0, 120) ?? null,
+        status:
+          projectStructuredAgentSessionStatus(result.page.items) === 'working'
+            ? 'running'
+            : 'history',
+        model: null,
+        updatedAt: result.page.items.at(-1)?.observedAt
+          ? new Date(result.page.items.at(-1)!.observedAt).toISOString()
+          : null,
+        providerSession: {
+          key: 'session_id',
+          id: session.sessionId,
+          transport: 'machine',
+          ...(sourceSessionId ? { sourceSessionId } : {})
+        },
+        conversationId: session.sessionId
+      })
+    }
     for (const live of running) {
       if (live.agent !== agent) continue
       const providerKey = live.providerSession

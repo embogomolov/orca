@@ -47,6 +47,7 @@ export type RoomMachineHarnessBinding = {
   terminalHandle?: undefined
   paneKey?: undefined
   terminalSurfaceVisible?: false
+  handoffFrom?: RoomTerminalHarnessBinding
 }
 
 export type RoomHarnessBinding = RoomTerminalHarnessBinding | RoomMachineHarnessBinding
@@ -108,7 +109,8 @@ export type RoomHarnessRuntime = {
   listRoomRunningAgents(worktreeId: string): Promise<RoomRunningAgent[]>
   listRoomExistingAgents(
     worktreeId: string,
-    agent: RoomHarnessAgent
+    agent: RoomHarnessAgent,
+    machineStreaming?: boolean
   ): Promise<RoomExistingAgentCandidate[]>
   resolveRoomHistoricalSession(
     worktreeId: string,
@@ -126,6 +128,7 @@ export type RoomHarnessRuntime = {
     envelope: { sessionId: string; clientOperationId: string }
     worktree: string
     agent: StructuredMachineAgent
+    providerSessionId?: string
   }): Promise<AgentSessionAttachParams>
 }
 
@@ -142,12 +145,16 @@ export type RoomHarnessSubscriptionCallbacks = {
 export type RoomHarnessAdapter = {
   readonly agent: RoomHarnessAgent
   launch(worktreeId: string, options?: RoomHarnessLaunchOptions): Promise<RoomHarnessBinding>
-  connectExisting(input: {
-    worktreeId: string
-    terminalHandle?: string
-    paneKey?: string
-    historyId?: string
-  }): Promise<RoomHarnessBinding>
+  connectExisting(
+    input: {
+      worktreeId: string
+      terminalHandle?: string
+      paneKey?: string
+      historyId?: string
+      conversationId?: string
+    },
+    options?: RoomHarnessLaunchOptions
+  ): Promise<RoomHarnessBinding>
   locate(binding: RoomHarnessBinding): Promise<RoomHarnessBinding | null>
   read(binding: RoomHarnessBinding, limit?: number): Promise<RoomHarnessReadResult>
   send(

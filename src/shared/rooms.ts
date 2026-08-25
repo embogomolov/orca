@@ -47,6 +47,7 @@ export type RoomProviderSession = {
   id: string
   transcriptPath?: string
   transport?: 'machine'
+  sourceSessionId?: string
 }
 export type RoomContextSnapshot = AgentSessionContextSnapshot
 export type Room = {
@@ -114,6 +115,7 @@ export type RoomExistingAgentCandidate = {
   terminalHandle?: string
   paneKey?: string
   historyId?: string
+  conversationId?: string
 }
 
 export type RoomAttachment = {
