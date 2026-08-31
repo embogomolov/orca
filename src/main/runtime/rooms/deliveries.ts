@@ -122,9 +122,10 @@ export class RoomDeliveryStore {
   reorderAll(
     roomId: string,
     messageIds: readonly string[],
-    movedMessageId?: string
+    movedMessageId?: string,
+    retargetMessageId?: string
   ): RoomDelivery[] {
-    return reorderRoomBroadcastQueue(this.db, roomId, messageIds, movedMessageId)
+    return reorderRoomBroadcastQueue(this.db, roomId, messageIds, movedMessageId, retargetMessageId)
   }
 
   retarget(messageId: string, participantIds: readonly string[], now = Date.now()): RoomDelivery[] {

@@ -1,6 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest'
+import type { QueuedMessageItem } from '../native-chat/QueuedMessageCard'
 import { SHARED_ZONE_ID, sharedRowId, squareId, squareOpenId } from './room-queue-state'
+import {
+  projectRoomSharedQueueItems,
+  roomSharedQueueSortingStrategy
+} from './room-shared-queue-placement'
 import {
   clearRoomQueueLongPress,
   roomQueueCollision,
@@ -12,6 +17,7 @@ import {
   trackRoomQueuePointer,
   updateRoomQueueLongPress,
   type RoomQueueLongPressState,
+  type RoomQueueOverlaySurface,
   type RoomQueuePointer
 } from './room-queue-drag-targeting'
 
@@ -29,7 +35,7 @@ const collisionArgs = (pointerCoordinates: { x: number; y: number } | null) => {
   const square = rect(200, 0, 100, 100)
   const containers = [
     { id: 'row', rect: { current: row } },
-    { id: SHARED_ZONE_ID, rect: { current: rect(100, 0, 100, 100) } },
+    { id: SHARED_ZONE_ID, rect: { current: rect(0, 0, 200, 100) } },
     { id: squareId('agent'), rect: { current: square } }
   ].map((container) => ({
     ...container,
@@ -76,6 +82,65 @@ describe('room queue collision detection', () => {
     expect(roomQueueCollision(args)[0]?.id).toBe(squareOpenId('source'))
   })
 
+  it('excludes room targets hidden below the expanded queue', () => {
+    const args = collisionArgs({ x: 50, y: 20 })
+    const directed = {
+      id: 'directed-row',
+      key: 'directed-row',
+      data: { current: undefined },
+      disabled: false,
+      node: { current: null },
+      rect: { current: rect(0, 0, 100, 40) }
+    }
+    const hiddenSquare = {
+      ...directed,
+      id: squareId('hidden'),
+      key: squareId('hidden'),
+      rect: { current: rect(0, 0, 100, 100) }
+    }
+    args.droppableContainers = [directed, hiddenSquare, ...args.droppableContainers]
+    args.droppableRects = new Map([
+      [directed.id, directed.rect.current],
+      [hiddenSquare.id, hiddenSquare.rect.current],
+      ...args.droppableRects.entries()
+    ])
+    const element = document.createElement('div')
+    element.getBoundingClientRect = () => rect(0, 0, 220, 120) as DOMRect
+    const elementRef = { current: null as HTMLDivElement | null }
+    const overlay: RoomQueueOverlaySurface = {
+      elementRef,
+      targetId: squareOpenId('source'),
+      itemIds: new Set([directed.id])
+    }
+    const square = document.createElement('button')
+    square.getBoundingClientRect = () => rect(0, 0, 100, 100) as DOMRect
+    const squares = new Map([['hidden', square]])
+
+    expect(roomQueueCollision(args, overlay)[0]?.id).toBe(squareId('hidden'))
+    elementRef.current = element
+    expect(roomQueueCollision(args, overlay)[0]?.id).toBe(directed.id)
+    expect(
+      roomQueueLongPressTarget({
+        activatorEvent: new PointerEvent('pointerdown'),
+        point: { x: 50, y: 20 },
+        squares,
+        overlay
+      })
+    ).toBeNull()
+    expect(
+      roomQueueDropTarget(
+        {
+          activatorEvent: new PointerEvent('pointerdown'),
+          over: { id: squareId('hidden') }
+        },
+        { x: 50, y: 20 },
+        squares,
+        overlay,
+        null
+      )
+    ).toBe(squareOpenId('source'))
+  })
+
   it('enables only other collapsed targets during directed drag', () => {
     expect(roomQueueSquareDropDisabled('source', 'source')).toBe(true)
     expect(roomQueueSquareDropDisabled('target', 'source')).toBe(false)
@@ -113,8 +178,7 @@ describe('room queue collision detection', () => {
         { activatorEvent: new PointerEvent('pointerdown'), over: { id: 'row' } },
         { x: 200, y: 50 },
         squares,
-        null,
-        null,
+        { elementRef: { current: null }, targetId: null, itemIds: new Set() },
         null
       )
     ).toBe(squareId('agent'))
@@ -125,11 +189,22 @@ describe('room queue collision detection', () => {
         { activatorEvent: new PointerEvent('pointerdown'), over: null },
         { x: 100, y: 100 },
         squares,
-        null,
-        null,
+        { elementRef: { current: null }, targetId: null, itemIds: new Set() },
         shared
       )
     ).toBe(SHARED_ZONE_ID)
+    expect(
+      roomQueueDropTarget(
+        {
+          activatorEvent: new PointerEvent('pointerdown'),
+          over: { id: sharedRowId('message-2') }
+        },
+        { x: 100, y: 100 },
+        squares,
+        { elementRef: { current: null }, targetId: null, itemIds: new Set() },
+        shared
+      )
+    ).toBe(sharedRowId('message-2'))
     const target = {
       activatorEvent: new PointerEvent('pointerdown'),
       point: { x: 200, y: 50 },
@@ -167,5 +242,35 @@ describe('room queue collision detection', () => {
     expect(opened).toHaveBeenCalledTimes(2)
     expect(opened).toHaveBeenLastCalledWith('agent-b')
     vi.useRealTimers()
+  })
+})
+
+describe('directed message projection into the shared queue', () => {
+  it('keeps DOM order stable and shifts rows with the shared sortable strategy', () => {
+    const items: QueuedMessageItem[] = [
+      { id: sharedRowId('one'), text: 'one' },
+      { id: sharedRowId('two'), text: 'two' }
+    ]
+    const active = { id: 'delivery', text: 'directed' }
+    const projected = projectRoomSharedQueueItems(items, active, {
+      overMessageId: 'one',
+      after: false,
+      index: 0
+    })
+
+    expect(projected.map((item) => item.id)).toEqual([
+      sharedRowId('one'),
+      sharedRowId('two'),
+      'delivery'
+    ])
+    expect(
+      roomSharedQueueSortingStrategy(0)({
+        activeIndex: 2,
+        activeNodeRect: rect(0, 80, 100, 40),
+        index: 0,
+        overIndex: 0,
+        rects: [rect(0, 0, 100, 40), rect(0, 40, 100, 40), rect(0, 80, 100, 40)]
+      })
+    ).toMatchObject({ y: 40 })
   })
 })

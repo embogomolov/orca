@@ -76,6 +76,7 @@ export class RoomDatabase {
       workState: this.messages.deliveries.workState(roomId),
       deliveryQueueVersion: 1,
       deliveryQueueMutationVersion: 1,
+      broadcastQueuePlacementVersion: 1,
       queueComposerEditVersion: 1
     }
   }

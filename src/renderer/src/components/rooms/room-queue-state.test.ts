@@ -14,9 +14,13 @@ import {
   buildDormantAgentInsert,
   buildSharedReorder,
   computeRoomQueueState,
+  isRoomQueueTransfer,
+  isRoomQueueTransferSettled,
   isMessageMutable,
   parseSquareId,
   resolveRoomQueueDrop,
+  roomQueueDropKeepsParticipantOpen,
+  roomQueueDropParticipantId,
   roomMessageAudience,
   sharedSteerEligible,
   sharedRowId,
@@ -484,12 +488,21 @@ describe('resolveRoomQueueDrop', () => {
     expect(resolveRoomQueueDrop(data, state, sharedRowId('m2'), 'junk')).toEqual([])
   })
   it('directs a shared row onto a square (collapsed and expanded)', () => {
-    expect(resolveRoomQueueDrop(data, state, sharedRowId('m2'), squareId('b'))).toEqual([
-      { type: 'retarget', messageId: 'm2', participantIds: ['b'] }
-    ])
+    const actions = resolveRoomQueueDrop(data, state, sharedRowId('m2'), squareId('b'))
+    expect(actions).toEqual([{ type: 'retarget', messageId: 'm2', participantIds: ['b'] }])
     expect(resolveRoomQueueDrop(data, state, sharedRowId('m2'), squareOpenId('b'))).toEqual([
       { type: 'retarget', messageId: 'm2', participantIds: ['b'] }
     ])
+    expect(actions.some(isRoomQueueTransfer)).toBe(true)
+    expect(roomQueueDropKeepsParticipantOpen(actions, 'b')).toBe(true)
+    expect(roomQueueDropParticipantId(actions)).toBe('b')
+    expect(isRoomQueueTransferSettled(state, sharedRowId('m2'))).toBe(false)
+    expect(
+      isRoomQueueTransferSettled(
+        { ...state, shared: state.shared.filter((message) => message.id !== 'm2') },
+        sharedRowId('m2')
+      )
+    ).toBe(true)
   })
   it('directs an agent row onto another square and ignores its own', () => {
     expect(resolveRoomQueueDrop(data, state, 'd1a', squareId('b'))).toEqual([
@@ -504,6 +517,22 @@ describe('resolveRoomQueueDrop', () => {
     expect(resolveRoomQueueDrop(data, state, 'd1a', sharedRowId('m2'))).toEqual([
       { type: 'retarget', messageId: 'm1', participantIds: ['a', 'b'] }
     ])
+  })
+  it('atomically returns and places a directed row on supported hosts', () => {
+    data.snapshot!.broadcastQueuePlacementVersion = 1
+    expect(
+      resolveRoomQueueDrop(data, state, 'd1a', sharedRowId('m3'), {
+        overMessageId: 'm3',
+        after: false
+      })
+    ).toEqual([
+      {
+        type: 'broadcastAndPlace',
+        messageId: 'm1',
+        messageIds: ['m2', 'm1', 'm3', 'm4']
+      }
+    ])
+    data.snapshot!.broadcastQueuePlacementVersion = undefined
   })
   it('reorders shared rows with the exact full pending set', () => {
     expect(resolveRoomQueueDrop(data, state, sharedRowId('m3'), sharedRowId('m2'))).toEqual([
@@ -536,7 +565,8 @@ describe('resolveRoomQueueDrop', () => {
     ])
   })
   it('reorders rows within one square, keeping hidden slots', () => {
-    expect(resolveRoomQueueDrop(data, state, 'd4a', 'd1a')).toEqual([
+    const actions = resolveRoomQueueDrop(data, state, 'd4a', 'd1a')
+    expect(actions).toEqual([
       {
         type: 'reorderAgent',
         participantId: 'a',
@@ -544,6 +574,8 @@ describe('resolveRoomQueueDrop', () => {
         movedDeliveryId: 'd4a'
       }
     ])
+    expect(actions.some(isRoomQueueTransfer)).toBe(false)
+    expect(roomQueueDropKeepsParticipantOpen(actions, 'a')).toBe(true)
   })
   it('retargets a row onto another agent row', () => {
     expect(resolveRoomQueueDrop(data, state, 'd1a', 'd3b')).toEqual([

@@ -45,7 +45,7 @@ export function roomSharedQueueItems(
               : 'pending',
         error: failed.length ? roomErrorMessage(failed[0]?.error, 'Delivery failed.') : undefined,
         detail: submitting
-          ? translate('rooms.queue.steering', 'Steering to the agent…')
+          ? translate('rooms.queue.steeringAll', 'Steering to all active agents…')
           : undefined,
         canSteer: !queueStopped && sharedSteerEligible(data, state, message.id),
         dragDisabled: !isUser || !isMessageMutable(data, message.id),

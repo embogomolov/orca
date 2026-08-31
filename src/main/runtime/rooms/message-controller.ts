@@ -171,9 +171,14 @@ export class RoomMessageController {
     this.wakeDeliveries()
   }
 
-  reorderAll(roomId: string, messageIds: readonly string[], movedMessageId?: string): void {
+  reorderAll(
+    roomId: string,
+    messageIds: readonly string[],
+    movedMessageId?: string,
+    retargetMessageId?: string
+  ): void {
     const deliveries = this.db.transaction(() =>
-      this.db.messages.deliveries.reorderAll(roomId, messageIds, movedMessageId)
+      this.db.messages.deliveries.reorderAll(roomId, messageIds, movedMessageId, retargetMessageId)
     )
     for (const delivery of deliveries) {
       this.emit(roomId, { type: 'delivery.updated', delivery })

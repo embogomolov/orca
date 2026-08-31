@@ -27,6 +27,12 @@ export class ClaudeConversationActivity {
     this.publishContext()
   }
 
+  setTranscriptMetadata(metadata: { model?: string; effort?: string }): void {
+    this.currentModel = metadata.model ?? this.currentModel
+    this.currentEffort = metadata.effort ?? this.currentEffort
+    this.publishContext()
+  }
+
   observe(message: SDKMessage): void {
     if (message.type === 'system' && message.subtype === 'init') {
       this.currentModel = message.model
@@ -126,9 +132,24 @@ export class ClaudeConversationActivity {
   }
 
   private publishUsage(message: Extract<SDKMessage, { type: 'result' }>): void {
-    this.maxTokens = this.currentModel
-      ? (message.modelUsage[this.currentModel]?.contextWindow ?? this.maxTokens)
-      : this.maxTokens
+    const entries = Object.entries(message.modelUsage)
+    const current = this.currentModel?.replace(/\[1m\]$/i, '').toLowerCase()
+    const matched = current
+      ? entries.find(([id, usage]) =>
+          [id, usage.canonicalModel].some((candidate) => {
+            const normalized = candidate?.replace(/\[1m\]$/i, '').toLowerCase()
+            return normalized === current || normalized?.startsWith(`${current}-`)
+          })
+        )?.[1]
+      : undefined
+    const main =
+      matched ??
+      entries.reduce<(typeof entries)[number] | undefined>((best, entry) => {
+        const tokens = (usage: (typeof entry)[1]): number =>
+          usage.inputTokens + usage.cacheCreationInputTokens + usage.cacheReadInputTokens
+        return !best || tokens(entry[1]) > tokens(best[1]) ? entry : best
+      }, undefined)?.[1]
+    this.maxTokens = main?.contextWindow ?? this.maxTokens
     this.publishContext()
   }
 

@@ -28,21 +28,51 @@ import { formatRoomActivityDuration } from './room-activity-timeline'
 export function RoomActivityCard({
   activity,
   participant,
-  target
+  target,
+  stack
 }: {
   activity: RoomAgentActivity
   participant?: RoomParticipant
   target?: RuntimeClientTarget
+  stack?: {
+    open: boolean
+    onOpen: () => void
+    triggerRef: React.Ref<HTMLButtonElement>
+    ariaLabel: string
+  }
 }): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
+  const stackCollapsed = stack?.open === false
   const expandable = hasRoomActivityDetails(activity.messages, activity.detail)
   const steerResponse = visibleSteerResponse(activity)
   const primaryPermissionOptionIndex =
     activity.permission?.options.findIndex((option) => option.kind !== 'reject') ?? -1
   return (
     <Collapsible open={expanded} onOpenChange={setExpanded}>
-      <div className="rounded-lg border border-border/70 bg-muted/15 px-3 py-2">
-        {expandable ? (
+      <div
+        className={cn(
+          'rounded-lg border border-border/70 bg-muted/15 px-3 py-2',
+          stack && 'transition-colors duration-200 ease motion-reduce:transition-none',
+          stackCollapsed && 'bg-background shadow-xs can-hover:hover:bg-accent'
+        )}
+      >
+        {stackCollapsed ? (
+          <button
+            ref={stack.triggerRef}
+            type="button"
+            aria-label={stack.ariaLabel}
+            aria-expanded={false}
+            className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            onClick={stack.onOpen}
+          >
+            <RoomActivitySummaryContent
+              activity={activity}
+              participant={participant}
+              showChevron
+              showSteerResponse
+            />
+          </button>
+        ) : expandable ? (
           <CollapsibleTrigger asChild>
             <button type="button" className="w-full text-left">
               <RoomActivitySummaryContent
@@ -58,101 +88,119 @@ export function RoomActivityCard({
             <RoomActivitySummaryContent activity={activity} participant={participant} />
           </div>
         )}
-        {expandable ? (
-          <CollapsibleContent className="room-activity-disclosure-content">
-            <RoomActivityDetails
-              messages={activity.messages}
-              fallback={{ kind: activity.kind, detail: activity.detail }}
-            />
-          </CollapsibleContent>
-        ) : null}
-        {steerResponse && !expanded ? (
-          <div className="mt-2 max-h-40 overflow-y-auto border-l border-border/70 pl-4 pr-2 scrollbar-sleek">
-            <CommentMarkdown
-              content={steerResponse}
-              variant="document"
-              className="text-sm"
-              allowFileUriLinks
-            />
-          </div>
-        ) : null}
-        {activity.permission && participant?.providerSession?.transport === 'machine' && target ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {activity.permission.options.map((option, index) => (
-              <Button
-                key={option.id}
-                size="xs"
-                variant={
-                  option.kind === 'reject'
-                    ? 'outline'
-                    : index === primaryPermissionOptionIndex
-                      ? 'default'
-                      : 'secondary'
-                }
-                onClick={() =>
-                  void respondToRoomPrompt(
-                    target,
-                    participant.providerSession!.id,
-                    'approval',
-                    activity.permission!.itemId ?? activity.permission!.id,
-                    activity.permission!.revision ?? 1,
-                    option.id
-                  ).catch(showRoomActionError)
-                }
+        <div
+          aria-hidden={stackCollapsed || undefined}
+          inert={stackCollapsed || undefined}
+          className={cn(
+            'grid transition-[grid-template-rows,opacity] duration-200 ease motion-reduce:transition-none',
+            stackCollapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
+            {expandable ? (
+              <CollapsibleContent className="room-activity-disclosure-content">
+                <RoomActivityDetails
+                  messages={activity.messages}
+                  fallback={{ kind: activity.kind, detail: activity.detail }}
+                />
+              </CollapsibleContent>
+            ) : null}
+            {steerResponse && !expanded ? (
+              <div
+                className={cn(
+                  'mt-2 max-h-40 overflow-y-auto border-l border-border/70 pl-4 pr-2 scrollbar-sleek',
+                  stackCollapsed && 'invisible'
+                )}
               >
-                {option.label}
-              </Button>
-            ))}
+                <CommentMarkdown
+                  content={steerResponse}
+                  variant="document"
+                  className="text-sm"
+                  allowFileUriLinks
+                />
+              </div>
+            ) : null}
+            {activity.permission &&
+            participant?.providerSession?.transport === 'machine' &&
+            target ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {activity.permission.options.map((option, index) => (
+                  <Button
+                    key={option.id}
+                    size="xs"
+                    variant={
+                      option.kind === 'reject'
+                        ? 'outline'
+                        : index === primaryPermissionOptionIndex
+                          ? 'default'
+                          : 'secondary'
+                    }
+                    onClick={() =>
+                      void respondToRoomPrompt(
+                        target,
+                        participant.providerSession!.id,
+                        'approval',
+                        activity.permission!.itemId ?? activity.permission!.id,
+                        activity.permission!.revision ?? 1,
+                        option.id
+                      ).catch(showRoomActionError)
+                    }
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            {activity.input && participant?.providerSession?.transport === 'machine' && target ? (
+              <div className="mt-3">
+                <NativeChatQuestionCard
+                  key={activity.input.id}
+                  prompt={{
+                    questions: activity.input.questions.map((question) => ({
+                      ...question,
+                      multiSelect: question.multiSelect ?? false,
+                      options: question.options ?? []
+                    }))
+                  }}
+                  allowOther={activity.input.questions.some((question) => question.allowOther)}
+                  onAnswer={(selections) => {
+                    const answers = Object.fromEntries(
+                      activity.input!.questions.map((question, index) => {
+                        const selection = selections[index]
+                        const picked = (selection?.indices ?? []).flatMap((optionIndex) => {
+                          const label = question.options?.[optionIndex]?.label
+                          return label ? [label] : []
+                        })
+                        const other = selection?.other?.trim()
+                        return [question.id, other ? [...picked, other] : picked]
+                      })
+                    )
+                    void respondToRoomPrompt(
+                      target,
+                      participant.providerSession!.id,
+                      'question',
+                      activity.input!.itemId ?? activity.input!.id,
+                      activity.input!.revision ?? 1,
+                      `answers:${JSON.stringify(answers)}`
+                    ).catch(showRoomActionError)
+                  }}
+                  onCancel={() =>
+                    void cancelRoomStructuredTurn(target, participant.providerSession!.id).catch(
+                      showRoomActionError
+                    )
+                  }
+                />
+              </div>
+            ) : null}
+            {participant ? (
+              <AgentSubagentTurnLink
+                sourceKey={participant.id}
+                startedAt={activity.startedAt}
+                completedAt={null}
+              />
+            ) : null}
           </div>
-        ) : null}
-        {activity.input && participant?.providerSession?.transport === 'machine' && target ? (
-          <div className="mt-3">
-            <NativeChatQuestionCard
-              key={activity.input.id}
-              prompt={{
-                questions: activity.input.questions.map((question) => ({
-                  ...question,
-                  multiSelect: question.multiSelect ?? false,
-                  options: question.options ?? []
-                }))
-              }}
-              allowOther={activity.input.questions.some((question) => question.allowOther)}
-              onAnswer={(selections) => {
-                const answers = Object.fromEntries(
-                  activity.input!.questions.map((question, index) => {
-                    const selection = selections[index]
-                    const picked = (selection?.indices ?? []).flatMap((optionIndex) => {
-                      const label = question.options?.[optionIndex]?.label
-                      return label ? [label] : []
-                    })
-                    const other = selection?.other?.trim()
-                    return [question.id, other ? [...picked, other] : picked]
-                  })
-                )
-                void respondToRoomPrompt(
-                  target,
-                  participant.providerSession!.id,
-                  'question',
-                  activity.input!.itemId ?? activity.input!.id,
-                  activity.input!.revision ?? 1,
-                  `answers:${JSON.stringify(answers)}`
-                ).catch(showRoomActionError)
-              }}
-              onCancel={() =>
-                void cancelRoomStructuredTurn(target, participant.providerSession!.id).catch(
-                  showRoomActionError
-                )
-              }
-            />
-          </div>
-        ) : null}
-        {participant ? (
-          <AgentSubagentTurnLink
-            sourceKey={participant.id}
-            startedAt={activity.startedAt}
-            completedAt={null}
-          />
-        ) : null}
+        </div>
       </div>
     </Collapsible>
   )
@@ -178,37 +226,6 @@ function visibleSteerResponse(activity: RoomAgentActivity): string {
     }
   }
   return ''
-}
-
-export function RoomActivitySummary({
-  activity,
-  participant,
-  expanded,
-  className,
-  ...props
-}: {
-  activity: RoomAgentActivity
-  participant?: RoomParticipant
-  expanded: boolean
-} & React.ComponentProps<'button'>): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      className={cn(
-        'w-full rounded-lg border border-border/70 bg-muted/15 px-3 py-2 text-left',
-        className
-      )}
-      {...props}
-    >
-      <RoomActivitySummaryContent
-        activity={activity}
-        participant={participant}
-        expanded={expanded}
-        showChevron
-        showSteerResponse
-      />
-    </button>
-  )
 }
 
 function RoomActivitySummaryContent({

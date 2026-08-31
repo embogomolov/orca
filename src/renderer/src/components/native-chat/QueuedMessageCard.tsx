@@ -46,6 +46,7 @@ export type QueuedMessageCardProps = {
   item: QueuedMessageItem
   disabled?: boolean
   dragDisabled?: boolean
+  droppableDisabled?: boolean
   canSteer?: boolean
   onEdit?: (text: string) => void
   onEditInComposer?: () => void
@@ -278,7 +279,10 @@ function QueueAction({
 export function SortableQueuedMessageCard(props: QueuedMessageCardProps): React.JSX.Element {
   const sortable = useSortable({
     id: props.item.id,
-    disabled: props.dragDisabled ?? props.disabled,
+    disabled: {
+      draggable: props.dragDisabled ?? props.disabled,
+      droppable: props.droppableDisabled
+    },
     data: { item: props.item }
   })
   return (

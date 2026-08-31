@@ -257,19 +257,12 @@ export default function RoomsPage({ roomId }: { roomId: string }): React.JSX.Ele
             </div>
           ) : (
             <>
-              {activities.length > 0 ? (
-                <div className="shrink-0 px-4 pt-2">
-                  <div className="mx-auto w-full max-w-4xl">
-                    <RoomActivityStack
-                      key={activities.length > 1 ? 'stack' : 'single'}
-                      activities={activities}
-                      lastSteeredParticipantId={data.lastSteeredParticipantId}
-                      participants={participants}
-                      target={data.target}
-                    />
-                  </div>
-                </div>
-              ) : null}
+              <RoomActivityStack
+                activities={activities}
+                lastSteeredParticipantId={data.lastSteeredParticipantId}
+                participants={participants}
+                target={data.target}
+              />
               <RoomDeliveryQueues data={data} editing={queueEdit} onEdit={setQueueEdit} />
               <RoomComposer
                 data={data}

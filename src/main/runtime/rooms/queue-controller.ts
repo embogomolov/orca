@@ -43,9 +43,14 @@ export class RoomQueueController {
     this.messages.reorder(participantId, deliveryIds, movedDeliveryId, retargetMessageId)
   }
 
-  reorderAll(roomId: string, messageIds: readonly string[], movedMessageId?: string): void {
+  reorderAll(
+    roomId: string,
+    messageIds: readonly string[],
+    movedMessageId?: string,
+    retargetMessageId?: string
+  ): void {
     this.assertWritable(roomId)
-    this.messages.reorderAll(roomId, messageIds, movedMessageId)
+    this.messages.reorderAll(roomId, messageIds, movedMessageId, retargetMessageId)
   }
 
   async steer(deliveryId: string, group = false): Promise<void> {

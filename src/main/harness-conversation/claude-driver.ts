@@ -16,6 +16,7 @@ import { claudeConversationConfiguration } from './claude-configuration'
 import { ClaudeInteractionController } from './claude-interaction-controller'
 import { resolveSessionFilePath } from '../native-chat/session-file-resolver'
 import { ClaudeConversationActivity } from './claude-activity'
+import { readClaudeTranscriptMetadata } from './claude-transcript-metadata'
 import type { AgentPermissionMode } from '../../shared/tui-agent-permissions'
 import { claudeUserMessage } from './claude-user-message'
 import { ClaudeSteerController, type ClaudeTurn } from './claude-steer-controller'
@@ -292,13 +293,11 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
     }
   }
 
-  answerPermission(requestId: string, optionId: string): void {
+  answerPermission = (requestId: string, optionId: string): void =>
     this.interactions.answerPermission(requestId, optionId)
-  }
 
-  answerInput(requestId: string, answers: Record<string, string[]>): void {
+  answerInput = (requestId: string, answers: Record<string, string[]>): void =>
     this.interactions.answerInput(requestId, answers)
-  }
 
   async close(): Promise<void> {
     this.closed = true
@@ -311,14 +310,16 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
 
   private rejectTurns(error: unknown): void {
     const failure = error instanceof Error ? error : new Error(String(error))
-    for (const turn of this.turns.splice(0)) {
-      turn.reject(failure)
-    }
+    this.turns.splice(0).forEach((turn) => turn.reject(failure))
   }
 
   private async publishTranscriptPath(sessionId: string): Promise<void> {
     const path = await resolveSessionFilePath(this.options.agent, sessionId).catch(() => null)
     if (path && this.sessionId === sessionId) {
+      const metadata = await readClaudeTranscriptMetadata(path).catch(() => null)
+      if (metadata && this.sessionId === sessionId) {
+        this.activity.setTranscriptMetadata(metadata)
+      }
       this.options.sink.setTranscriptPath(path)
     }
   }

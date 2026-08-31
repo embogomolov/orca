@@ -59,36 +59,51 @@ export function executeRoomQueueAction(
   data: RoomData,
   action: RoomQueueAction,
   report: (error: unknown) => void
-): Promise<void> {
+): Promise<boolean> {
   const supportsMutations = data.snapshot?.deliveryQueueMutationVersion === 1
+  const accepted = (request: Promise<unknown>): Promise<boolean> =>
+    request
+      .then(() => true)
+      .catch((error) => {
+        report(error)
+        return false
+      })
   switch (action.type) {
     case 'retarget':
-      return roomRpc(data.target, 'rooms.messages.retarget', {
-        messageId: action.messageId,
-        participantIds: action.participantIds
-      })
-        .then(() => undefined)
-        .catch(report)
+      return accepted(
+        roomRpc(data.target, 'rooms.messages.retarget', {
+          messageId: action.messageId,
+          participantIds: action.participantIds
+        })
+      )
     case 'reorderShared':
-      return roomRpc(data.target, 'rooms.messages.reorderQueue', {
-        roomId: data.roomId,
-        messageIds: action.messageIds,
-        ...(supportsMutations ? { movedMessageId: action.movedMessageId } : {})
-      })
-        .then(() => undefined)
-        .catch(report)
+      return accepted(
+        roomRpc(data.target, 'rooms.messages.reorderQueue', {
+          roomId: data.roomId,
+          messageIds: action.messageIds,
+          ...(supportsMutations ? { movedMessageId: action.movedMessageId } : {})
+        })
+      )
+    case 'broadcastAndPlace':
+      return accepted(
+        roomRpc(data.target, 'rooms.messages.reorderQueue', {
+          roomId: data.roomId,
+          messageIds: action.messageIds,
+          retargetMessageId: action.messageId
+        })
+      )
     case 'reorderAgent':
     case 'directAndPlace':
-      return roomRpc(data.target, 'rooms.deliveries.reorder', {
-        participantId: action.participantId,
-        deliveryIds: action.deliveryIds,
-        ...(supportsMutations
-          ? action.type === 'reorderAgent'
-            ? { movedDeliveryId: action.movedDeliveryId }
-            : { retargetMessageId: action.messageId }
-          : {})
-      })
-        .then(() => undefined)
-        .catch(report)
+      return accepted(
+        roomRpc(data.target, 'rooms.deliveries.reorder', {
+          participantId: action.participantId,
+          deliveryIds: action.deliveryIds,
+          ...(supportsMutations
+            ? action.type === 'reorderAgent'
+              ? { movedDeliveryId: action.movedDeliveryId }
+              : { retargetMessageId: action.messageId }
+            : {})
+        })
+      )
   }
 }

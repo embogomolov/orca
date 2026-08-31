@@ -13,6 +13,7 @@ import {
   hasRoomQueueEditReservation
 } from './delivery-mutability'
 import { retargetDormantRoomQueueTarget } from './delivery-dormant-target'
+import { reorderRoomBroadcastQueue } from './delivery-broadcast-queue-reorder'
 
 export {
   assertRoomMessageDeliveryMutable,
@@ -20,6 +21,7 @@ export {
   claimRoomBroadcastSteer,
   isBroadcastMessage,
   isInitialBroadcastDispatch,
+  reorderRoomBroadcastQueue,
   retargetRoomMessageDeliveries
 }
 
@@ -218,82 +220,6 @@ export function reorderRoomDeliveryQueue(
   }
   return [...new Set([...orderedIds, ...changedMessageDeliveryIds])].map((id) =>
     getDelivery(db, id)
-  )
-}
-
-export function reorderRoomBroadcastQueue(
-  db: SyncDatabase.Database,
-  roomId: string,
-  messageIds: readonly string[],
-  movedMessageId?: string
-): RoomDelivery[] {
-  if (!movedMessageId) {
-    throw new Error('room_delivery_queue_stale')
-  }
-  const pending = (
-    db
-      .prepare(
-        `SELECT d.* FROM room_deliveries d JOIN room_messages m ON m.id = d.message_id
-         JOIN room_participants p ON p.id = d.participant_id AND p.participation = 'active'
-         WHERE m.room_id = ? AND (
-           d.state = 'pending' OR
-           (d.state = 'suppressed' AND d.error = 'room_stopped' AND d.attempts = 0 AND d.intent = 'next')
-         ) AND m.queue_edit_token IS NULL
-         ORDER BY d.queue_position, m.sequence`
-      )
-      .all(roomId) as RoomRow[]
-  ).map(deliveryFromRow)
-  const currentIds = [...new Set(pending.map((delivery) => delivery.messageId))]
-  if (
-    messageIds.length !== currentIds.length ||
-    new Set(messageIds).size !== currentIds.length ||
-    messageIds.some((id) => !currentIds.includes(id))
-  ) {
-    throw new Error('room_delivery_queue_stale')
-  }
-  if (
-    movedMessageId &&
-    (!currentIds.includes(movedMessageId) ||
-      !isSingleQueueMove(currentIds, messageIds, movedMessageId))
-  ) {
-    throw new Error('room_delivery_queue_stale')
-  }
-  if (movedMessageId) {
-    assertRoomMessageDeliveryMutable(db, movedMessageId)
-    if (!isBroadcastMessage(db, movedMessageId)) {
-      throw new Error('room_delivery_queue_stale')
-    }
-  }
-  const order = new Map(messageIds.map((id, index) => [id, index]))
-  const byParticipant = new Map<string, RoomDelivery[]>()
-  for (const delivery of pending) {
-    const deliveries = byParticipant.get(delivery.participantId) ?? []
-    deliveries.push(delivery)
-    byParticipant.set(delivery.participantId, deliveries)
-  }
-  const update = db.prepare(
-    `UPDATE room_deliveries SET queue_position = ? WHERE id = ? AND (
-      state = 'pending' OR
-      (state = 'suppressed' AND error = 'room_stopped' AND attempts = 0 AND intent = 'next')
-    )`
-  )
-  for (const deliveries of byParticipant.values()) {
-    const positions = deliveries
-      .map((delivery) => delivery.queuePosition ?? 0)
-      .sort((a, b) => a - b)
-    const sorted = [...deliveries].sort(
-      (left, right) => order.get(left.messageId)! - order.get(right.messageId)!
-    )
-    sorted.forEach((delivery, index) => {
-      if (update.run(positions[index], delivery.id).changes !== 1) {
-        throw new Error('room_delivery_queue_stale')
-      }
-    })
-  }
-  return pending.map((delivery) =>
-    deliveryFromRow(
-      db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(delivery.id) as RoomRow
-    )
   )
 }
 

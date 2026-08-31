@@ -2,9 +2,10 @@ import { closestCenter, pointerWithin, type CollisionDetection } from '@dnd-kit/
 import { getEventCoordinates } from '@dnd-kit/utilities'
 import {
   parseCollapsedSquareId,
+  parseSharedRowId,
+  parseSquareId,
   SHARED_ZONE_ID,
-  squareId,
-  squareOpenId
+  squareId
 } from './room-queue-projection'
 
 const LONG_PRESS_MS = 600
@@ -13,6 +14,11 @@ export type RoomQueuePointer = { x: number; y: number }
 export type RoomQueueLongPressState = {
   targetId: string | null
   timer: ReturnType<typeof setTimeout> | null
+}
+export type RoomQueueOverlaySurface = {
+  elementRef: { current: HTMLDivElement | null }
+  targetId: string | null
+  itemIds: ReadonlySet<string>
 }
 
 export function pointInRect(point: RoomQueuePointer, rect: DOMRect): boolean {
@@ -37,8 +43,12 @@ export function roomQueueLongPressTarget(input: {
   activatorEvent: Event
   point: RoomQueuePointer | null
   squares: ReadonlyMap<string, HTMLButtonElement>
+  overlay?: RoomQueueOverlaySurface
 }): string | null {
   const point = roomQueuePointerForDrag(input, input.point)
+  if (point && roomQueuePointInOverlay(point, input.overlay)) {
+    return null
+  }
   return point ? roomQueueSquareAtPointer(point, input.squares) : null
 }
 
@@ -86,27 +96,27 @@ export function roomQueueDropTarget(
   event: { activatorEvent: Event; over: { id: string | number } | null },
   lastPointer: RoomQueuePointer | null,
   squares: ReadonlyMap<string, HTMLButtonElement>,
-  expandedId: string | null,
-  expandedElement: HTMLDivElement | null,
+  overlay: RoomQueueOverlaySurface,
   sharedElement: HTMLDivElement | null
 ): string | null {
   const point = roomQueuePointerForDrag(event, lastPointer)
-  if (
-    expandedId &&
-    point &&
-    expandedElement &&
-    pointInRect(point, expandedElement.getBoundingClientRect())
-  ) {
-    return squareOpenId(expandedId)
+  const overId = event.over ? String(event.over.id) : null
+  if (point && roomQueuePointInOverlay(point, overlay)) {
+    return overId && (overId === overlay.targetId || overlay.itemIds.has(overId))
+      ? overId
+      : overlay.targetId
   }
   const collapsed = point && roomQueueSquareAtPointer(point, squares)
   if (collapsed) {
     return squareId(collapsed)
   }
+  if (overId && overId !== SHARED_ZONE_ID && !parseSquareId(overId)) {
+    return overId
+  }
   if (point && sharedElement && pointInRect(point, sharedElement.getBoundingClientRect())) {
     return SHARED_ZONE_ID
   }
-  return event.over ? String(event.over.id) : null
+  return overId
 }
 
 export function roomQueueSquareDropDisabled(
@@ -116,7 +126,36 @@ export function roomQueueSquareDropDisabled(
   return expandedId === participantId
 }
 
-export const roomQueueCollision: CollisionDetection = (args) => {
+function roomQueuePointInOverlay(
+  point: RoomQueuePointer,
+  overlay: RoomQueueOverlaySurface | undefined
+): boolean {
+  const element = overlay?.elementRef.current
+  return Boolean(element && pointInRect(point, element.getBoundingClientRect()))
+}
+
+export function roomQueueCollision(
+  args: Parameters<CollisionDetection>[0],
+  overlay?: RoomQueueOverlaySurface
+): ReturnType<CollisionDetection> {
+  const pointerInOverlay = Boolean(
+    args.pointerCoordinates && roomQueuePointInOverlay(args.pointerCoordinates, overlay)
+  )
+  const keyboardInOverlay = Boolean(
+    !args.pointerCoordinates && overlay?.itemIds.has(String(args.active.id))
+  )
+  if (overlay && (pointerInOverlay || keyboardInOverlay)) {
+    const allowed = new Set(overlay.itemIds)
+    if (overlay.targetId) {
+      allowed.add(overlay.targetId)
+    }
+    args = {
+      ...args,
+      droppableContainers: args.droppableContainers.filter((container) =>
+        allowed.has(String(container.id))
+      )
+    }
+  }
   if (!args.pointerCoordinates) {
     return closestCenter(args)
   }
@@ -124,6 +163,24 @@ export const roomQueueCollision: CollisionDetection = (args) => {
   const exactSquares = exact.filter((collision) => parseCollapsedSquareId(String(collision.id)))
   if (exactSquares.length > 0) {
     return exactSquares
+  }
+  const exactRows = exact.filter((collision) => {
+    const id = String(collision.id)
+    return id !== SHARED_ZONE_ID && !parseSquareId(id)
+  })
+  if (exactRows.length > 0) {
+    return exactRows
+  }
+  if (
+    parseSharedRowId(String(args.active.id)) === null &&
+    exact.some((collision) => String(collision.id) === SHARED_ZONE_ID)
+  ) {
+    const sharedRows = args.droppableContainers.filter((container) =>
+      parseSharedRowId(String(container.id))
+    )
+    if (sharedRows.length > 0) {
+      return closestCenter({ ...args, droppableContainers: sharedRows })
+    }
   }
   return exact
 }

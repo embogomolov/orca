@@ -53,6 +53,14 @@ describe('rooms queue RPC', () => {
 
     expect(schema.safeParse(base).success).toBe(true)
     expect(schema.safeParse({ ...base, movedMessageId: MESSAGE_ID }).success).toBe(true)
+    expect(schema.safeParse({ ...base, retargetMessageId: MESSAGE_ID }).success).toBe(true)
+    expect(
+      schema.safeParse({
+        ...base,
+        movedMessageId: MESSAGE_ID,
+        retargetMessageId: MESSAGE_ID
+      }).success
+    ).toBe(false)
     expect(schema.safeParse({ ...base, movedDeliveryId: DELIVERY_ID }).success).toBe(false)
   })
 

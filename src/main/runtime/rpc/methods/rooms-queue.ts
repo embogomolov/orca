@@ -107,6 +107,13 @@ export const ROOM_QUEUE_METHODS: readonly RpcAnyMethod[] = [
           messageIds: z.array(MessageId).max(200),
           movedMessageId: MessageId
         })
+        .strict(),
+      z
+        .object({
+          roomId: RoomId,
+          messageIds: z.array(MessageId).max(200),
+          retargetMessageId: MessageId
+        })
         .strict()
     ]),
     handler: async (params, { runtime }) => {
@@ -115,7 +122,8 @@ export const ROOM_QUEUE_METHODS: readonly RpcAnyMethod[] = [
         .queue.reorderAll(
           params.roomId,
           params.messageIds,
-          'movedMessageId' in params ? params.movedMessageId : undefined
+          'movedMessageId' in params ? params.movedMessageId : undefined,
+          'retargetMessageId' in params ? params.retargetMessageId : undefined
         )
       return { accepted: true }
     }

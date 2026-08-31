@@ -181,6 +181,8 @@ export type RoomSnapshot = {
   deliveryQueueVersion?: 1
   /** Absent when the host predates safe queue mutations and atomic group Steer. */
   deliveryQueueMutationVersion?: 1
+  /** Absent when the host cannot atomically place a directed row in the room queue. */
+  broadcastQueuePlacementVersion?: 1
   /** Absent when the host cannot reserve queue rows for composer editing. */
   queueComposerEditVersion?: 1
 }

@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useDndContext } from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  type SortingStrategy
+} from '@dnd-kit/sortable'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { SortableQueuedMessageCard, type QueuedMessageItem } from './QueuedMessageCard'
@@ -24,7 +29,9 @@ export function QueuedMessageList({
   onSteer,
   onRetry,
   onResume,
-  imageLoadContext
+  imageLoadContext,
+  sortingStrategy,
+  suppressExitId
 }: {
   items: readonly QueuedMessageItem[]
   disabled?: boolean
@@ -37,10 +44,11 @@ export function QueuedMessageList({
   onRetry?: (id: string) => void
   onResume?: () => void
   imageLoadContext?: NativeChatImageLoadContext
+  sortingStrategy?: SortingStrategy
+  suppressExitId?: string | null
 }): React.JSX.Element | null {
-  const presence = useQueuedMessageContainerPresence(
-    items.length > 0 || Boolean(interrupted && onResume)
-  )
+  const presence = useQueuedMessageContainerPresence(items.length > 0)
+  const sortableIds = useStableQueuedMessageIds(items)
   if (!presence.mounted) {
     return null
   }
@@ -53,8 +61,8 @@ export function QueuedMessageList({
     >
       <div className="min-h-0 overflow-hidden">
         <SortableContext
-          items={items.map((item) => item.id)}
-          strategy={verticalListSortingStrategy}
+          items={sortableIds}
+          strategy={sortingStrategy ?? verticalListSortingStrategy}
         >
           <div className="queued-message-scroll-fade scrollbar-sleek flex max-h-[30dvh] flex-col gap-px overflow-x-hidden overflow-y-auto px-3 py-1">
             {onResume ? (
@@ -86,7 +94,7 @@ export function QueuedMessageList({
                 </div>
               </div>
             ) : null}
-            <QueuedMessagePresence items={items}>
+            <QueuedMessagePresence items={items} suppressExitId={suppressExitId}>
               {(item) =>
                 renderItem ? (
                   <>{renderItem(item)}</>
@@ -111,6 +119,16 @@ export function QueuedMessageList({
       </div>
     </div>
   )
+}
+
+export function useStableQueuedMessageIds(items: readonly QueuedMessageItem[]): string[] {
+  const ids = items.map((item) => item.id)
+  const signature = ids.join('\0')
+  const stable = useRef({ ids, signature })
+  if (stable.current.signature !== signature) {
+    stable.current = { ids, signature }
+  }
+  return stable.current.ids
 }
 
 export function useQueuedMessageContainerPresence(visible: boolean): {
@@ -141,12 +159,15 @@ type PresentQueuedMessage = { item: QueuedMessageItem; visible: boolean }
 
 export function QueuedMessagePresence({
   items,
-  children
+  children,
+  suppressExitId
 }: {
   items: readonly QueuedMessageItem[]
   children: (item: QueuedMessageItem) => React.ReactNode
+  suppressExitId?: string | null
 }): React.JSX.Element {
   const reducedMotion = usePrefersReducedMotion()
+  const dragging = useDndContext().active !== null
   const latest = useRef(items)
   latest.current = items
   const signature = items.map((item) => item.id).join('\0')
@@ -155,7 +176,7 @@ export function QueuedMessagePresence({
   )
   useEffect(() => {
     const desired = new Map(latest.current.map((item) => [item.id, item]))
-    if (reducedMotion) {
+    if (reducedMotion || dragging) {
       setPresent(latest.current.map((item) => ({ item, visible: true })))
       return
     }
@@ -179,30 +200,32 @@ export function QueuedMessagePresence({
       )
     )
     return () => cancelAnimationFrame(frame)
-  }, [reducedMotion, signature])
+  }, [dragging, reducedMotion, signature])
   const current = new Map(items.map((item) => [item.id, item]))
   return (
     <>
-      {present.map((entry) => (
-        <div
-          key={entry.item.id}
-          className={cn(
-            'grid transition-[grid-template-rows,opacity] duration-200 motion-reduce:transition-none',
-            entry.visible ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-          )}
-          onTransitionEnd={(event) => {
-            if (!entry.visible && event.propertyName === 'opacity') {
-              setPresent((value) =>
-                value.filter((candidate) => candidate.item.id !== entry.item.id)
-              )
-            }
-          }}
-        >
-          <div className="min-h-0 overflow-hidden">
-            {children(current.get(entry.item.id) ?? entry.item)}
+      {present
+        .filter((entry) => entry.item.id !== suppressExitId)
+        .map((entry) => (
+          <div
+            key={entry.item.id}
+            className={cn(
+              'grid transition-[grid-template-rows,opacity] duration-200 motion-reduce:transition-none',
+              entry.visible ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+            )}
+            onTransitionEnd={(event) => {
+              if (!entry.visible && event.propertyName === 'opacity') {
+                setPresent((value) =>
+                  value.filter((candidate) => candidate.item.id !== entry.item.id)
+                )
+              }
+            }}
+          >
+            <div className={cn('min-h-0', dragging ? 'overflow-visible' : 'overflow-hidden')}>
+              {children(current.get(entry.item.id) ?? entry.item)}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
     </>
   )
 }

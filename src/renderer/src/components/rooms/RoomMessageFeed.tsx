@@ -184,6 +184,7 @@ export function RoomMessageFeed({
         element.scrollTop = element.scrollHeight
       }
     })
+    observer.observe(element)
     observer.observe(content)
     return () => observer.disconnect()
   }, [])

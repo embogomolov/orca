@@ -1,13 +1,18 @@
 /* @vitest-environment happy-dom */
 
 import { DndContext } from '@dnd-kit/core'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { QueuedMessageCard } from './QueuedMessageCard'
+import { QueuedMessagePresence, useStableQueuedMessageIds } from './QueuedMessageList'
 import { RoomQueuedMessageCard } from '../rooms/RoomQueuedMessageCard'
-import { RoomQueueSquareOverlay } from '../rooms/RoomQueueSquare'
+import {
+  RoomQueueSquare,
+  RoomQueueSquareGrid,
+  RoomQueueSquareOverlay
+} from '../rooms/RoomQueueSquare'
 import type { RoomData } from '../rooms/use-room-data'
 import type { RoomParticipant } from '../../../../shared/rooms'
 
@@ -45,6 +50,61 @@ afterEach(() => {
 })
 
 describe('QueuedMessageCard', () => {
+  it('keeps sortable ids stable while equivalent queue rows rerender', () => {
+    const { result, rerender } = renderHook(({ items }) => useStableQueuedMessageIds(items), {
+      initialProps: {
+        items: [
+          { id: 'a', text: 'first' },
+          { id: 'b', text: 'second' }
+        ]
+      }
+    })
+    const initial = result.current
+
+    rerender({
+      items: [
+        { id: 'a', text: 'updated' },
+        { id: 'b', text: 'second' }
+      ]
+    })
+    expect(result.current).toBe(initial)
+    rerender({
+      items: [
+        { id: 'b', text: 'second' },
+        { id: 'a', text: 'updated' }
+      ]
+    })
+    expect(result.current).not.toBe(initial)
+  })
+
+  it('collapses the last square row while its square exits', () => {
+    const { container } = render(
+      <DndContext>
+        <RoomQueueSquareGrid phase="exiting" raised={false}>
+          <RoomQueueSquare
+            participant={
+              { id: 'agent', identity: 'agent', displayName: 'Agent' } as RoomParticipant
+            }
+            count={0}
+            expanded={false}
+            targeted={false}
+            layoutSignature="|agent"
+            visible={false}
+            exitInFlow
+            droppableDisabled
+            onToggle={vi.fn()}
+            onRegister={vi.fn()}
+          />
+        </RoomQueueSquareGrid>
+      </DndContext>
+    )
+
+    const grid = container.firstElementChild as HTMLElement
+    expect(grid.classList.contains('grid-rows-[0fr]')).toBe(true)
+    expect(grid.classList.contains('overflow-hidden')).toBe(true)
+    expect((grid.firstElementChild as HTMLElement).style.position).toBe('')
+  })
+
   it('renders short and long formatted previews on one clamped line', () => {
     const { rerender } = render(<QueuedMessageCard item={{ id: 'a', text: 'ping A' }} />)
     expect(screen.getByText('ping A')).toBeTruthy()
@@ -119,5 +179,25 @@ describe('QueuedMessageCard', () => {
     fireEvent.click(await screen.findByText('Edit'))
 
     expect(screen.getByRole('textbox')).toBeTruthy()
+  })
+
+  it('suppresses a transferred row without an exit-frame flash', () => {
+    const { rerender } = render(
+      <DndContext>
+        <QueuedMessagePresence items={[{ id: 'moving', text: 'moving' }]}>
+          {(item) => <QueuedMessageCard item={item} />}
+        </QueuedMessagePresence>
+      </DndContext>
+    )
+    expect(screen.getByText('moving')).toBeTruthy()
+
+    rerender(
+      <DndContext>
+        <QueuedMessagePresence items={[]} suppressExitId="moving">
+          {(item) => <QueuedMessageCard item={item} />}
+        </QueuedMessagePresence>
+      </DndContext>
+    )
+    expect(screen.queryByText('moving')).toBeNull()
   })
 })

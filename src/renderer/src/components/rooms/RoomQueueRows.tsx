@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { RoomData } from './use-room-data'
 import type { QueuedMessageItem } from '../native-chat/QueuedMessageCard'
+import type { RoomMessage } from '../../../../shared/rooms'
 import { RoomQueuedMessageCard } from './RoomQueuedMessageCard'
 import { activeMessageDeliveries } from './room-queue-state'
 import { roomRpc } from '@/runtime/runtime-rooms-client'
@@ -84,7 +85,7 @@ export function RoomDirectedQueueRow({
   participantId: string
   report: (error: unknown) => void
   inlineEdit?: boolean
-  onEditInComposer?: () => void
+  onEditInComposer?: (message: RoomMessage) => void
 }): React.JSX.Element | null {
   const [steering, setSteering] = useState(false)
   const delivery = data.deliveries[item.id]
@@ -116,7 +117,7 @@ export function RoomDirectedQueueRow({
               }).catch(report)
           : undefined
       }
-      onEditInComposer={onEditInComposer}
+      onEditInComposer={onEditInComposer ? () => onEditInComposer(message) : undefined}
       onRemove={
         data.snapshot?.deliveryQueueMutationVersion === 1
           ? () =>

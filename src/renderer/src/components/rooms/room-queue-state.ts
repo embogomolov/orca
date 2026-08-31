@@ -1,5 +1,6 @@
 import { arrayMove } from '@dnd-kit/sortable'
 import type { RoomData } from './use-room-data'
+import type { RoomQueueAction } from './room-queue-drop-lifecycle'
 import {
   agentPendingQueue,
   isMessageMutable,
@@ -11,6 +12,7 @@ import {
   type RoomQueueState
 } from './room-queue-projection'
 export * from './room-queue-projection'
+export * from './room-queue-drop-lifecycle'
 
 export function buildSharedReorder(
   state: RoomQueueState,
@@ -26,6 +28,26 @@ export function buildSharedReorder(
     return null
   }
   return arrayMove(state.queueableMessageIds, from, to)
+}
+
+export function buildSharedInsert(
+  state: RoomQueueState,
+  messageId: string,
+  overMessageId: string | null,
+  after: boolean
+): string[] | null {
+  if (
+    !state.queueableMessageIds.includes(messageId) ||
+    (overMessageId !== null && !state.sharedPendingIds.includes(overMessageId))
+  ) {
+    return null
+  }
+  const remaining = state.queueableMessageIds.filter((id) => id !== messageId)
+  const overIndex = overMessageId === null ? remaining.length : remaining.indexOf(overMessageId)
+  if (overIndex === -1) {
+    return null
+  }
+  return remaining.toSpliced(overIndex + (after && overMessageId !== null ? 1 : 0), 0, messageId)
 }
 
 const directedPendingIds = (state: RoomQueueState, participantId: string): string[] =>
@@ -93,23 +115,13 @@ export function buildDormantAgentInsert(
   return full.toSpliced(full.indexOf(over), 0, dormant).map((delivery) => delivery.id)
 }
 
-export type RoomQueueAction =
-  | { type: 'retarget'; messageId: string; participantIds: string[] }
-  | { type: 'reorderShared'; messageIds: string[]; movedMessageId: string }
-  | {
-      type: 'reorderAgent'
-      participantId: string
-      deliveryIds: string[]
-      movedDeliveryId: string
-    }
-  | { type: 'directAndPlace'; messageId: string; participantId: string; deliveryIds: string[] }
-
 /** Map a drop (active row id, resolved over id) to the exact backend actions. */
 export function resolveRoomQueueDrop(
   data: RoomData,
   state: RoomQueueState,
   activeId: string,
-  overId: string | null
+  overId: string | null,
+  sharedPlacement?: { overMessageId: string | null; after: boolean }
 ): RoomQueueAction[] {
   if (!overId) {
     return []
@@ -153,6 +165,23 @@ export function resolveRoomQueueDrop(
       const activeDelivery = data.deliveries[activeId]
       if (!activeDelivery) {
         return []
+      }
+      if (data.snapshot?.broadcastQueuePlacementVersion === 1 && sharedPlacement) {
+        const messageIds = buildSharedInsert(
+          state,
+          activeDelivery.messageId,
+          sharedPlacement.overMessageId,
+          sharedPlacement.after
+        )
+        if (messageIds) {
+          return [
+            {
+              type: 'broadcastAndPlace',
+              messageIds,
+              messageId: activeDelivery.messageId
+            }
+          ]
+        }
       }
       return [{ type: 'retarget', messageId: activeDelivery.messageId, participantIds: allIds }]
     }

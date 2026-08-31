@@ -1800,11 +1800,11 @@ html.native-shell .app-layout {
 }
 
 .room-activity-disclosure-content[data-state='open'] {
-  animation: collapsible-down 200ms ease;
+  animation: room-activity-disclosure-down 200ms ease;
 }
 
 .room-activity-disclosure-content[data-state='closed'] {
-  animation: collapsible-up 200ms ease;
+  animation: room-activity-disclosure-up 200ms ease;
 }
 
 .room-activity-stack-sheet {
@@ -1834,7 +1834,7 @@ html.native-shell .app-layout {
   }
 }
 
-@keyframes collapsible-down {
+@keyframes room-activity-disclosure-down {
   from {
     height: 0;
     opacity: 0;
@@ -1846,7 +1846,7 @@ html.native-shell .app-layout {
   }
 }
 
-@keyframes collapsible-up {
+@keyframes room-activity-disclosure-up {
   from {
     height: var(--radix-collapsible-content-height);
     opacity: 1;
