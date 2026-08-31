@@ -1,7 +1,7 @@
 /* @vitest-environment happy-dom */
 
 import { DndContext } from '@dnd-kit/core'
-import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -11,7 +11,8 @@ import { RoomQueuedMessageCard } from '../rooms/RoomQueuedMessageCard'
 import {
   RoomQueueSquare,
   RoomQueueSquareGrid,
-  RoomQueueSquareOverlay
+  RoomQueueSquareOverlay,
+  RoomQueueSquareTargets
 } from '../rooms/RoomQueueSquare'
 import type { RoomData } from '../rooms/use-room-data'
 import type { RoomParticipant } from '../../../../shared/rooms'
@@ -77,10 +78,10 @@ describe('QueuedMessageCard', () => {
     expect(result.current).not.toBe(initial)
   })
 
-  it('collapses the last square row while its square exits', () => {
-    const { container } = render(
+  it('uses one square through hidden, preview, and full queue states', async () => {
+    const square = (reveal: 'hidden' | 'preview' | 'full') => (
       <DndContext>
-        <RoomQueueSquareGrid phase="exiting" raised={false}>
+        <RoomQueueSquareGrid phase={reveal === 'hidden' ? 'exiting' : 'visible'} raised={false}>
           <RoomQueueSquare
             participant={
               { id: 'agent', identity: 'agent', displayName: 'Agent' } as RoomParticipant
@@ -89,20 +90,134 @@ describe('QueuedMessageCard', () => {
             expanded={false}
             targeted={false}
             layoutSignature="|agent"
-            visible={false}
+            reveal={reveal}
             exitInFlow
             droppableDisabled
             onToggle={vi.fn()}
             onRegister={vi.fn()}
+            onRegisterFull={vi.fn()}
           />
         </RoomQueueSquareGrid>
       </DndContext>
     )
+    const { container, rerender } = render(square('hidden'))
 
     const grid = container.firstElementChild as HTMLElement
-    expect(grid.classList.contains('grid-rows-[0fr]')).toBe(true)
-    expect(grid.classList.contains('overflow-hidden')).toBe(true)
-    expect((grid.firstElementChild as HTMLElement).style.position).toBe('')
+    const card = grid.firstElementChild as HTMLElement
+    expect(card.style.height).toBe('0px')
+    expect(card.style.position).toBe('')
+
+    rerender(square('preview'))
+    await waitFor(() => expect(card.style.height).toBe('27px'))
+    const clip = card.querySelector('[data-room-queue-square-clip]') as HTMLElement
+    const button = screen.getByRole('button', { name: /Queue of/ })
+    expect(card.classList.contains('overflow-hidden')).toBe(false)
+    expect(card.classList.contains('rounded-lg')).toBe(false)
+    expect(clip.classList.contains('overflow-hidden')).toBe(true)
+    expect(clip.classList.contains('room-queue-preview-mask--active')).toBe(true)
+    expect(button.classList.contains('size-[108px]')).toBe(true)
+
+    rerender(square('full'))
+    expect(card.style.height).toBe('108px')
+    expect(clip.classList.contains('room-queue-preview-mask--active')).toBe(false)
+  })
+
+  it('previews an empty target area and expands every square together', async () => {
+    const participants = [
+      { id: 'queued', identity: 'queued', displayName: 'Queued' },
+      { id: 'empty', identity: 'empty', displayName: 'Empty' }
+    ] as RoomParticipant[]
+    const squareElements = new Map<string, HTMLElement>()
+    const fullSquareElements = new Map<string, HTMLButtonElement>()
+    const targets = (entered: boolean, hasQueuedMessage: boolean) => (
+      <DndContext>
+        <RoomQueueSquareTargets
+          participants={participants}
+          desiredIds={new Set(['queued', 'empty'])}
+          directedRows={(id) => (hasQueuedMessage && id === 'queued' ? [{}] : [])}
+          expandedId={null}
+          keptSquareId={null}
+          hoveredSquareId={null}
+          phase="visible"
+          dragging
+          previewingSharedDrag
+          squareTargetsEntered={entered}
+          squareElements={squareElements}
+          fullSquareElements={fullSquareElements}
+          onOpen={vi.fn()}
+          onClose={vi.fn()}
+          onExited={vi.fn()}
+        />
+      </DndContext>
+    )
+    const { container, rerender } = render(targets(false, true))
+    const [queued, empty] = screen.getAllByRole('button', { name: /Queue of/ })
+    const queuedFrame = queued.parentElement?.parentElement
+    const emptyClip = empty.parentElement
+    const emptyFrame = empty.parentElement?.parentElement
+
+    await waitFor(() => expect(queuedFrame?.style.height).toBe('108px'))
+    expect(emptyFrame?.style.height).toBe('108px')
+    expect(emptyClip?.classList.contains('room-queue-preview-mask--active')).toBe(false)
+    expect(container.querySelectorAll('[data-room-queue-preview-edge]')).toHaveLength(0)
+
+    rerender(targets(false, false))
+    expect(queuedFrame?.style.height).toBe('27px')
+    expect(emptyFrame?.style.height).toBe('27px')
+    expect(emptyClip?.classList.contains('room-queue-preview-mask--active')).toBe(true)
+
+    rerender(targets(true, false))
+    expect(queuedFrame?.style.height).toBe('108px')
+    expect(emptyFrame?.style.height).toBe('108px')
+    expect(emptyClip?.classList.contains('room-queue-preview-mask--active')).toBe(false)
+
+    rerender(targets(false, false))
+    expect(queuedFrame?.style.height).toBe('27px')
+    expect(emptyFrame?.style.height).toBe('27px')
+    expect(emptyClip?.classList.contains('room-queue-preview-mask--active')).toBe(true)
+  })
+
+  it('expands an idle preview before opening an individual queue', async () => {
+    const participant = {
+      id: 'queued',
+      identity: 'queued',
+      displayName: 'Queued'
+    } as RoomParticipant
+    const onOpen = vi.fn()
+    const targets = () => (
+      <DndContext>
+        <RoomQueueSquareTargets
+          participants={[participant]}
+          desiredIds={new Set(['queued'])}
+          directedRows={() => [{}]}
+          expandedId={null}
+          keptSquareId={null}
+          hoveredSquareId={null}
+          phase="visible"
+          dragging={false}
+          previewingSharedDrag={false}
+          squareTargetsEntered={false}
+          squareElements={new Map()}
+          fullSquareElements={new Map()}
+          onOpen={onOpen}
+          onClose={vi.fn()}
+          onExited={vi.fn()}
+        />
+      </DndContext>
+    )
+    render(targets())
+    const button = screen.getByRole('button', { name: /Queue of/ })
+    const frame = button.parentElement?.parentElement
+
+    await waitFor(() => expect(frame?.style.height).toBe('27px'))
+    fireEvent.click(button)
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(frame?.style.height).toBe('108px')
+    fireEvent.click(button)
+    expect(onOpen).toHaveBeenCalledWith('queued')
+
+    fireEvent.pointerDown(document.body, { button: 0, clientX: 1000, clientY: 1000 })
+    expect(frame?.style.height).toBe('27px')
   })
 
   it('renders short and long formatted previews on one clamped line', () => {

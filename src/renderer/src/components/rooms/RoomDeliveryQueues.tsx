@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import type { RoomData } from './use-room-data'
 import type { QueuedMessageItem } from '../native-chat/QueuedMessageCard'
 import { useQueuedMessageContainerPresence } from '../native-chat/QueuedMessageList'
-import { RoomQueueSquare, RoomQueueSquareGrid } from './RoomQueueSquare'
+import { RoomQueueSquareGrid, RoomQueueSquareTargets } from './RoomQueueSquare'
 import { RoomDirectedQueueOverlay } from './RoomDirectedQueueOverlay'
 import { RoomQueueDragOverlay } from './RoomQueueDragOverlay'
 import { showRoomActionError } from './room-action-error'
@@ -48,8 +48,8 @@ import {
   roomQueueDropTarget,
   roomQueueLongPressTarget,
   roomQueuePointerForDrag,
-  roomQueueSquareDropDisabled,
   pointInRect,
+  roomQueuePointInSquareBounds,
   trackRoomQueuePointer,
   updateRoomQueueLongPress,
   type RoomQueueLongPressState,
@@ -69,6 +69,8 @@ export function RoomDeliveryQueues({
 }): React.JSX.Element | null {
   const state = useMemo(() => computeRoomQueueState(data), [data])
   const [dragging, setDragging] = useState(false)
+  const [pointerDragging, setPointerDragging] = useState(false)
+  const [squareTargetsEntered, setSquareTargetsEntered] = useState(false)
   const [activeDragItem, setActiveDragItem] = useState<QueuedMessageItem | null>(null)
   const [sharedPlacement, setSharedPlacement] = useState<RoomSharedQueuePlacement | null>(null)
   const [hoveredSquareId, setHoveredSquareId] = useState<string | null>(null)
@@ -76,6 +78,8 @@ export function RoomDeliveryQueues({
   const [closingId, setClosingId] = useState<string | null>(null)
   const [keptSquareId, setKeptSquareId] = useState<string | null>(null)
   const settlingDragId = dragging ? null : activeDragItem?.id
+  const previewingSharedDrag =
+    dragging && pointerDragging && parseSharedRowId(activeDragItem?.id ?? '') !== null
   useEffect(() => {
     if (isRoomQueueTransferSettled(state, settlingDragId)) {
       setActiveDragItem(null)
@@ -85,7 +89,8 @@ export function RoomDeliveryQueues({
   const dragBrowseActive = useRef(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastPointer = useRef<RoomQueuePointer | null>(null)
-  const squareElements = useRef(new Map<string, HTMLButtonElement>())
+  const squareElements = useRef(new Map<string, HTMLElement>())
+  const fullSquareElements = useRef(new Map<string, HTMLButtonElement>())
   const overlayRef = useRef<HTMLDivElement | null>(null)
   const queueAreaRef = useRef<HTMLDivElement | null>(null)
   const sharedZoneRef = useRef<HTMLDivElement | null>(null)
@@ -141,9 +146,6 @@ export function RoomDeliveryQueues({
     return null
   }
   const { participants, squares } = squarePresence
-  const squareLayoutSignature = `${[...squarePresence.desiredIds].join(':')}|${squares
-    .map((participant) => participant.id)
-    .join(':')}`
 
   const supportsEdit = data.snapshot?.queueComposerEditVersion === 1
   const sharedItems = roomSharedQueueItems(data, state, editing?.message.id).filter(
@@ -162,10 +164,11 @@ export function RoomDeliveryQueues({
     setExpandedId(participantId)
   }
 
-  const onDragStart = ({ active }: DragStartEvent): void => {
+  const onDragStart = ({ active, activatorEvent }: DragStartEvent): void => {
     clearLongPress()
     dragBrowseActive.current = expandedId !== null
     setHoveredSquareId(null)
+    setSquareTargetsEntered(false)
     sharedPlacementRef.current = null
     setSharedPlacement(null)
     const id = String(active.id)
@@ -183,6 +186,7 @@ export function RoomDeliveryQueues({
       canEdit: false,
       canRemove: false
     })
+    setPointerDragging(roomQueuePointerForDrag({ activatorEvent }, lastPointer.current) !== null)
     setDragging(true)
   }
   const updateSharedPlacement = (event: DragMoveEvent | DragOverEvent): void => {
@@ -201,6 +205,15 @@ export function RoomDeliveryQueues({
     )
   }
   const updateDragHover = (event: DragMoveEvent | DragOverEvent): void => {
+    const point = roomQueuePointerForDrag(event, lastPointer.current)
+    const pointInOverlay = Boolean(
+      point && overlayRef.current && pointInRect(point, overlayRef.current.getBoundingClientRect())
+    )
+    if (previewingSharedDrag && point && !pointInOverlay) {
+      const elements = squareTargetsEntered ? fullSquareElements.current : squareElements.current
+      const entered = roomQueuePointInSquareBounds(point, elements)
+      setSquareTargetsEntered((current) => (current === entered ? current : entered))
+    }
     const targetId = roomQueueLongPressTarget({
       activatorEvent: event.activatorEvent,
       point: lastPointer.current,
@@ -221,12 +234,7 @@ export function RoomDeliveryQueues({
       return
     }
     clearLongPress()
-    const point = roomQueuePointerForDrag(event, lastPointer.current)
-    if (
-      point &&
-      overlayRef.current &&
-      pointInRect(point, overlayRef.current.getBoundingClientRect())
-    ) {
+    if (pointInOverlay) {
       return
     }
     if (
@@ -246,6 +254,8 @@ export function RoomDeliveryQueues({
     clearLongPress()
     dragBrowseActive.current = false
     setHoveredSquareId(null)
+    setPointerDragging(false)
+    setSquareTargetsEntered(false)
     setDragging(false)
     if (!keepActiveItem) {
       setActiveDragItem(null)
@@ -340,32 +350,23 @@ export function RoomDeliveryQueues({
           <div ref={queueAreaRef} className="relative mx-auto w-full max-w-4xl">
             <RoomQueueSquareGrid phase={squarePresence.phase} raised={draggingDirected}>
               <div className="min-h-0 overflow-hidden">
-                <div className="relative flex flex-wrap items-center justify-center gap-2">
-                  {squares.map((participant) => (
-                    <RoomQueueSquare
-                      key={participant.id}
-                      participant={participant}
-                      count={directedRows(participant.id).length}
-                      expanded={expandedId === participant.id}
-                      targeted={hoveredSquareId === participant.id}
-                      layoutSignature={squareLayoutSignature}
-                      visible={squarePresence.desiredIds.has(participant.id)}
-                      exitInFlow={squarePresence.phase === 'exiting'}
-                      droppableDisabled={roomQueueSquareDropDisabled(participant.id, expandedId)}
-                      onToggle={() =>
-                        expandedId === participant.id ? closeSquare() : openSquare(participant.id)
-                      }
-                      onRegister={(element) => {
-                        if (element && squarePresence.desiredIds.has(participant.id)) {
-                          squareElements.current.set(participant.id, element)
-                        } else {
-                          squareElements.current.delete(participant.id)
-                        }
-                      }}
-                      onExited={() => squarePresence.removeExited(participant.id)}
-                    />
-                  ))}
-                </div>
+                <RoomQueueSquareTargets
+                  participants={squares}
+                  desiredIds={squarePresence.desiredIds}
+                  directedRows={directedRows}
+                  expandedId={expandedId}
+                  keptSquareId={keptSquareId}
+                  hoveredSquareId={hoveredSquareId}
+                  phase={squarePresence.phase}
+                  dragging={dragging}
+                  previewingSharedDrag={previewingSharedDrag}
+                  squareTargetsEntered={squareTargetsEntered}
+                  squareElements={squareElements.current}
+                  fullSquareElements={fullSquareElements.current}
+                  onOpen={openSquare}
+                  onClose={closeSquare}
+                  onExited={squarePresence.removeExited}
+                />
               </div>
             </RoomQueueSquareGrid>
             <SharedQueueZone refCallback={registerSharedZone}>

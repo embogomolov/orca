@@ -11,6 +11,7 @@ import {
   roomQueueCollision,
   roomQueueDropTarget,
   roomQueueLongPressTarget,
+  roomQueuePointInSquareBounds,
   roomQueuePointerForDrag,
   roomQueueSquareAtPointer,
   roomQueueSquareDropDisabled,
@@ -242,6 +243,21 @@ describe('room queue collision detection', () => {
     expect(opened).toHaveBeenCalledTimes(2)
     expect(opened).toHaveBeenLastCalledWith('agent-b')
     vi.useRealTimers()
+  })
+
+  it('treats the full square group, including gaps, as one reveal target', () => {
+    const first = document.createElement('div')
+    first.getBoundingClientRect = () => rect(200, 0, 100, 27) as DOMRect
+    const second = document.createElement('div')
+    second.getBoundingClientRect = () => rect(320, 0, 100, 27) as DOMRect
+    const squares = new Map([
+      ['first', first],
+      ['second', second]
+    ])
+
+    expect(roomQueuePointInSquareBounds({ x: 310, y: 20 }, squares)).toBe(true)
+    expect(roomQueuePointInSquareBounds({ x: 310, y: 40 }, squares)).toBe(false)
+    expect(roomQueuePointInSquareBounds({ x: 190, y: 20 }, squares)).toBe(false)
   })
 })
 

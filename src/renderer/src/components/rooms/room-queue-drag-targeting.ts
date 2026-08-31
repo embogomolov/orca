@@ -21,7 +21,10 @@ export type RoomQueueOverlaySurface = {
   itemIds: ReadonlySet<string>
 }
 
-export function pointInRect(point: RoomQueuePointer, rect: DOMRect): boolean {
+export function pointInRect(
+  point: RoomQueuePointer,
+  rect: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>
+): boolean {
   return (
     point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
   )
@@ -29,7 +32,7 @@ export function pointInRect(point: RoomQueuePointer, rect: DOMRect): boolean {
 
 export function roomQueueSquareAtPointer(
   point: RoomQueuePointer,
-  squares: ReadonlyMap<string, HTMLButtonElement>
+  squares: ReadonlyMap<string, HTMLElement>
 ): string | null {
   for (const [participantId, square] of squares) {
     if (pointInRect(point, square.getBoundingClientRect())) {
@@ -39,10 +42,26 @@ export function roomQueueSquareAtPointer(
   return null
 }
 
+export function roomQueuePointInSquareBounds(
+  point: RoomQueuePointer,
+  squares: ReadonlyMap<string, HTMLElement>
+): boolean {
+  const rects = [...squares.values()].map((square) => square.getBoundingClientRect())
+  if (rects.length === 0) {
+    return false
+  }
+  return pointInRect(point, {
+    left: Math.min(...rects.map((rect) => rect.left)),
+    right: Math.max(...rects.map((rect) => rect.right)),
+    top: Math.min(...rects.map((rect) => rect.top)),
+    bottom: Math.max(...rects.map((rect) => rect.bottom))
+  })
+}
+
 export function roomQueueLongPressTarget(input: {
   activatorEvent: Event
   point: RoomQueuePointer | null
-  squares: ReadonlyMap<string, HTMLButtonElement>
+  squares: ReadonlyMap<string, HTMLElement>
   overlay?: RoomQueueOverlaySurface
 }): string | null {
   const point = roomQueuePointerForDrag(input, input.point)
@@ -95,7 +114,7 @@ export function roomQueuePointerForDrag(
 export function roomQueueDropTarget(
   event: { activatorEvent: Event; over: { id: string | number } | null },
   lastPointer: RoomQueuePointer | null,
-  squares: ReadonlyMap<string, HTMLButtonElement>,
+  squares: ReadonlyMap<string, HTMLElement>,
   overlay: RoomQueueOverlaySurface,
   sharedElement: HTMLDivElement | null
 ): string | null {
