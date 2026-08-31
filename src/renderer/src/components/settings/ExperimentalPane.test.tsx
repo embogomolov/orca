@@ -230,6 +230,7 @@ describe('ExperimentalPane', () => {
     )
     expect(disabledMarkup).toContain('Chat UI')
     expect(disabledMarkup).not.toContain('Use updated structured native chat')
+    expect(disabledMarkup).not.toContain('Live steering in rooms')
     expect(disabledMarkup).not.toContain('Default view')
 
     const terminalDefault = {
@@ -250,6 +251,7 @@ describe('ExperimentalPane', () => {
     ).not.toBeNull()
     // Structured chat has no entry path under Terminal chat, so its opt-in is not offered.
     expect(terminalRender.container.textContent).not.toContain('Use updated structured native chat')
+    expect(terminalRender.container.textContent).not.toContain('Live steering in rooms')
     terminalRender.root.unmount()
 
     const { root, container } = await renderExperimentalPane({
@@ -258,10 +260,38 @@ describe('ExperimentalPane', () => {
     })
 
     expect(container.textContent).toContain('Use updated structured native chat')
+    expect(container.textContent).not.toContain('Live steering in rooms')
     expect(container.textContent).toContain(
       'Local macOS and Linux sessions only for now. Windows, WSL, and remote execution hosts (including SSH) continue to use terminal chat.'
     )
     expect(container.textContent).toContain('Default view')
+    root.unmount()
+  })
+
+  it('shows and updates room live steering only with structured native chat enabled', async () => {
+    const updateSettings = vi.fn()
+    const settings = {
+      ...getDefaultSettings('/tmp'),
+      experimentalNativeChat: true,
+      experimentalStructuredNativeChat: true,
+      experimentalRoomLiveSteering: false,
+      openAgentTabsInChatByDefault: true
+    }
+    const { root, container } = await renderExperimentalPane({ updateSettings, settings })
+
+    expect(container.textContent).toContain('Live steering in rooms')
+    const liveSteeringSwitch = container.querySelector<HTMLButtonElement>(
+      'button[role="switch"][aria-label="Toggle live steering in rooms"]'
+    )
+    if (!liveSteeringSwitch) {
+      throw new Error('Room live steering switch was not rendered')
+    }
+
+    await act(async () => {
+      liveSteeringSwitch.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(updateSettings).toHaveBeenCalledWith({ experimentalRoomLiveSteering: true })
     root.unmount()
   })
 

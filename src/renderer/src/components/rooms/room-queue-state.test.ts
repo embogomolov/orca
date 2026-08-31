@@ -203,7 +203,7 @@ describe('computeRoomQueueState', () => {
     expect(agentPendingQueue(data, 'b')).toEqual([])
   })
 
-  it('keeps agent-authored deliveries directed when they cover every active participant', () => {
+  it('keeps agent-authored deliveries out of user-managed queues', () => {
     const agentMessage = message('m1', 1, { actorKind: 'agent', senderIdentity: 'author' })
     const data = roomData(
       [
@@ -222,8 +222,10 @@ describe('computeRoomQueueState', () => {
     const state = computeRoomQueueState(data)!
 
     expect(state.shared).toEqual([])
-    expect(state.directed.get('a')?.map(({ id }) => id)).toEqual(['d1a'])
-    expect(state.directed.get('b')?.map(({ id }) => id)).toEqual(['d1b'])
+    expect(state.directed.get('a')).toEqual([])
+    expect(state.directed.get('b')).toEqual([])
+    expect(state.queueableMessageIds).toEqual([])
+    expect(agentPendingQueue(data, 'a')).toEqual([])
     expect(sharedSteerEligible(data, state, 'm1')).toBe(false)
   })
 

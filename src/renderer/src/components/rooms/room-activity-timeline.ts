@@ -95,7 +95,16 @@ export function settledRoomActivity(metadata: Record<string, unknown>): RoomSett
   ) {
     return null
   }
-  return activity as RoomSettledActivity
+  return {
+    ...(activity as RoomSettledActivity),
+    messages: activity.messages.filter(
+      (message) =>
+        message.timestamp === null ||
+        (Number.isFinite(message.timestamp) &&
+          message.timestamp >= activity.startedAt! &&
+          message.timestamp <= activity.completedAt!)
+    )
+  }
 }
 
 export function roomFinalFadeId(participantId: string, startedAt: number): string {

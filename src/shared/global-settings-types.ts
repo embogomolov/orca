@@ -207,6 +207,8 @@ export type GlobalSettings = {
   experimentalNativeChat?: boolean
   /** Opt-in updated structured runtime; off keeps the existing PTY-backed native chat path. */
   experimentalStructuredNativeChat?: boolean
+  /** Automatically steer agent-authored room messages into active machine turns. */
+  experimentalRoomLiveSteering?: boolean
   /** Last explicit native-chat model + option selections; live panes need an applied/dispatched record before showing a value. */
   nativeChatSessionOptions?: PersistedNativeChatSessionOptions
   /** Extra launcher rows for the worktree "Open in" submenu. VS Code is always shown first. */

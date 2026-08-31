@@ -124,6 +124,7 @@ export type RoomHarnessRuntime = {
   ): Promise<string>
   cleanupDeletedRoomResources?(manifest: RoomDeletionManifest): Promise<void>
   ensureStructuredAgentSessionHost?(): Promise<void>
+  roomLiveSteeringEnabled?(): boolean
   resolveStructuredAgentSessionCreateIntent?(input: {
     envelope: { sessionId: string; clientOperationId: string }
     worktree: string

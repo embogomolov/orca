@@ -46,7 +46,7 @@ export function reorderRoomBroadcastQueue(
          WHERE m.room_id = ? AND (
            d.state = 'pending' OR
            (d.state = 'suppressed' AND d.error = 'room_stopped' AND d.attempts = 0 AND d.intent = 'next')
-         ) AND m.queue_edit_token IS NULL
+         ) AND m.actor_kind = 'user' AND m.queue_edit_token IS NULL
          ORDER BY d.queue_position, m.sequence`
       )
       .all(roomId) as RoomRow[]

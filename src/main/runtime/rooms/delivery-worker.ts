@@ -14,6 +14,7 @@ import { claimReadyRoomBroadcast } from './delivery-broadcast-dispatch'
 import { scheduleRoomDeliveryDrain } from './delivery-scheduler'
 import { assertCurrentRoomDelivery, isRoomDeliveryMissing } from './delivery-current-guard'
 import { RoomDeliveryGate, type RoomDeliveryFence } from './delivery-room-gate'
+import { runRoomAutoSteer } from './delivery-auto-steer'
 
 export class RoomDeliveryWorker {
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -30,7 +31,8 @@ export class RoomDeliveryWorker {
     private readonly attachments: RoomAttachmentManager,
     private readonly emit: (roomId: string, event: RoomEvent) => void,
     private readonly ensureParticipantReady: (participantId: string) => Promise<RoomParticipant>,
-    confirmDeadlineMs = 30_000
+    confirmDeadlineMs = 30_000,
+    private readonly liveSteeringEnabled: () => boolean = () => false
   ) {
     this.confirmations = new RoomDeliveryConfirmations(
       db,
@@ -121,6 +123,18 @@ export class RoomDeliveryWorker {
         this.rerun = false
         let claimedAny = false
         let busyCandidate = false
+        if (this.liveSteeringEnabled()) {
+          const autoSteer = await runRoomAutoSteer(
+            this.db,
+            this.adapters,
+            this.gate.blockedRoomIds(),
+            this.requestRoomFence.bind(this),
+            (delivery, steer) => this.deliver(delivery, steer, false),
+            this.track.bind(this)
+          )
+          claimedAny = autoSteer.claimedAny
+          busyCandidate = autoSteer.busyCandidate
+        }
         const due = this.db.messages.deliveries.listDue(Date.now(), 100, this.gate.blockedRoomIds())
         const handledBroadcasts = new Set<string>()
         for (const candidate of due) {
@@ -187,7 +201,11 @@ export class RoomDeliveryWorker {
     }
   }
 
-  private async deliver(delivery: RoomDelivery, steer = false): Promise<void> {
+  private async deliver(
+    delivery: RoomDelivery,
+    steer = false,
+    moveRejectedSteerToHead = true
+  ): Promise<void> {
     const message = this.db.messages.get(delivery.messageId)
     let target = this.db.participants.get(delivery.participantId)
     this.emit(message.roomId, { type: 'delivery.updated', delivery })
@@ -274,7 +292,12 @@ export class RoomDeliveryWorker {
       const messageText = error instanceof Error ? error.message : String(error)
       const uncertain = messageText === 'conversation_steer_uncertain'
       if (steer && !uncertain) {
-        const queued = this.db.messages.deliveries.returnSteerToNext(delivery.id, messageText)
+        const queued = this.db.messages.deliveries.returnSteerToNext(
+          delivery.id,
+          messageText,
+          Date.now(),
+          moveRejectedSteerToHead
+        )
         this.emit(message.roomId, { type: 'delivery.updated', delivery: queued })
         throw new Error(messageText)
       }

@@ -9,7 +9,7 @@ import {
   stopRoomDeliveries,
   supersedeRoomStop
 } from './delivery-work-control'
-import { listRoomDue, nextRoomDueAt } from './delivery-due-queries'
+import { listRoomAutoSteerDue, listRoomDue, nextRoomDueAt } from './delivery-due-queries'
 import { claimRoomDelivery } from './delivery-claim-operations'
 import type { RoomReadyTarget } from './delivery-readiness-evidence'
 import { deferPausedRoomDelivery } from './delivery-paused-claim'
@@ -59,6 +59,14 @@ export class RoomDeliveryStore {
 
   listDue(now = Date.now(), limit = 100, excludedRoomIds: readonly string[] = []): RoomDelivery[] {
     return listRoomDue(this.db, now, limit, excludedRoomIds)
+  }
+
+  listAutoSteerDue(
+    now = Date.now(),
+    limit = 100,
+    excludedRoomIds: readonly string[] = []
+  ): RoomDelivery[] {
+    return listRoomAutoSteerDue(this.db, now, limit, excludedRoomIds)
   }
 
   nextDueAt(excludedRoomIds: readonly string[] = []): number | null {
@@ -183,8 +191,13 @@ export class RoomDeliveryStore {
     return claimRoomDelivery(this.db, id, true)
   }
 
-  returnSteerToNext(id: string, error: string | null, now = Date.now()): RoomDelivery {
-    return returnRoomSteerToNext(this.db, id, error, now)
+  returnSteerToNext(
+    id: string,
+    error: string | null,
+    now = Date.now(),
+    moveToHead = true
+  ): RoomDelivery {
+    return returnRoomSteerToNext(this.db, id, error, now, moveToHead)
   }
 
   deferPaused(delivery: RoomDelivery, now = Date.now()): RoomDelivery | null {

@@ -30,6 +30,7 @@ export type RuntimeClientSettings = Pick<
   | 'defaultLinearTeamSelection'
   | 'githubProjects'
   | 'experimentalNewWorktreeCardStyle'
+  | 'experimentalRoomLiveSteering'
   | 'compactWorktreeCards'
   | 'minimaxGroupId'
   | 'minimaxUsageModels'
@@ -53,6 +54,7 @@ export type RuntimeClientSettingsUpdate = Pick<
   | 'defaultLinearTeamSelection'
   | 'githubProjects'
   | 'experimentalNewWorktreeCardStyle'
+  | 'experimentalRoomLiveSteering'
   | 'compactWorktreeCards'
   | 'minimaxGroupId'
   | 'minimaxUsageModels'
@@ -88,6 +90,7 @@ export class RuntimeClientSettingsController {
       defaultLinearTeamSelection: settings.defaultLinearTeamSelection ?? null,
       githubProjects: settings.githubProjects,
       experimentalNewWorktreeCardStyle: settings.experimentalNewWorktreeCardStyle === true,
+      experimentalRoomLiveSteering: settings.experimentalRoomLiveSteering === true,
       compactWorktreeCards: settings.compactWorktreeCards === true,
       minimaxGroupId: settings.minimaxGroupId ?? '',
       minimaxUsageModels: settings.minimaxUsageModels ?? 'general',

@@ -69,6 +69,24 @@ describe('room activity timeline', () => {
     expect(formatRoomActivityDuration(activity.startedAt, activity.completedAt)).toBe('2m 8s')
   })
 
+  it('keeps settled activity inside its recorded turn boundaries', () => {
+    const activity = settledRoomActivity({
+      activity: {
+        state: 'completed',
+        messages: [
+          message('history', 'assistant', 999, [{ type: 'text', text: 'Old turn' }]),
+          message('start', 'assistant', 1_000, [{ type: 'text', text: 'Started' }]),
+          message('end', 'assistant', 2_000, [{ type: 'text', text: 'Finished' }]),
+          message('future', 'assistant', 2_001, [{ type: 'text', text: 'Future turn' }])
+        ],
+        startedAt: 1_000,
+        completedAt: 2_000
+      }
+    })
+
+    expect(activity?.messages.map(({ id }) => id)).toEqual(['start', 'end'])
+  })
+
   it('preserves receive order when timestamps tie', () => {
     const sections = buildRoomActivitySections([
       message('z', 'assistant', 1, [{ type: 'text', text: 'First' }]),

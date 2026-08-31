@@ -60,6 +60,14 @@ export class OrcaRuntimeWithRooms extends OrcaRuntimeWithResolveWaiter {
     return this.roomService
   }
 
+  roomLiveSteeringEnabled(): boolean {
+    const settings = this.store?.getSettings()
+    return (
+      settings?.experimentalStructuredNativeChat === true &&
+      settings.experimentalRoomLiveSteering === true
+    )
+  }
+
   setRoomService(service: RoomService): void {
     this.roomService?.close()
     this.roomService = service

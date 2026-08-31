@@ -46,7 +46,8 @@ const listRoomParticipantQueue = (
          WHERE d.participant_id = ? AND (
            d.state = 'pending' OR
            (d.state = 'suppressed' AND d.error = 'room_stopped' AND d.attempts = 0 AND d.intent = 'next')
-         ) AND m.queue_edit_token IS NULL ORDER BY d.queue_position, m.sequence`
+         ) AND m.actor_kind = 'user' AND m.queue_edit_token IS NULL
+         ORDER BY d.queue_position, m.sequence`
       )
       .all(participantId) as RoomRow[]
   ).map(deliveryFromRow)
@@ -55,20 +56,30 @@ export function returnRoomSteerToNext(
   db: SyncDatabase.Database,
   id: string,
   error: string | null,
-  now = Date.now()
+  now = Date.now(),
+  moveToHead = true
 ): RoomDelivery {
   const delivery = getDelivery(db, id)
-  const head = db
-    .prepare(
-      `SELECT COALESCE(MIN(queue_position), 0) - 1 AS position
-       FROM room_deliveries WHERE participant_id = ? AND id <> ?`
-    )
-    .get(delivery.participantId, id) as RoomRow
+  if (!moveToHead && delivery.queuePosition === undefined) {
+    throw new Error('room_delivery_queue_stale')
+  }
+  const position = moveToHead
+    ? Number(
+        (
+          db
+            .prepare(
+              `SELECT COALESCE(MIN(queue_position), 0) - 1 AS position
+               FROM room_deliveries WHERE participant_id = ? AND id <> ?`
+            )
+            .get(delivery.participantId, id) as RoomRow
+        ).position
+      )
+    : delivery.queuePosition!
   db.prepare(
     `UPDATE room_deliveries SET state = 'pending', intent = 'next', phase = NULL,
      error = ?, next_attempt_at = ?, queue_position = ?
      WHERE id = ? AND state = 'delivering' AND intent = 'steer'`
-  ).run(error, now, Number(head.position), id)
+  ).run(error, now, position, id)
   return getDelivery(db, id)
 }
 

@@ -91,7 +91,9 @@ export class RoomService {
       this.adapters,
       attachments,
       (roomId, event) => this.emitEvent(roomId, event),
-      (participantId) => this.participantController.ensureReady(participantId)
+      (participantId) => this.participantController.ensureReady(participantId),
+      undefined,
+      () => runtime.roomLiveSteeringEnabled?.() === true
     )
     this.messageController = new RoomMessageController(
       this.db,
@@ -143,6 +145,10 @@ export class RoomService {
     this.archiveTransfers.clear()
     this.attachmentTransfers.clear()
     this.db.close()
+  }
+
+  wakeDeliveries(): void {
+    this.deliveryWorker.wake()
   }
 
   createRoom(input: Parameters<RoomDatabase['createRoom']>[0]): RoomSnapshot {

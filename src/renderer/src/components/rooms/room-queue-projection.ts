@@ -181,7 +181,9 @@ export function computeRoomQueueState(data: RoomData): RoomQueueState | null {
     (participant) => participant.actorKind === 'agent' && participant.participation === 'active'
   )
   const messageById = new Map(
-    data.messages.filter((message) => !message.queueEditing).map((message) => [message.id, message])
+    data.messages
+      .filter((message) => message.actorKind === 'user' && !message.queueEditing)
+      .map((message) => [message.id, message])
   )
   const deliveries = Object.values(data.deliveries).filter((delivery) =>
     messageById.has(delivery.messageId)
@@ -274,8 +276,16 @@ export function computeRoomQueueState(data: RoomData): RoomQueueState | null {
 
 export function agentPendingQueue(data: RoomData, participantId: string): RoomDelivery[] {
   const sequence = new Map(data.messages.map((message) => [message.id, message.sequence]))
+  const userMessageIds = new Set(
+    data.messages.filter((message) => message.actorKind === 'user').map((message) => message.id)
+  )
   return Object.values(data.deliveries)
-    .filter((delivery) => delivery.participantId === participantId && isQueueableDelivery(delivery))
+    .filter(
+      (delivery) =>
+        delivery.participantId === participantId &&
+        userMessageIds.has(delivery.messageId) &&
+        isQueueableDelivery(delivery)
+    )
     .sort(
       (a, b) =>
         (a.queuePosition ?? FALLBACK_POSITION) - (b.queuePosition ?? FALLBACK_POSITION) ||

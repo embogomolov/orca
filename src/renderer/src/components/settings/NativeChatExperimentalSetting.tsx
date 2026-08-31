@@ -115,40 +115,72 @@ export function NativeChatExperimentalSetting({
           {/* Structured chat rides the Chat UI default view; it has no entry path under Terminal
               chat. Hidden only — the opt-in keeps its persisted value for when Chat UI returns. */}
           {defaultView === 'native-chat' ? (
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 shrink space-y-0.5">
-                <Label>
-                  {translate(
-                    'auto.components.settings.ExperimentalPane.nativeChat.structuredTitle',
-                    'Use updated structured native chat'
+            <>
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 shrink space-y-0.5">
+                  <Label>
+                    {translate(
+                      'auto.components.settings.ExperimentalPane.nativeChat.structuredTitle',
+                      'Use updated structured native chat'
+                    )}
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    {translate(
+                      'auto.components.settings.ExperimentalPane.nativeChat.structuredCopy',
+                      'Opt in to the host-owned structured Codex runtime. Off keeps the existing terminal-backed chat path.'
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {translate(
+                      'auto.components.settings.ExperimentalPane.nativeChat.structuredScope',
+                      'Local macOS and Linux sessions only for now. Windows, WSL, and remote execution hosts (including SSH) continue to use terminal chat.'
+                    )}
+                  </p>
+                </div>
+                <SettingsSwitch
+                  checked={structuredNativeChatEnabled}
+                  ariaLabel={translate(
+                    'auto.components.settings.ExperimentalPane.nativeChat.structuredToggleLabel',
+                    'Toggle updated structured native chat'
                   )}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {translate(
-                    'auto.components.settings.ExperimentalPane.nativeChat.structuredCopy',
-                    'Opt in to the host-owned structured Codex runtime. Off keeps the existing terminal-backed chat path.'
-                  )}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {translate(
-                    'auto.components.settings.ExperimentalPane.nativeChat.structuredScope',
-                    'Local macOS and Linux sessions only for now. Windows, WSL, and remote execution hosts (including SSH) continue to use terminal chat.'
-                  )}
-                </p>
+                  onChange={() =>
+                    updateSettings({
+                      experimentalStructuredNativeChat: !structuredNativeChatEnabled
+                    })
+                  }
+                />
               </div>
-              <SettingsSwitch
-                checked={structuredNativeChatEnabled}
-                ariaLabel={translate(
-                  'auto.components.settings.ExperimentalPane.nativeChat.structuredToggleLabel',
-                  'Toggle updated structured native chat'
-                )}
-                onChange={() =>
-                  updateSettings({
-                    experimentalStructuredNativeChat: !structuredNativeChatEnabled
-                  })
-                }
-              />
-            </div>
+              {structuredNativeChatEnabled ? (
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 shrink space-y-0.5">
+                    <Label>
+                      {translate(
+                        'auto.components.settings.ExperimentalPane.nativeChat.liveSteeringLabel',
+                        'Live steering in rooms'
+                      )}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {translate(
+                        'auto.components.settings.ExperimentalPane.nativeChat.liveSteeringDescription',
+                        'Steer room messages into active supported turns. Other deliveries wait until the agent is idle.'
+                      )}
+                    </p>
+                  </div>
+                  <SettingsSwitch
+                    checked={settings.experimentalRoomLiveSteering === true}
+                    ariaLabel={translate(
+                      'auto.components.settings.ExperimentalPane.nativeChat.liveSteeringToggleLabel',
+                      'Toggle live steering in rooms'
+                    )}
+                    onChange={() =>
+                      updateSettings({
+                        experimentalRoomLiveSteering: settings.experimentalRoomLiveSteering !== true
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
+            </>
           ) : null}
         </div>
       ) : null}

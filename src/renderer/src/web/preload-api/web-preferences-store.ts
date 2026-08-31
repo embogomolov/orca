@@ -130,6 +130,9 @@ export async function getRuntimeBackedStoredSettings(): Promise<GlobalSettings> 
       runtimeSettings.experimentalNewWorktreeCardStyle =
         result.settings.experimentalNewWorktreeCardStyle
     }
+    if (typeof result.settings.experimentalRoomLiveSteering === 'boolean') {
+      runtimeSettings.experimentalRoomLiveSteering = result.settings.experimentalRoomLiveSteering
+    }
     if (typeof result.settings.compactWorktreeCards === 'boolean') {
       runtimeSettings.compactWorktreeCards = result.settings.compactWorktreeCards
     }
@@ -194,6 +197,9 @@ export async function syncRuntimeBackedSettings(
   }
   if (typeof updates.experimentalNewWorktreeCardStyle === 'boolean') {
     runtimeUpdates.experimentalNewWorktreeCardStyle = updates.experimentalNewWorktreeCardStyle
+  }
+  if (typeof updates.experimentalRoomLiveSteering === 'boolean') {
+    runtimeUpdates.experimentalRoomLiveSteering = updates.experimentalRoomLiveSteering
   }
   if (typeof updates.compactWorktreeCards === 'boolean') {
     runtimeUpdates.compactWorktreeCards = updates.compactWorktreeCards
