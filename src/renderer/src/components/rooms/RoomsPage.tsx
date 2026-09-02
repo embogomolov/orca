@@ -7,7 +7,6 @@ import { useShallow } from 'zustand/react/shallow'
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
 import { getActiveRuntimeTarget, settingsForRuntimeOwner } from '@/runtime/runtime-rpc-client'
-import type { RoomMessage } from '../../../../shared/rooms'
 import { getActiveSidebarWorkspaceId, parseWorkspaceKey } from '../../../../shared/workspace-scope'
 import { getWorktreeExecutionHostId } from '../../../../shared/execution-host'
 import { selectRepoByIdForActiveWorkspace, useWorktreesForRepo } from '@/store/selectors'
@@ -136,7 +135,6 @@ export default function RoomsPage({ roomId }: { roomId: string }): React.JSX.Ele
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [transferring, setTransferring] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [reply, setReply] = useState<RoomMessage | null>(null)
   const [queueEdit, setQueueEdit] = useState<RoomQueueComposerEdit | null>(null)
   useEffect(() => setQueueEdit(null), [data.roomId])
   const archiveInputRef = useRef<HTMLInputElement>(null)
@@ -250,7 +248,7 @@ export default function RoomsPage({ roomId }: { roomId: string }): React.JSX.Ele
               {data.error}
             </div>
           ) : null}
-          <RoomMessageFeed key={data.roomId ?? 'none'} data={data} onReply={setReply} />
+          <RoomMessageFeed key={data.roomId ?? 'none'} data={data} />
           {deleting ? (
             <div className="border-t border-border p-3 text-center text-xs text-muted-foreground">
               {translate('rooms.delete.deleting', 'Deleting room…')}
@@ -266,8 +264,6 @@ export default function RoomsPage({ roomId }: { roomId: string }): React.JSX.Ele
               <RoomDeliveryQueues data={data} editing={queueEdit} onEdit={setQueueEdit} />
               <RoomComposer
                 data={data}
-                reply={reply}
-                onReplyChange={setReply}
                 editing={queueEdit}
                 onEditComplete={() => setQueueEdit(null)}
               />

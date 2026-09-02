@@ -72,7 +72,7 @@ function AgentControls({
   className?: string
 }): React.JSX.Element {
   return (
-    <div className={cn('flex items-center gap-1', className)}>
+    <div className={cn('flex h-5 items-center justify-start gap-0.5', className)}>
       <NativeChatCopyButton text={markdown} />
       <button
         type="button"
@@ -141,29 +141,34 @@ export function NativeChatMessageRow({
 
   if (isUser) {
     return (
-      <div ref={rowRef} className="flex flex-col items-end gap-0.5">
-        <div className="max-w-[85%] rounded-lg rounded-tr-sm bg-muted px-3.5 py-2.5 text-sm text-foreground">
-          {renderedText ? (
-            <>
+      <div ref={rowRef} className="group flex w-full flex-col items-end justify-end gap-1">
+        <div className="flex w-full items-center justify-end gap-1">
+          <div className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            <NativeChatCopyButton text={renderedText} />
+          </div>
+          <div className="max-w-[77%] rounded-2xl bg-muted px-3 py-2 text-sm text-foreground">
+            {renderedText ? (
+              <>
+                <ImageAttachmentRefs blocks={prose} loadContext={imageLoadContext} />
+                {literalTransport !== null ? (
+                  <div className="whitespace-pre-wrap break-words">{renderedText}</div>
+                ) : (
+                  <CommentMarkdown
+                    content={renderedText}
+                    variant="document"
+                    className="text-sm"
+                    onLinkClick={onLinkClick}
+                    allowFileUriLinks={allowFileUriLinks}
+                  />
+                )}
+              </>
+            ) : (
               <ImageAttachmentRefs blocks={prose} loadContext={imageLoadContext} />
-              {literalTransport !== null ? (
-                <div className="whitespace-pre-wrap break-words">{renderedText}</div>
-              ) : (
-                <CommentMarkdown
-                  content={renderedText}
-                  variant="document"
-                  className="text-sm"
-                  onLinkClick={onLinkClick}
-                  allowFileUriLinks={allowFileUriLinks}
-                />
-              )}
-            </>
-          ) : (
-            <ImageAttachmentRefs blocks={prose} loadContext={imageLoadContext} />
-          )}
+            )}
+          </div>
         </div>
         {deliveryFailed ? (
-          <div className="max-w-[85%] text-[11px] text-destructive/80">
+          <div className="max-w-[77%] text-[11px] text-destructive/80">
             {translate(
               'components.native-chat.launchPromptNotDelivered',
               'Not delivered — check the terminal'
@@ -191,18 +196,11 @@ export function NativeChatMessageRow({
     <div
       ref={rowRef}
       className={cn(
-        'group relative max-w-full text-sm leading-relaxed text-foreground',
+        'group flex max-w-full flex-col text-sm leading-relaxed text-foreground',
         isReasoning && 'border-l-2 border-border/60 pl-3 italic text-muted-foreground',
         isSystem && 'text-xs text-muted-foreground'
       )}
     >
-      {showControls ? (
-        <AgentControls
-          markdown={renderedText}
-          onScrollToTop={scrollToTop}
-          className="absolute -top-8 right-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-        />
-      ) : null}
       <ImageAttachmentRefs blocks={prose} loadContext={imageLoadContext} />
       {renderedText ? (
         literalTransport !== null ? (
@@ -219,6 +217,13 @@ export function NativeChatMessageRow({
         )
       ) : null}
       {tools.length > 0 ? <NativeChatToolRun blocks={tools} expandSignal={expandSignal} /> : null}
+      {showControls ? (
+        <AgentControls
+          markdown={renderedText}
+          onScrollToTop={scrollToTop}
+          className="mt-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+        />
+      ) : null}
     </div>
   )
 }

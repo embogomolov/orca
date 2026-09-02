@@ -82,7 +82,7 @@ function AssistantTurnRow({
   }, [item.working, latestSteerId])
 
   return (
-    <article className="flex min-w-0 items-start gap-3">
+    <article className="flex min-w-0 items-start gap-3 py-2">
       <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-card">
         <AgentIcon agent={iconAgent} size={16} />
       </div>
@@ -307,7 +307,7 @@ export function NativeChatMessageList({
           ref={contentRef}
           // Why: same max width as the composer column; horizontal inset comes
           // from the scroll container so content aligns with the composer field.
-          className="mx-auto flex w-full max-w-4xl flex-col gap-5"
+          className="mx-auto flex w-full max-w-4xl flex-col gap-1.5"
           // Why: `zoom` scales the chat transcript's text and layout together,
           // scoped to this container so the rest of the app is untouched. It's
           // the desktop analog of the mobile pinch-zoom (Chromium/Electron only).
