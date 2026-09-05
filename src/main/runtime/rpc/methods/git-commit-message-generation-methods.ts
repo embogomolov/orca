@@ -73,17 +73,20 @@ export const GIT_COMMIT_MESSAGE_GENERATION_METHODS: RpcMethod[] = [
   defineMethod({
     name: 'git.discoverCommitMessageModels',
     params: GitDiscoverCommitMessageModels,
-    handler: async (params, { runtime }) =>
-      runtime.discoverRuntimeCommitMessageModels(
+    handler: async (params, { runtime }) => {
+      const args = [
         params.worktree,
         params.agentId,
         params.agentCmdOverrides !== undefined
           ? {
               agentCmdOverrides: params.agentCmdOverrides as GlobalSettings['agentCmdOverrides']
             }
-          : {},
-        params.includeSessionDefaults
-      )
+          : {}
+      ] as const
+      return params.includeSessionDefaults === undefined
+        ? runtime.discoverRuntimeCommitMessageModels(...args)
+        : runtime.discoverRuntimeCommitMessageModels(...args, params.includeSessionDefaults)
+    }
   }),
   defineMethod({
     name: 'git.cancelGenerateCommitMessage',

@@ -84,10 +84,19 @@ export function registerFilesystemGitModelDiscoveryHandlers(
             localDiscoveryOptions
           )
         : args.includeSessionDefaults === undefined
-          ? discoverCommitMessageModelsLocal(agentId as TuiAgent, localEnv.env, agentCommandOverride)
-          : discoverCommitMessageModelsLocal(agentId as TuiAgent, localEnv.env, agentCommandOverride, {
-              includeSessionDefaults: args.includeSessionDefaults
-            })
+          ? discoverCommitMessageModelsLocal(
+              agentId as TuiAgent,
+              localEnv.env,
+              agentCommandOverride
+            )
+          : discoverCommitMessageModelsLocal(
+              agentId as TuiAgent,
+              localEnv.env,
+              agentCommandOverride,
+              {
+                includeSessionDefaults: args.includeSessionDefaults
+              }
+            )
     }
   )
 }
