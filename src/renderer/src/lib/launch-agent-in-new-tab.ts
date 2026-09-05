@@ -26,10 +26,11 @@ import { seedCommandCodeSubmittedPromptStatus } from '@/lib/command-code-prompt-
 import type { TuiAgent } from '../../../shared/tui-agent'
 import type { LaunchSource } from '../../../shared/telemetry-events'
 import { getConnectionIdFromState } from '@/lib/connection-context'
+import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
 import { resolveInitialNativeChatSessionOptions } from '@/components/native-chat/native-chat-launch-session-options'
 import { seedNativeChatAppliedSessionOptions } from '@/components/native-chat/native-chat-session-option-cache'
-import { canUseStructuredNativeChat } from '@/lib/structured-native-chat-availability'
-import { startStructuredCodexLaunch } from '@/lib/structured-agent-session-launch'
+import { startStructuredAgentLaunch } from '@/lib/structured-agent-session-launch'
+import { isStructuredMachineAgentEnabled } from '../../../shared/structured-agent-provider'
 
 export type LaunchAgentInNewTabArgs = {
   agent: TuiAgent
@@ -51,6 +52,8 @@ export type LaunchAgentInNewTabArgs = {
   launchPlatform?: NodeJS.Platform
   /** Called after the prompt is actually delivered to the agent input path. */
   onPromptDelivered?: () => void
+  /** Prevents an unsupported structured host fallback from selecting the same path again. */
+  disableStructuredStreaming?: boolean
 }
 
 export type LaunchAgentInNewTabResult = {
@@ -90,7 +93,8 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
     launchSource,
     quickCommandLabel,
     launchPlatform,
-    onPromptDelivered
+    onPromptDelivered,
+    disableStructuredStreaming
   } = args
   const store = useAppStore.getState()
   const worktree = store.allWorktrees?.().find((entry: { id: string }) => entry.id === worktreeId)
@@ -154,6 +158,36 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
   }
 
   const runtimeEnvironmentId = getRuntimeEnvironmentIdForWorktree(store, worktreeId)
+  const launchDirectStructuredChat =
+    !disableStructuredStreaming &&
+    agentArgs === undefined &&
+    !initialCwd?.trim() &&
+    store.settings?.experimentalNativeChat === true &&
+    store.settings?.experimentalStructuredNativeChat === true &&
+    store.settings?.openAgentTabsInChatByDefault === true &&
+    isStructuredMachineAgentEnabled(agent, store.settings.enabledHarnessStreamingAgents)
+  if (launchDirectStructuredChat) {
+    promptDeliveryResult = startStructuredAgentLaunch(worktreeId, agent, {
+      target: getActiveRuntimeTarget({ activeRuntimeEnvironmentId: runtimeEnvironmentId }),
+      groupId,
+      prompt: trimmedPrompt,
+      promptDelivery,
+      sessionOptions: startupPlan.sessionOptions,
+      onPromptDelivered,
+      onUnavailable: () => {
+        const fallback = launchAgentInNewTab({ ...args, disableStructuredStreaming: true })
+        return fallback?.promptDeliveryResult
+      }
+    })
+    return {
+      tabId: null,
+      startupPlan,
+      pasteDraftAfterLaunch: false,
+      focusAfterMenuClose: 'structured-session',
+      ...(hasPrompt ? { promptDeliveryResult } : {})
+    }
+  }
+
   if (isWebRuntimeSessionActive(runtimeEnvironmentId)) {
     const webHostDelivery = launchAgentInWebHostTab({
       agent,
@@ -179,21 +213,6 @@ export function launchAgentInNewTab(args: LaunchAgentInNewTabArgs): LaunchAgentI
       ...(pasteDraftAfterLaunch !== null && promptDelivery === 'submit-after-ready'
         ? { promptDeliveryResult: webHostDelivery }
         : {})
-    }
-  }
-
-  const launchDirectStructuredChat =
-    agent === 'codex' &&
-    !hasPrompt &&
-    store.settings?.experimentalNativeChat === true &&
-    canUseStructuredNativeChat(store, worktreeId)
-  if (launchDirectStructuredChat) {
-    startStructuredCodexLaunch(worktreeId)
-    return {
-      tabId: null,
-      startupPlan,
-      pasteDraftAfterLaunch: false,
-      focusAfterMenuClose: 'structured-session'
     }
   }
 

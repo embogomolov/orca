@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- Why: launch, resume, and draft plans apply identical provider options. */
 import { isShellProcess } from './agent-detection'
 import type { SleepingAgentLaunchConfig } from './agent-session-resume'
 import {
@@ -10,8 +9,10 @@ import {
 } from './tui-agent-startup-shell'
 import { TUI_AGENT_CONFIG } from './tui-agent-config'
 import type { StartupCommandDelivery } from './codex-startup-delivery'
-import { buildSleepingAgentLaunchConfig } from './sleeping-agent-launch-config'
-import { getAgentSessionOptionCatalog } from './agent-session-option-catalog'
+import {
+  buildSleepingAgentLaunchConfig,
+  sleepingAgentCommand
+} from './sleeping-agent-launch-config'
 import { planHermesStartupQuery } from './hermes-startup-query'
 import { inlineAgentDraftFitsPlatform } from './agent-draft-platform-limit'
 import type { TuiAgent } from './tui-agent'
@@ -19,16 +20,6 @@ import type { SessionOptionValue } from './native-chat-session-options'
 import { resolveAgentLaunchCommand } from './tui-agent-launch-command'
 
 export { buildAgentResumeStartupPlan } from './tui-agent-resume-startup'
-
-/** Keeps process-local options in cold restores; session-persisted options stay out. */
-function sleepingAgentCommand(
-  agent: TuiAgent,
-  baseCommand: { command: string; commandWithoutSessionOptions: string }
-): string {
-  return getAgentSessionOptionCatalog(agent)?.capturesOptionsInLaunchCommand
-    ? baseCommand.command
-    : baseCommand.commandWithoutSessionOptions
-}
 
 export type AgentStartupPlan = {
   agent: TuiAgent

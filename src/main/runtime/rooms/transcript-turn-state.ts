@@ -10,6 +10,7 @@ import type {
 import type { RoomDatabase } from './database'
 import type { RoomHarnessLifecycleEvent } from './harness-adapter'
 import { extractRoomReplyRecipients } from './mentions'
+import { publishRoomTurnOutput } from './transcript-turn-output'
 import {
   isRoomActivityMessage,
   selectRoomTranscriptFinal,
@@ -219,48 +220,26 @@ export class RoomTranscriptTurnState {
     }
     const roomParticipants = this.db.participants.list(participant.roomId)
     const reply = extractRoomReplyRecipients(body, roomParticipants, participant.identity)
-    if (reply.silent) {
-      this.ignorePending(participant.id, providerSessionId, finalProviderMessageId)
-      const responded = this.db.transaction(() => {
-        this.db.providerMessages.ignore(participant.id, providerSessionId, finalProviderMessageId)
-        return delivery.providerTurnId
-          ? this.db.messages.deliveries.markRespondedGroup(
-              participant.id,
-              delivery.providerTurnId,
-              null,
-              event.timestamp
-            )
-          : [this.db.messages.deliveries.markResponded(delivery.id, null, event.timestamp)]
-      })
-      for (const item of responded) {
-        this.emit(participant.roomId, { type: 'delivery.updated', delivery: item })
-      }
-      onSettled()
-      return true
-    }
-    const message = this.db.providerMessages.createReply({
+    const settled = publishRoomTurnOutput({
+      db: this.db,
       participant,
       delivery,
       providerSessionId,
       providerMessageId: finalProviderMessageId,
-      body: reply.body,
-      mentions: reply.mentions,
-      createdAt: candidate?.message.timestamp ?? event.timestamp,
-      ...(completedActivity ? { activity: completedActivity } : {})
+      pending,
+      candidate,
+      reply,
+      activity: completedActivity,
+      timestamp: event.timestamp,
+      settleDelivery: true,
+      enqueueDeliveries: true,
+      emit: this.emit,
+      onSettled
     })
-    if (!message) {
-      return false
+    if (settled) {
+      this.ignorePending(participant.id, providerSessionId, finalProviderMessageId)
     }
-    this.ignorePending(participant.id, providerSessionId, finalProviderMessageId)
-    const settledDeliveries = delivery.providerTurnId
-      ? this.db.messages.deliveries.listForTurn(participant.id, delivery.providerTurnId)
-      : [this.db.messages.deliveries.get(delivery.id)]
-    for (const item of settledDeliveries) {
-      this.emit(participant.roomId, { type: 'delivery.updated', delivery: item })
-    }
-    this.emit(participant.roomId, { type: 'message.created', message })
-    onSettled(message)
-    return true
+    return settled
   }
 
   publishInterrupted(
@@ -281,33 +260,27 @@ export class RoomTranscriptTurnState {
         ? providerMessageId(candidate.message)
         : `interrupted:${event.turnId ?? event.timestamp}`
     const settleDelivery = delivery.state === 'suppressed' && delivery.error === 'room_stopping'
-    const message = this.db.providerMessages.createReply({
+    const reply = extractRoomReplyRecipients(body ?? '', [], participant.identity)
+    const settled = publishRoomTurnOutput({
+      db: this.db,
       participant,
       delivery,
       providerSessionId,
       providerMessageId: finalProviderMessageId,
-      body: body ?? '',
-      mentions: [],
-      createdAt: candidate?.message.timestamp ?? event.timestamp,
+      pending,
+      candidate,
+      reply,
       activity,
+      timestamp: event.timestamp,
       settleDelivery,
-      enqueueDeliveries: false
+      enqueueDeliveries: false,
+      emit: this.emit,
+      onSettled
     })
-    if (!message) {
-      return false
+    if (settled) {
+      this.ignorePending(participant.id, providerSessionId, finalProviderMessageId)
     }
-    this.ignorePending(participant.id, providerSessionId, finalProviderMessageId)
-    if (settleDelivery) {
-      const settledDeliveries = delivery.providerTurnId
-        ? this.db.messages.deliveries.listForTurn(participant.id, delivery.providerTurnId)
-        : [this.db.messages.deliveries.get(delivery.id)]
-      for (const item of settledDeliveries) {
-        this.emit(participant.roomId, { type: 'delivery.updated', delivery: item })
-      }
-    }
-    this.emit(participant.roomId, { type: 'message.created', message })
-    onSettled(message)
-    return true
+    return settled
   }
 }
 

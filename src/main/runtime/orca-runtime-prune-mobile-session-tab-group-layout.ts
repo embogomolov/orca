@@ -117,10 +117,10 @@ export class OrcaRuntimeWithPruneMobileSessionTabGroupLayout extends OrcaRuntime
       retained,
       getHookRowsForPane,
       {
-      getPaneKey: (candidate) => this.getMobileTerminalPaneKey(candidate),
-      getLeaf: (candidate) =>
-        this.leaves.get(this.getLeafKey(candidate.parentTabId, candidate.leafId)) ?? null,
-      getTrackedTitle: (ptyId) => this.getUnpersistedTrackedTitleForPty(ptyId)
+        getPaneKey: (candidate) => this.getMobileTerminalPaneKey(candidate),
+        getLeaf: (candidate) =>
+          this.leaves.get(this.getLeafKey(candidate.parentTabId, candidate.leafId)) ?? null,
+        getTrackedTitle: (ptyId) => this.getUnpersistedTrackedTitleForPty(ptyId)
       }
     )
     const roomDeliveryId = this.getRoomDeliveryIdForPaneKey?.(this.getMobileTerminalPaneKey(tab))

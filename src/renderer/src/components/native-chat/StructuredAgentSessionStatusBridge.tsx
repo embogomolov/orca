@@ -9,7 +9,7 @@ import {
 } from '../../../../shared/structured-agent-session-projection'
 import type { StructuredAgentSessionState } from '../../../../shared/structured-agent-session-reducer'
 import type { Tab } from '../../../../shared/tab-types'
-import { isAgentSessionHandleProvider } from '../../../../shared/agent-session-provider-handle'
+import { isStructuredMachineAgent } from '../../../../shared/structured-agent-provider'
 import { getRuntimeEnvironmentIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { useAppStore } from '@/store'
 import { getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
@@ -18,7 +18,9 @@ import { useStructuredAgentSessionReadObservation } from './use-structured-agent
 type StructuredTab = Tab & { contentType: 'agent-session' }
 
 function isStructuredTab(tab: Tab): tab is StructuredTab {
-  return tab.contentType === 'agent-session' && isAgentSessionHandleProvider(tab.agentSessionAgent)
+  return (
+    tab.contentType === 'agent-session' && isStructuredMachineAgent(tab.agentSessionAgent ?? '')
+  )
 }
 
 const structuredTabsByUnifiedTabsSnapshot = new WeakMap<

@@ -68,11 +68,7 @@ export function isAgentSessionProviderHandle(value: unknown): value is AgentSess
   if (handle.provider === 'codex') {
     return isHandleField(handle.threadId)
   }
-  return (
-    handle.provider === 'acp' &&
-    isHandleField(handle.agent) &&
-    isHandleField(handle.sessionId)
-  )
+  return handle.provider === 'acp' && isHandleField(handle.agent) && isHandleField(handle.sessionId)
 }
 
 /** Stable string identity for one handle. Two handles with the same key name the same writer target. */

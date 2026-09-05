@@ -8,7 +8,7 @@
 // journal rather than skipping or compacting past it.
 
 import type { AgentType } from './agent-status-types'
-import type { NativeChatBlock, NativeChatRole } from './native-chat-types'
+import type { NativeChatBlock, NativeChatMessage, NativeChatRole } from './native-chat-types'
 
 export { type AgentType }
 
@@ -49,13 +49,16 @@ export type AgentSessionJournalIdentity = {
 // positionally on resume, so a persisted item id is never an identity. Claude
 // copies the original uuids on fork, so the uuid is.
 
-export type AgentJournalItemIdentity =
+export type AgentJournalTurn = { turnId: string; root?: true }
+
+export type AgentJournalItemIdentity = (
   | { provider: 'codex'; threadId: string; turnId: string; ordinal: number }
   | { provider: 'claude'; sessionId: string; uuid: string }
   /** A submission Orca minted before any provider echo existed. */
   | { provider: 'orca'; clientMessageId: string }
   /** Bridge-era transcript record with no provider-stable identity. */
   | { provider: 'legacy'; agent: AgentType; sessionId: string; recordId: string }
+) & { turn?: AgentJournalTurn }
 
 // ─── Bounded payloads ───────────────────────────────────────────────────────
 
@@ -76,6 +79,7 @@ export type AgentJournalMessageItem = {
   kind: 'message'
   role: NativeChatRole
   blocks: NativeChatBlock[]
+  assistantPhase?: NativeChatMessage['assistantPhase']
 }
 
 export type AgentJournalToolCallState = 'running' | 'completed' | 'failed'
@@ -177,6 +181,10 @@ export type AgentJournalRenderItem = {
   body: AgentJournalItemBody
   sequence: number
   observedAt: number
+  /** Timestamp of the latest revision; omitted until the item is revised. */
+  updatedAt?: number
+  /** Provider turn ownership; independent of item ordering and message payload. */
+  turn?: AgentJournalTurn
   /** Set when the row was appended by crash reconciliation rather than live. */
   recovered?: true
 }

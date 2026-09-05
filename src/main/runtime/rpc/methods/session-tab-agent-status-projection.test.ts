@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   AGENT_SESSION_BOUNDARY_RUNTIME_CAPABILITY,
+  STRUCTURED_AGENT_SESSION_MACHINE_PROVIDERS_CAPABILITY,
   STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
 } from '../../../../shared/protocol-version'
 import type { RuntimeMobileSessionTabsSnapshot } from '../../../../shared/runtime-types'
@@ -133,6 +134,13 @@ describe('projectSessionTabAgentStatus', () => {
         STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
       ]).tabs.map((tab) => tab.id)
     ).toEqual(['agent-session:codex'])
+
+    expect(
+      projectSessionTabAgentStatus(snapshot, 'runtime', [
+        STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
+        STRUCTURED_AGENT_SESSION_MACHINE_PROVIDERS_CAPABILITY
+      ])
+    ).toBe(snapshot)
   })
 
   it('withholds session boundaries from legacy paired clients', () => {

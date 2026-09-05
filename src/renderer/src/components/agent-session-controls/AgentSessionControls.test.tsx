@@ -209,6 +209,54 @@ const fast: SessionOptionDescriptor = {
 afterEach(() => cleanup())
 
 describe('AgentSessionControls', () => {
+  it('keeps a participant pill visible while its persisted session is unavailable', () => {
+    render(
+      <AgentSessionControls
+        surface={null}
+        snapshot={[]}
+        isWorking={false}
+        leading={<span>@codex</span>}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Session. Context unavailable' })).not.toBeNull()
+    expect(screen.getByText('@codex')).not.toBeNull()
+  })
+
+  it('uses persisted labels only until live session options arrive', () => {
+    const { rerender } = render(
+      <AgentSessionControls
+        surface={null}
+        snapshot={[]}
+        isWorking={false}
+        fallbackModelLabel="GPT-5.6 Sol"
+        fallbackOptionLabel="High · Fast"
+        leading={<span>@codex</span>}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', {
+        name: 'GPT-5.6 Sol High · Fast. Context unavailable'
+      })
+    ).not.toBeNull()
+
+    rerender(
+      <AgentSessionControls
+        surface={surface}
+        snapshot={[model(), effort]}
+        isWorking={false}
+        fallbackModelLabel="GPT-5.6 Sol"
+        fallbackOptionLabel="High · Fast"
+        leading={<span>@codex</span>}
+      />
+    )
+
+    expect(
+      screen.getByRole('button', { name: 'Opus 4.8 High. Context unavailable' })
+    ).not.toBeNull()
+  })
+
   it('prefers collision-aware upward placement', () => {
     render(
       <AgentSessionControls surface={surface} snapshot={[model(), effort]} isWorking={false} />

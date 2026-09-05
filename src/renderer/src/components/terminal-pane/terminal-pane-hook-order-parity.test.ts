@@ -8,9 +8,9 @@ import { describe, expect, it } from 'vitest'
 const TERMINAL_PANE_HOOK_SOURCE_PATTERN =
   /^(?:TerminalPane\.tsx|use-terminal-pane-(?:chat-state|close-actions|context-actions|controller|foundation|global-listeners|layout-bindings|layout-persistence|lifecycle-stage|mobile-actions|paste-listeners|process-exit-actions|projection|reconciliation|startup-actions|store-bindings|title-effects|title-state)\.ts)$/
 // Rebased onto main after the workbench surface-per-workspace and deferred
-// split-cwd changes; the pane session-ID projection adds one render hook (230 hooks).
+// split-cwd changes; native chat adds two render hooks (232 hooks).
 const PRE_REFACTOR_HOOK_ORDER_SHA256 =
-  '77adcf8272ddc6f903920f12b2b652ec26c570987f452076ae6460c67d3741f3'
+  '97b3bf4280fa6255c6943d9b837a9fc6e28980aead41878309ebc59ebe368193'
 
 const sourceFiles = readdirSync(__dirname)
   .filter((name) => TERMINAL_PANE_HOOK_SOURCE_PATTERN.test(name))
@@ -75,7 +75,7 @@ function readFlattenedHookOrder(): string[] {
 describe('TerminalPane refactor hook parity', () => {
   it('preserves the recursively flattened render hook order', () => {
     const hooks = readFlattenedHookOrder()
-    expect(hooks).toHaveLength(230)
+    expect(hooks).toHaveLength(232)
     expect(hooks.filter((hook) => hook === 'useMemo')).toHaveLength(4)
     expect(createHash('sha256').update(hooks.join('\n')).digest('hex')).toBe(
       PRE_REFACTOR_HOOK_ORDER_SHA256

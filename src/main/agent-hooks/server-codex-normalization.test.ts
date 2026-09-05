@@ -208,7 +208,7 @@ describe('Codex hook normalization', () => {
       buildBody({ hook_event_name: 'SessionStart' }),
       'production'
     )
-    expect(result?.payload.state).toBe('working')
+    expect(result?.payload.state).toBe('done')
     expect(result?.payload.lastAssistantMessage).toBeUndefined()
   })
 
@@ -226,7 +226,7 @@ describe('Codex hook normalization', () => {
       buildBody({ hook_event_name: 'SessionStart' }),
       'production'
     )
-    expect(result?.payload.state).toBe('working')
+    expect(result?.payload.state).toBe('done')
     expect(result?.payload.prompt).toBe('')
   })
 

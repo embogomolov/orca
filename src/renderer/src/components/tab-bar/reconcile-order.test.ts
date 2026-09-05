@@ -64,8 +64,8 @@ describe('reconcileTabOrder', () => {
     })
 
     expect(items).toMatchObject([{ type: 'room', id: room.id, unifiedTabId: room.id }])
-    expect(
-      findActiveVisibleTabId(items, { activeTabId: null, activeGroupTabId: room.id })
-    ).toBe(room.id)
+    expect(findActiveVisibleTabId(items, { activeTabId: null, activeGroupTabId: room.id })).toBe(
+      room.id
+    )
   })
 })

@@ -8,6 +8,7 @@
 
 import type { AgentJournalMessageItem } from '../../../shared/agent-session-journal-types'
 import { agentJournalItemKey } from '../../../shared/agent-session-journal-item-key'
+import { agentJournalIdentityTurn } from '../../../shared/agent-session-journal-turn'
 import type {
   AgentSessionCancelResult,
   AgentSessionSendResult,
@@ -184,15 +185,18 @@ export async function performSend(
     // while the dispatch response identifies the user's message item.  Bind the
     // tentative turn reservation to the lifecycle identity so a response that
     // wins the race with turn/started cannot strand that row at the quota edge.
-    const reservationTarget =
-      outcome.providerIdentity.provider === 'codex'
-        ? {
-            provider: 'legacy' as const,
-            agent: 'codex' as const,
-            sessionId: ctx.sessionId,
-            recordId: `turn-lifecycle:${outcome.providerIdentity.turnId}`
-          }
-        : outcome.providerIdentity
+    const turn = agentJournalIdentityTurn(outcome.providerIdentity)
+    const reservationTarget = turn
+      ? {
+          provider: 'legacy' as const,
+          agent:
+            outcome.providerIdentity.provider === 'legacy'
+              ? outcome.providerIdentity.agent
+              : ('codex' as const),
+          sessionId: ctx.sessionId,
+          recordId: `turn-lifecycle:${turn.turnId}`
+        }
+      : outcome.providerIdentity
     await ctx.journal.transferLifecycleCapacity(
       tentativeTurnReservationId(input.clientMessageId),
       lifecycleReservationIdForItem(

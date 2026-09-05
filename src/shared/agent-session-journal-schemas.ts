@@ -69,9 +69,7 @@ const ProviderQuestion = z.object({
   id: z.string(),
   header: z.string(),
   question: z.string(),
-  options: z
-    .array(z.object({ label: z.string(), description: z.string().optional() }))
-    .optional(),
+  options: z.array(z.object({ label: z.string(), description: z.string().optional() })).optional(),
   allowOther: z.boolean().optional(),
   secret: z.boolean().optional(),
   multiSelect: z.boolean().optional()
@@ -87,7 +85,8 @@ const Resolution = z.object({
 const MessageBody = z.object({
   kind: z.literal('message'),
   role: z.string().min(1),
-  blocks: z.array(Block)
+  blocks: z.array(Block),
+  assistantPhase: z.string().optional()
 })
 
 export const AgentJournalItemBodySchema = z.discriminatedUnion('kind', [
@@ -130,12 +129,19 @@ export const AgentJournalItemBodySchema = z.discriminatedUnion('kind', [
   })
 ])
 
+export const AgentJournalTurnSchema = z.object({
+  turnId: z.string().min(1),
+  root: z.literal(true).optional()
+})
+
 export const AgentJournalRenderItemSchema = z.object({
   itemId: z.string().min(1),
   revision: z.number().int(),
   body: AgentJournalItemBodySchema,
   sequence: z.number().int(),
   observedAt: z.number(),
+  updatedAt: z.number().optional(),
+  turn: AgentJournalTurnSchema.optional(),
   recovered: z.literal(true).optional()
 })
 

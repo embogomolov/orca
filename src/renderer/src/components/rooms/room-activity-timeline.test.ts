@@ -7,6 +7,19 @@ import {
 } from './room-activity-timeline'
 
 describe('room activity timeline', () => {
+  it('hides room recipient transport from persisted activity details', () => {
+    const sections = buildRoomActivitySections([
+      message('reply', 'assistant', 1, [
+        {
+          type: 'text',
+          text: 'Done.\n<orca-room-recipients>["codex2"]</orca-room-recipients>'
+        }
+      ])
+    ])
+
+    expect(sections).toEqual([{ kind: 'commentary', id: 'reply:text:0', text: 'Done.' }])
+  })
+
   it('keeps commentary order and pairs Claude-style tool results', () => {
     const messages: NativeChatMessage[] = [
       message('thinking', 'assistant', 10, [{ type: 'text', text: 'Inspecting the files.' }]),

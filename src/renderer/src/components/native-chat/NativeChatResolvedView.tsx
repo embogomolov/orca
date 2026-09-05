@@ -17,9 +17,9 @@ import {
 } from './native-chat-working-suppression'
 import {
   appendPendingSendCache,
+  createNativeChatPendingSend,
   launchPromptAsMessage,
   pendingSendsAsMessages,
-  nextNativeChatPendingSendId,
   prunePendingSends,
   readPendingSendCache,
   shouldPruneLaunchPrompt,
@@ -193,15 +193,7 @@ export function NativeChatResolvedView({
     (text: string, imagePaths?: string[]) => {
       setWorkingInterrupted(false)
       const sentAt = Date.now()
-      const boundary = session.messages.at(-1)
-      const entry: NativeChatPendingSend = {
-        id: nextNativeChatPendingSendId(sentAt),
-        text,
-        sentAt,
-        afterMessageId: boundary?.id ?? null,
-        afterMessageTimestamp: boundary?.timestamp ?? null,
-        ...(imagePaths ? { imagePaths } : {})
-      }
+      const entry = createNativeChatPendingSend(text, imagePaths, session.messages.at(-1), sentAt)
       setPending(appendPendingSendCache(pendingScope, entry))
       return entry.id
     },

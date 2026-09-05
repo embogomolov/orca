@@ -1,5 +1,6 @@
 import {
   AGENT_SESSION_BOUNDARY_RUNTIME_CAPABILITY,
+  STRUCTURED_AGENT_SESSION_MACHINE_PROVIDERS_CAPABILITY,
   STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
   type RuntimeCapability
 } from '../../../../shared/protocol-version'
@@ -22,7 +23,11 @@ export function projectSessionTabAgentStatus<TPayload extends SessionTabsPayload
     (clientKind === undefined ||
       (clientCapabilities?.includes(STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY) ?? false))
   let projected = structuredVisible ? payload : projectAgentSessionTabsOut(payload, () => true)
-  if (structuredVisible && clientKind !== undefined) {
+  if (
+    structuredVisible &&
+    clientKind !== undefined &&
+    !clientCapabilities?.includes(STRUCTURED_AGENT_SESSION_MACHINE_PROVIDERS_CAPABILITY)
+  ) {
     projected = projectAgentSessionTabsOut(projected, (tab) => tab.agent !== 'codex')
   }
   // Why: only paired runtimes have legacy `done` completion side effects; mobile must keep its row without changing the exact v2 auth shape.

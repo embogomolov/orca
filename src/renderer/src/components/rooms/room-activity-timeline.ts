@@ -5,6 +5,7 @@ import type {
 } from '../../../../shared/native-chat-types'
 import { roomActivityKindFromTool } from '../../../../shared/room-activity'
 import type { RoomActivityKind, RoomSettledActivity } from '../../../../shared/rooms'
+import { visibleRoomReplyText } from '../native-chat/native-chat-room-transport'
 
 export type RoomActivityToolStep = {
   id: string
@@ -33,7 +34,8 @@ export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomAc
         if (message.role !== 'assistant' && message.role !== 'reasoning') {
           continue
         }
-        const text = block.text.trim()
+        const text =
+          message.role === 'assistant' ? visibleRoomReplyText(block.text).trim() : block.text.trim()
         const previous = sections.at(-1)
         if (!text || (previous?.kind === 'commentary' && previous.text === text)) {
           continue

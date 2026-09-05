@@ -23,6 +23,10 @@ import {
 import { useNativeChatTranscriptLifecycle } from './use-native-chat-transcript-lifecycle'
 import { createNativeChatReadRetryTimer } from './native-chat-read-retry-timer'
 import { openNativeChatTranscriptStream } from './native-chat-stream-teardown'
+import { mergeNativeChatSessionContext } from './native-chat-session-context-merge'
+import { nextNativeChatSubscriptionId } from './native-chat-subscription-id'
+
+export { mergeNativeChatSessionContext } from './native-chat-session-context-merge'
 
 export type UseNativeChatSessionStreamArgs = {
   paneKey: string
@@ -43,36 +47,7 @@ export function isNativeChatTranscriptUnsettled(phase: NativeChatReadState['phas
   return phase === 'loading' || phase === 'awaiting'
 }
 
-export function mergeNativeChatSessionContext(
-  current: AgentSessionContextSnapshot,
-  incoming: AgentSessionContextSnapshot
-): AgentSessionContextSnapshot {
-  const waiting = current.compaction === 'requested' || current.compaction === 'running'
-  const compacted =
-    waiting &&
-    current.usedTokens !== null &&
-    incoming.usedTokens !== null &&
-    incoming.usedTokens < current.usedTokens
-  if (compacted) {
-    return { ...incoming, compaction: 'completed', compactionUpdatedAt: Date.now() }
-  }
-  if (waiting && incoming.compaction === 'idle') {
-    return {
-      ...incoming,
-      compaction: current.compaction,
-      compactionUpdatedAt: current.compactionUpdatedAt
-    }
-  }
-  return incoming
-}
-
-let subscriptionCounter = 0
 export const NOTFOUND_RETRY_WINDOW_MS = 60_000
-
-function nextSubscriptionId(): string {
-  subscriptionCounter += 1
-  return `native-chat-${subscriptionCounter}-${Date.now()}`
-}
 
 export function useNativeChatSessionStream(args: UseNativeChatSessionStreamArgs): {
   read: NativeChatReadState
@@ -96,7 +71,7 @@ export function useNativeChatSessionStream(args: UseNativeChatSessionStreamArgs)
   const [appended, setAppended] = useState<NativeChatMessage[]>([])
   const [transcriptLifecycle, lifecycle] = useNativeChatTranscriptLifecycle()
   const limitRef = useRef(NATIVE_CHAT_INITIAL_LIMIT)
-  const appendMergerRef = useRef(createNativeChatMerger(NATIVE_CHAT_SOURCE_PRIORITY))
+  const [appendMerger] = useState(() => createNativeChatMerger(NATIVE_CHAT_SOURCE_PRIORITY))
   const latestSessionId = useRef(sessionId)
   const latestEnabled = useRef(enabled)
   useLayoutEffect(() => {
@@ -126,7 +101,7 @@ export function useNativeChatSessionStream(args: UseNativeChatSessionStreamArgs)
         setContext(EMPTY_AGENT_SESSION_CONTEXT)
         lifecycle.reset()
         setRead({ phase: 'loading' })
-        replaceList(appendMergerRef.current, [])
+        replaceList(appendMerger, [])
         setAppended([])
         setHasMore(false)
       }
@@ -138,7 +113,7 @@ export function useNativeChatSessionStream(args: UseNativeChatSessionStreamArgs)
     lifecycle.reset()
     if (!sessionId) {
       setRead({ phase: 'ready', messages: [] })
-      replaceList(appendMergerRef.current, [])
+      replaceList(appendMerger, [])
       setAppended([])
       setHasMore(false)
       return (): void => {}
@@ -154,7 +129,7 @@ export function useNativeChatSessionStream(args: UseNativeChatSessionStreamArgs)
       limitRef.current = NATIVE_CHAT_INITIAL_LIMIT
     }
     setRead({ phase: 'loading' })
-    replaceList(appendMergerRef.current, [])
+    replaceList(appendMerger, [])
     setAppended([])
     setHasMore(false)
 
@@ -204,7 +179,7 @@ export function useNativeChatSessionStream(args: UseNativeChatSessionStreamArgs)
     const closeStream = openNativeChatTranscriptStream(
       transport,
       {
-        subscriptionId: nextSubscriptionId(),
+        subscriptionId: nextNativeChatSubscriptionId(),
         agent,
         sessionId,
         transcriptPath: transcriptPath ?? undefined,
@@ -234,14 +209,14 @@ export function useNativeChatSessionStream(args: UseNativeChatSessionStreamArgs)
           }
           frameArrived = true
           lifecycle.replace(frame.lifecycle)
-          replaceList(appendMergerRef.current, frame.messages)
+          replaceList(appendMerger, frame.messages)
           setAppended([])
-          setRead({ phase: 'ready', messages: appendMergerRef.current.list })
+          setRead({ phase: 'ready', messages: appendMerger.list })
           setHasMore(frame.hasMore)
           return
         }
         lifecycle.append(frame.lifecycle)
-        setAppended(applyAppend(appendMergerRef.current, frame.messages, limitRef.current))
+        setAppended(applyAppend(appendMerger, frame.messages, limitRef.current))
       }
     )
 
@@ -250,7 +225,17 @@ export function useNativeChatSessionStream(args: UseNativeChatSessionStreamArgs)
       retryTimer.cancel()
       closeStream()
     }
-  }, [agent, enabled, paneKey, sessionId, sourceKey, transcriptPath, transport, lifecycle])
+  }, [
+    agent,
+    appendMerger,
+    enabled,
+    paneKey,
+    sessionId,
+    sourceKey,
+    transcriptPath,
+    transport,
+    lifecycle
+  ])
 
   const loadEarlier = useCallback(() => {
     if (

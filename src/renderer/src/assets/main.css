@@ -1613,7 +1613,9 @@ html.native-shell .app-layout {
     opacity: 1;
     animation: none;
   }
+}
 
+@media (prefers-reduced-motion: reduce) {
   .agent-working-spinner {
     animation: none;
   }
@@ -1833,11 +1835,11 @@ html.native-shell .app-layout {
 }
 
 .room-activity-disclosure-content[data-state='open'] {
-  animation: room-activity-disclosure-down 200ms ease;
+  animation: collapsible-down 200ms ease;
 }
 
 .room-activity-disclosure-content[data-state='closed'] {
-  animation: room-activity-disclosure-up 200ms ease;
+  animation: collapsible-up 200ms ease;
 }
 
 .room-activity-stack-sheet {
@@ -1867,7 +1869,7 @@ html.native-shell .app-layout {
   }
 }
 
-@keyframes room-activity-disclosure-down {
+@keyframes collapsible-down {
   from {
     height: 0;
     opacity: 0;
@@ -1879,7 +1881,7 @@ html.native-shell .app-layout {
   }
 }
 
-@keyframes room-activity-disclosure-up {
+@keyframes collapsible-up {
   from {
     height: var(--radix-collapsible-content-height);
     opacity: 1;

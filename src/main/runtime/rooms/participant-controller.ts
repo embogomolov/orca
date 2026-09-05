@@ -86,9 +86,8 @@ export class RoomParticipantController {
     return this.membership.add(input)
   }
 
-  remove(id: string): Promise<void> {
-    return beginParticipantRemoval(id, this.removing, this.restoring.get(id), this.membership)
-  }
+  remove = (id: string): Promise<void> =>
+    beginParticipantRemoval(id, this.removing, this.restoring.get(id), this.membership)
 
   restore(participant: RoomParticipant, requireReady = false): Promise<RoomParticipant> {
     this.assertAvailable(participant.roomId)
@@ -193,7 +192,10 @@ export class RoomParticipantController {
         }
       }
     }
-    return markRoomParticipantSleeping(this.db, this.emit, participant)
+    return binding.transport === 'machine' &&
+      this.db.activities.get(participant.id)?.state === 'working'
+      ? participant
+      : markRoomParticipantSleeping(this.db, this.emit, participant)
   }
 
   /** Stops harness processes of provably idle participants; only a live agent
@@ -222,9 +224,10 @@ export class RoomParticipantController {
   async blockRoom(roomId: string): Promise<() => void> {
     this.blockedRooms.add(roomId)
     await this.hibernating
-    const participants = this.db.participants.list(roomId)
     await Promise.allSettled(
-      participants.map((participant) => this.restoring.get(participant.id)).filter(Boolean)
+      this.db.participants
+        .list(roomId)
+        .flatMap((participant) => this.restoring.get(participant.id) ?? [])
     )
     return stopRoomParticipants(roomId, this.db, this.adapters, this.transcriptBridge)
   }
@@ -293,17 +296,13 @@ export class RoomParticipantController {
     }
   }
 
-  async compact(id: string): Promise<RoomParticipant> {
-    return this.sessionControls.compact(id)
-  }
+  compact = (id: string): Promise<RoomParticipant> => this.sessionControls.compact(id)
 
-  async control(id: string, command: string): Promise<RoomParticipant> {
-    return this.sessionControls.control(id, command)
-  }
+  control = (id: string, command: string): Promise<RoomParticipant> =>
+    this.sessionControls.control(id, command)
 
-  async reconfigure(id: string, preferences: AgentLaunchPreferences): Promise<RoomParticipant> {
-    return this.sessionControls.reconfigure(id, preferences)
-  }
+  reconfigure = (id: string, preferences: AgentLaunchPreferences): Promise<RoomParticipant> =>
+    this.sessionControls.reconfigure(id, preferences)
 
   ingestStatus(event: AgentHookEventPayload & { receivedAt: number }): void {
     ingestRoomParticipantStatus(this.db, this.adapters, this.transcriptBridge, this.emit, event)

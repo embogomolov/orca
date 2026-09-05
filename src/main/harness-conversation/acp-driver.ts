@@ -1,4 +1,3 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { Readable, Writable } from 'node:stream'
 import {
@@ -16,30 +15,22 @@ import { harnessProcessInvocation } from './harness-process-invocation'
 import { acpConversationConfiguration } from './acp-session-configuration'
 import type { SessionOptionValue } from '../../shared/native-chat-session-options'
 import { startAcpSession } from './acp-session-start'
-import {
-  acpPlanMessage,
-  acpUsageContext,
-  completeAcpResponse,
-  completeAcpReasoning,
-  emitAcpTextChunk,
-  flushAcpAssistantCommentary,
-  emitAcpTool,
-  type AcpToolState
-} from './acp-message'
+import * as acpMessage from './acp-message'
 import { AcpPermissionController } from './acp-permission-controller'
 import { GrokSteerController } from './grok-steer-controller'
 import { closeAcpConversationProcess } from './acp-process-close'
 import { acpUserPrompt } from './acp-user-prompt'
 import { observeGrokResponseBoundary } from './grok-response-boundary'
 import type { AcpDriverOptions } from './acp-driver-options'
+import { spawnProcess } from '../../shared/child-process/run-process'
 
 export class AcpConversationDriver implements HarnessConversationDriver {
-  private readonly child: ChildProcessWithoutNullStreams
+  private readonly child: ReturnType<typeof spawnProcess>
   private readonly connection: ClientSideConnection
   private readonly permissions: AcpPermissionController
   private readonly steers: GrokSteerController
   private readonly texts = new Map<string, { role: 'assistant' | 'reasoning'; text: string }>()
-  private readonly tools: AcpToolState = new Map()
+  private readonly tools: acpMessage.AcpToolState = new Map()
   private sessionId: string | null
   private initialized: Promise<void>
   private capabilities: AgentCapabilities = {}
@@ -53,11 +44,12 @@ export class AcpConversationDriver implements HarnessConversationDriver {
     this.sessionId = options.providerSessionId
     this.permissions = new AcpPermissionController(options.sink)
     const invocation = harnessProcessInvocation(options.command, options.args, options.env)
-    this.child = spawn(invocation.command, invocation.args, {
+    this.child = spawnProcess({
+      program: invocation.command,
+      args: invocation.args,
       cwd: options.cwd,
       env: options.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
+      stdio: ['pipe', 'pipe', 'pipe']
     })
     if (this.child.pid !== undefined) {
       this.options.sink.setProcessId?.(this.child.pid)
@@ -120,19 +112,19 @@ export class AcpConversationDriver implements HarnessConversationDriver {
       submission?.accepted()
       const response = await completion
       if (response.stopReason === 'cancelled') {
-        completeAcpReasoning(this.options.sink, this.texts)
-        flushAcpAssistantCommentary(this.options.sink, this.texts)
+        acpMessage.completeAcpReasoning(this.options.sink, this.texts)
+        acpMessage.flushAcpAssistantCommentary(this.options.sink, this.texts)
         throw new Error('turn_interrupted')
       }
-      completeAcpReasoning(this.options.sink, this.texts)
+      acpMessage.completeAcpReasoning(this.options.sink, this.texts)
       if (response.stopReason === 'end_turn') {
-        completeAcpResponse(this.options.sink, this.texts, this.fallbackMessageId)
+        acpMessage.completeAcpResponse(this.options.sink, this.texts, this.fallbackMessageId)
       } else {
-        flushAcpAssistantCommentary(this.options.sink, this.texts)
+        acpMessage.flushAcpAssistantCommentary(this.options.sink, this.texts)
       }
     } catch (error) {
-      completeAcpReasoning(this.options.sink, this.texts)
-      flushAcpAssistantCommentary(this.options.sink, this.texts)
+      acpMessage.completeAcpReasoning(this.options.sink, this.texts)
+      acpMessage.flushAcpAssistantCommentary(this.options.sink, this.texts)
       throw error
     } finally {
       this.texts.clear()
@@ -246,20 +238,20 @@ export class AcpConversationDriver implements HarnessConversationDriver {
       if (this.initializing) {
         return
       }
-      emitAcpTextChunk(this.options.sink, this.texts, update, this.fallbackMessageId)
+      acpMessage.emitAcpTextChunk(this.options.sink, this.texts, update, this.fallbackMessageId)
       return
     }
     if (update.sessionUpdate === 'tool_call') {
       if (this.initializing) {
         return
       }
-      flushAcpAssistantCommentary(this.options.sink, this.texts)
+      acpMessage.flushAcpAssistantCommentary(this.options.sink, this.texts)
       this.fallbackMessageId = randomUUID()
       this.tools.set(update.toolCallId, {
         name: update.name ?? update.title,
         input: update.rawInput
       })
-      emitAcpTool(this.options.sink, this.tools, update.toolCallId)
+      acpMessage.emitAcpTool(this.options.sink, this.tools, update.toolCallId)
       return
     }
     if (update.sessionUpdate === 'tool_call_update') {
@@ -267,7 +259,7 @@ export class AcpConversationDriver implements HarnessConversationDriver {
         return
       }
       if (!this.tools.has(update.toolCallId)) {
-        flushAcpAssistantCommentary(this.options.sink, this.texts)
+        acpMessage.flushAcpAssistantCommentary(this.options.sink, this.texts)
         this.fallbackMessageId = randomUUID()
       }
       const current = this.tools.get(update.toolCallId) ?? {
@@ -280,20 +272,20 @@ export class AcpConversationDriver implements HarnessConversationDriver {
         output: update.rawOutput ?? update.content ?? current.output,
         failed: update.status === 'failed'
       })
-      emitAcpTool(this.options.sink, this.tools, update.toolCallId)
+      acpMessage.emitAcpTool(this.options.sink, this.tools, update.toolCallId)
       return
     }
     if (update.sessionUpdate === 'plan') {
       if (!this.initializing) {
         this.options.sink.emit({
           type: 'message.completed',
-          message: acpPlanMessage(update, this.fallbackMessageId)
+          message: acpMessage.acpPlanMessage(update, this.fallbackMessageId)
         })
       }
       return
     }
     if (update.sessionUpdate === 'usage_update') {
-      this.options.sink.setContext(acpUsageContext(update))
+      this.options.sink.setContext(acpMessage.acpUsageContext(update))
       return
     }
     if (update.sessionUpdate === 'available_commands_update') {

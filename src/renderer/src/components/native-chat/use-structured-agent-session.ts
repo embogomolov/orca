@@ -13,7 +13,6 @@ import { agentSessionRefusalOperationState } from '../../../../shared/agent-sess
 import { structuredAgentSessionPayloadFingerprint } from '../../../../shared/structured-agent-session-mutation'
 import {
   applyStructuredAgentSessionOptions,
-  canSetStructuredAgentSessionOption,
   commitStructuredAgentSessionOptionValues,
   createStructuredAgentSessionOptionState,
   structuredAgentSessionOptionSnapshot
@@ -59,9 +58,16 @@ export function useStructuredAgentSession(args: {
   const [optionState, setOptionState] = useState(() =>
     createStructuredAgentSessionOptionState(agent)
   )
+  const [providerOptionSnapshot, setProviderOptionSnapshot] =
+    useState<AgentSessionOptionsResult['descriptors']>()
+  const optionSnapshotRef = useRef<NonNullable<AgentSessionOptionsResult['descriptors']>>([])
+  const pendingOptionRef = useRef<string | null>(null)
   const [canSteer, setCanSteer] = useState(agent === 'codex')
   const activeOptionRecordRef = useRef(optionState.record)
-  const optionCatalog = useMemo(() => getAgentSessionOptionCatalog(agent), [agent])
+  const optionCatalog = useMemo(
+    () => getAgentSessionOptionCatalog(agent === 'openclaude' ? 'claude' : agent),
+    [agent]
+  )
   const turnId = activeStructuredAgentSessionTurnId(state.items)
   const outboxController = useStructuredAgentSessionOutbox({
     sessionId,
@@ -79,6 +85,9 @@ export function useStructuredAgentSession(args: {
     const next = createStructuredAgentSessionOptionState(agent)
     activeOptionRecordRef.current = next.record
     setOptionState(next)
+    optionSnapshotRef.current = []
+    setProviderOptionSnapshot(undefined)
+    pendingOptionRef.current = null
     setCanSteer(agent === 'codex')
   }, [agent, sessionId, state.fence])
 
@@ -141,7 +150,7 @@ export function useStructuredAgentSession(args: {
   )
 
   useEffect(() => {
-    if (!isVisible || !optionCatalog) {
+    if (!isVisible) {
       return
     }
     let stale = false
@@ -151,11 +160,17 @@ export function useStructuredAgentSession(args: {
       .then((result) => {
         if (!stale) {
           setCanSteer(result.canSteer === true)
-          setOptionState((current) =>
-            current.record === activeOptionRecordRef.current
-              ? applyStructuredAgentSessionOptions(current, optionCatalog, result)
-              : current
-          )
+          if (result.descriptors) {
+            optionSnapshotRef.current = result.descriptors
+            setProviderOptionSnapshot(result.descriptors)
+          }
+          if (optionCatalog) {
+            setOptionState((current) =>
+              current.record === activeOptionRecordRef.current
+                ? applyStructuredAgentSessionOptions(current, optionCatalog, result)
+                : current
+            )
+          }
         }
       })
       .catch(() => {})
@@ -164,35 +179,55 @@ export function useStructuredAgentSession(args: {
     }
   }, [isVisible, optionCatalog, sessionId, state.fence, target])
 
-  const optionSnapshot = useMemo(
-    () => structuredAgentSessionOptionSnapshot(optionState),
-    [optionState]
-  )
+  const optionSnapshot = useMemo(() => {
+    const next = providerOptionSnapshot ?? structuredAgentSessionOptionSnapshot(optionState)
+    optionSnapshotRef.current = next
+    return next
+  }, [optionState, providerOptionSnapshot])
   const setStructuredOption = useCallback(
     async (id: string, value: string | boolean): Promise<boolean> => {
-      if (
-        !canSetStructuredAgentSessionOption(optionState, id, value) ||
-        typeof value !== 'string'
-      ) {
+      const descriptor = optionSnapshotRef.current.find((entry) => entry.id === id)
+      const valid =
+        descriptor?.settable === true &&
+        (descriptor.kind.type === 'boolean'
+          ? typeof value === 'boolean'
+          : typeof value === 'string' &&
+            descriptor.kind.choices.some((choice) => choice.value === value))
+      if (!valid || pendingOptionRef.current !== null) {
         return false
       }
+      pendingOptionRef.current = id
       const targetRecord = optionState.record
       setOptionState((current) => ({ ...current, pendingId: id }))
       try {
+        const wireValue = String(value)
         const result = await mutate<AgentSessionOptionResult>(
           'agentSession.setOption',
           'agentSession.setOption',
-          { key: id, value }
+          { key: id, value: wireValue }
         )
         if (result && activeOptionRecordRef.current === targetRecord) {
+          const values = result.options ?? { [id]: wireValue }
+          const next = optionSnapshotRef.current.map((entry) => {
+            const nextValue = values[entry.id]
+            if (nextValue === undefined) {
+              return entry
+            }
+            return entry.kind.type === 'boolean'
+              ? { ...entry, kind: { ...entry.kind, currentValue: nextValue === 'true' } }
+              : { ...entry, kind: { ...entry.kind, currentValue: nextValue } }
+          })
+          optionSnapshotRef.current = next
+          setProviderOptionSnapshot(next)
           setOptionState((current) =>
             current.record === targetRecord
-              ? commitStructuredAgentSessionOptionValues(current, result.options ?? { [id]: value })
+              ? commitStructuredAgentSessionOptionValues(current, values)
               : current
           )
         }
         return Boolean(result)
       } finally {
+        pendingOptionRef.current = null
         setOptionState((current) =>
           current.record === targetRecord && current.pendingId === id
             ? { ...current, pendingId: null }
@@ -200,23 +235,23 @@ export function useStructuredAgentSession(args: {
         )
       }
     },
-    [mutate, optionState]
+    [mutate, optionState.record]
   )
   const setOption = useCallback(
     async (id: string, value: string | boolean) => {
       await setStructuredOption(id, value)
-      return { snapshot: optionSnapshot }
+      return { snapshot: optionSnapshotRef.current }
     },
-    [optionSnapshot, setStructuredOption]
+    [setStructuredOption]
   )
   const optionSurface = useMemo<SessionOptionsSurface>(
     () => ({
-      getSnapshot: () => optionSnapshot,
+      getSnapshot: () => optionSnapshotRef.current,
       setOption,
-      invokeAction: async () => ({ snapshot: optionSnapshot }),
+      invokeAction: async () => ({ snapshot: optionSnapshotRef.current }),
       subscribe: () => () => {}
     }),
-    [optionSnapshot, setOption]
+    [setOption]
   )
 
   const prompts = state.items.filter(

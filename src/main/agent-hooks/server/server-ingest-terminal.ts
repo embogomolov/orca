@@ -100,7 +100,7 @@ export abstract class AgentHookServerIngestTerminal extends AgentHookServerInges
         tabId,
         worktreeId,
         connectionId,
-        ...(event.providerSession ?? preservedProviderSession
+        ...((event.providerSession ?? preservedProviderSession)
           ? { providerSession: event.providerSession ?? preservedProviderSession }
           : {}),
         payload: event.payload

@@ -12,35 +12,17 @@ import { useAppStore } from '../../store'
 import type { TabAgentLaunchOption } from './tab-agent-launch-options'
 import { buildTabCreateMenuOptions, type TabCreateMenuOption } from './tab-create-menu-options'
 import { resolveWindowsShellLaunchTarget } from './windows-shell-launch'
-import {
-  buildWindowsShellMenuEntries,
-  type WindowsShellMenuEntry
-} from './tab-bar-windows-shell-options'
+import { buildWindowsShellMenuEntries } from './tab-bar-windows-shell-options'
 import type {
   getProjectRuntimeShellMenuMode,
   resolveWindowsPowerShellImplementationSetting
 } from './use-tab-bar-runtime-model'
+import type { TabBarCreateMenuController } from './tab-bar-create-menu-controller-types'
+
+export type { TabBarCreateMenuController } from './tab-bar-create-menu-controller-types'
 
 const NEW_TAB_MENU_TERMINAL_FOCUS_RETRY_MS = 50
 const NEW_TAB_MENU_TERMINAL_FOCUS_TIMEOUT_MS = 5000
-
-export type TabBarCreateMenuController = {
-  newTabMenuOpen: boolean
-  setNewTabMenuOpen: (open: boolean) => void
-  roomSelectorOpen: boolean
-  setRoomSelectorOpen: (open: boolean) => void
-  setCreateMenuQuery: (query: string) => void
-  createMenuOptions: TabCreateMenuOption[]
-  windowsShellEntries: WindowsShellMenuEntry[] | undefined
-  handleSelectCreateMenuOption: (option: TabCreateMenuOption) => void
-  launchAgentFromNewTabEntry: (agent: TuiAgent) => void
-  runPendingNewTabMenuFocusAfterClose: () => void
-  clearPendingNewTabMenuFocusOnUnmount: (node: HTMLDivElement | null) => void
-  queueNewActiveTerminalFocusAfterNewTabMenuClose: () => void
-  queueTerminalTabFocusAfterNewTabMenuClose: (tabId: string) => void
-  queueFocusAfterNewTabMenuClose: (focus: () => void) => void
-  showStaticCreateMenuItems: boolean
-}
 
 export function useTabBarCreateMenuController({
   worktreeId,

@@ -4,7 +4,10 @@ import type { RuntimeMobileSessionTabsResult } from '../../../shared/runtime-ses
 
 const mocks = vi.hoisted(() => ({
   createIntent: vi.fn(),
-  launch: vi.fn()
+  launch: vi.fn(),
+  call: vi.fn(async (_target: unknown, method: string, _params?: unknown): Promise<unknown> =>
+    method === 'agentSession.createSupport' ? { supported: true } : undefined
+  )
 }))
 
 vi.mock('sonner', () => ({
@@ -17,14 +20,26 @@ vi.mock('sonner', () => ({
 vi.mock('@/lib/launch-structured-codex-session', () => {
   class StructuredAgentSessionCreateRefusalError extends Error {}
   return {
-    createStructuredCodexSessionLaunchIntent: mocks.createIntent,
-    launchStructuredCodexSession: mocks.launch,
+    createStructuredAgentSessionLaunchIntent: mocks.createIntent,
+    launchStructuredAgentSession: mocks.launch,
     StructuredAgentSessionCreateRefusalError
   }
 })
 
 vi.mock('@/runtime/local-structured-session-tabs-sync', () => ({
   refreshLocalStructuredSessionTabs: vi.fn()
+}))
+
+vi.mock('@/runtime/structured-agent-session-client', () => ({
+  callStructuredAgentSession: mocks.call
+}))
+
+vi.mock('@/runtime/web-runtime-session-snapshot', () => ({
+  refreshWebRuntimeSessionTabsSnapshot: vi.fn()
+}))
+
+vi.mock('@/components/native-chat/native-chat-draft-cache', () => ({
+  writeNativeChatDraftCache: vi.fn()
 }))
 
 vi.mock('@/i18n/i18n', () => ({
@@ -36,7 +51,7 @@ import {
   type StructuredAgentSessionLaunchIntent
 } from '@/lib/launch-structured-codex-session'
 import { refreshLocalStructuredSessionTabs } from '@/runtime/local-structured-session-tabs-sync'
-import { startStructuredCodexLaunch } from './structured-agent-session-launch'
+import { startStructuredAgentLaunch } from './structured-agent-session-launch'
 
 function launchIntent(
   worktreeId: string,
@@ -45,6 +60,7 @@ function launchIntent(
   return {
     worktreeId,
     sessionId,
+    target: { kind: 'local' },
     params: {
       envelope: {
         sessionId,
@@ -85,9 +101,12 @@ async function flushLaunchSettlement(): Promise<void> {
   }
 }
 
-describe('startStructuredCodexLaunch', () => {
+describe('startStructuredAgentLaunch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.call.mockImplementation(async (_target: unknown, method: string) =>
+      method === 'agentSession.createSupport' ? { supported: true } : undefined
+    )
     mocks.createIntent.mockImplementation((worktreeId: string) => launchIntent(worktreeId))
   })
 
@@ -100,13 +119,68 @@ describe('startStructuredCodexLaunch', () => {
       publishedSnapshot(worktreeId, intent.sessionId)
     ])
 
-    startStructuredCodexLaunch(worktreeId)
+    startStructuredAgentLaunch(worktreeId)
     await flushLaunchSettlement()
 
     expect(mocks.launch).toHaveBeenCalledOnce()
     expect(mocks.launch).toHaveBeenCalledWith(intent)
     expect(toast.message).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('applies selected session options before completing the launch', async () => {
+    const worktreeId = 'wt-options'
+    const intent = launchIntent(worktreeId, 'session-options')
+    mocks.createIntent.mockReturnValueOnce(intent)
+    mocks.launch.mockResolvedValue(intent.sessionId)
+    mocks.call.mockImplementation(async (_target: unknown, method: string) => {
+      if (method === 'agentSession.createSupport') {
+        return { supported: true }
+      }
+      if (method === 'agentSession.options') {
+        return {
+          models: [],
+          current: { model: '' },
+          descriptors: [
+            {
+              id: 'effort',
+              label: 'Effort',
+              kind: { type: 'select', choices: [{ value: 'high', label: 'High' }] },
+              valueSource: 'default',
+              settable: true
+            }
+          ]
+        }
+      }
+      if (method === 'agentSession.history') {
+        return { page: { items: [], fence: 7 } }
+      }
+      if (method === 'agentSession.setOption') {
+        return { ok: true, value: { key: 'effort', value: 'high' } }
+      }
+      return undefined
+    })
+    vi.mocked(refreshLocalStructuredSessionTabs).mockResolvedValue([
+      publishedSnapshot(worktreeId, intent.sessionId)
+    ])
+
+    await startStructuredAgentLaunch(worktreeId, 'codex', {
+      sessionOptions: { effort: 'high', ignored: 'value' }
+    })
+
+    const mutation = mocks.call.mock.calls.find(([, method]) => method === 'agentSession.setOption')
+    expect(mutation?.[2]).toMatchObject({
+      envelope: { sessionId: intent.sessionId, expectedRuntimeFence: 7 },
+      key: 'effort',
+      value: 'high'
+    })
+    expect(
+      mocks.call.mock.calls.some(
+        ([, method, params]) =>
+          method === 'agentSession.setOption' &&
+          (params as { key?: string } | undefined)?.key === 'ignored'
+      )
+    ).toBe(false)
   })
 
   it('coalesces a duplicate click silently while the launch is in flight', async () => {
@@ -121,11 +195,11 @@ describe('startStructuredCodexLaunch', () => {
       publishedSnapshot(worktreeId, intent.sessionId)
     ])
 
-    startStructuredCodexLaunch(worktreeId)
-    startStructuredCodexLaunch(worktreeId)
+    startStructuredAgentLaunch(worktreeId)
+    startStructuredAgentLaunch(worktreeId)
+    await vi.waitFor(() => expect(mocks.launch).toHaveBeenCalledOnce())
 
     expect(mocks.createIntent).toHaveBeenCalledOnce()
-    expect(mocks.launch).toHaveBeenCalledOnce()
     resolveLaunch(intent.sessionId)
     await flushLaunchSettlement()
     expect(toast.error).not.toHaveBeenCalled()
@@ -140,7 +214,7 @@ describe('startStructuredCodexLaunch', () => {
       publishedSnapshot(worktreeId, intent.sessionId)
     ])
 
-    startStructuredCodexLaunch(worktreeId)
+    startStructuredAgentLaunch(worktreeId)
     await flushLaunchSettlement()
 
     expect(mocks.createIntent).toHaveBeenCalledOnce()
@@ -159,7 +233,7 @@ describe('startStructuredCodexLaunch', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([publishedSnapshot(worktreeId, intent.sessionId)])
 
-    startStructuredCodexLaunch(worktreeId)
+    startStructuredAgentLaunch(worktreeId)
     await flushLaunchSettlement()
 
     expect(mocks.launch).toHaveBeenCalledTimes(2)
@@ -176,14 +250,14 @@ describe('startStructuredCodexLaunch', () => {
     mocks.launch.mockRejectedValue(new Error('offline'))
     vi.mocked(refreshLocalStructuredSessionTabs).mockResolvedValue([])
 
-    startStructuredCodexLaunch(worktreeId)
+    startStructuredAgentLaunch(worktreeId)
     await flushLaunchSettlement()
     expect(toast.error).toHaveBeenCalledOnce()
 
     vi.mocked(refreshLocalStructuredSessionTabs).mockResolvedValue([
       publishedSnapshot(worktreeId, intent.sessionId)
     ])
-    startStructuredCodexLaunch(worktreeId)
+    startStructuredAgentLaunch(worktreeId)
     await flushLaunchSettlement()
 
     expect(mocks.createIntent).toHaveBeenCalledOnce()
@@ -203,9 +277,9 @@ describe('startStructuredCodexLaunch', () => {
       publishedSnapshot(worktreeId, second.sessionId)
     ])
 
-    startStructuredCodexLaunch(worktreeId)
+    startStructuredAgentLaunch(worktreeId)
     await flushLaunchSettlement()
-    startStructuredCodexLaunch(worktreeId)
+    startStructuredAgentLaunch(worktreeId)
     await flushLaunchSettlement()
 
     expect(mocks.createIntent).toHaveBeenCalledTimes(2)

@@ -14,6 +14,7 @@ afterEach(() => setStructuredAgentSessionHost(null))
 
 function runtimeStub(): RoomHarnessRuntime {
   return {
+    structuredAgentStreamingEnabled: () => true,
     createAgentSession: vi.fn(async (request) => ({
       terminal: {
         handle: `term_${request.agent}`,
@@ -126,11 +127,25 @@ function structuredHostStub() {
     attach: vi.fn(async () => ({ ok: true })),
     hold: vi.fn(async () => undefined),
     close: vi.fn(async () => undefined),
+    hasProviderChild: vi.fn(() => true),
     readConfiguration: vi.fn(() => null)
   }
 }
 
 describe('machine room harness', () => {
+  it('keeps a disabled provider on the terminal transport', async () => {
+    const runtime = runtimeStub()
+    runtime.structuredAgentStreamingEnabled = (agent) => agent !== 'claude'
+
+    const binding = await createRoomHarnessAdapters(runtime).claude.launch('worktree-1', {
+      machineStreaming: true,
+      trusted: true
+    })
+
+    expect(binding.transport).toBe('terminal')
+    expect(runtime.createAgentSession).toHaveBeenCalledOnce()
+  })
+
   it('uses the structured transport only when explicitly enabled', async () => {
     const runtime = runtimeStub()
     const host = structuredHostStub()
@@ -220,6 +235,43 @@ describe('machine room harness', () => {
     })
     expect(host.attach).not.toHaveBeenCalled()
     expect(host.hold).toHaveBeenCalledOnce()
+  })
+
+  it('migrates a legacy machine binding through its provider session', async () => {
+    const runtime = runtimeStub()
+    const host = {
+      ...structuredHostStub(),
+      hasSession: vi.fn(() => false),
+      restoreReadableSessions: vi.fn(async () => undefined)
+    }
+    setStructuredAgentSessionHost(host as never)
+    runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
+    runtime.resolveStructuredAgentSessionCreateIntent = vi.fn(async (input) =>
+      structuredAttachParams(input.agent, input.envelope.sessionId)
+    )
+
+    const binding = await createRoomHarnessAdapters(runtime).codex.restore({
+      transport: 'machine',
+      worktreeId: 'worktree-1',
+      conversationId: 'legacy-conversation',
+      providerSession: {
+        key: 'session_id',
+        id: 'legacy-conversation',
+        transport: 'machine',
+        sourceSessionId: 'provider-1'
+      }
+    })
+
+    expect(binding).toMatchObject({
+      transport: 'machine',
+      conversationId: expect.stringMatching(/^room_[A-Za-z0-9_]+$/),
+      disposition: 'created',
+      providerSession: { sourceSessionId: 'provider-1' }
+    })
+    expect(runtime.resolveStructuredAgentSessionCreateIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ agent: 'codex', providerSessionId: 'provider-1' })
+    )
+    expect(host.attach).toHaveBeenCalledOnce()
   })
 
   it('restores an existing terminal when machine handoff fails', async () => {

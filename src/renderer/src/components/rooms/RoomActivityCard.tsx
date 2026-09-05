@@ -16,11 +16,9 @@ import type { RoomActivityKind, RoomAgentActivity, RoomParticipant } from '../..
 import { hasRoomActivityDetails, RoomActivityDetails } from './RoomActivityTimeline'
 import { RoomAuthorAvatar } from './RoomAuthorAvatar'
 import { AgentSubagentTurnLink } from '../agent-subagents/AgentSubagentContext'
-import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
 import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 import { Button } from '@/components/ui/button'
 import { NativeChatQuestionCard } from '@/components/native-chat/NativeChatQuestionCard'
-import { visibleRoomReplyText } from '@/components/native-chat/native-chat-room-transport'
 import { showRoomActionError } from './room-action-error'
 import { cancelRoomStructuredTurn, respondToRoomPrompt } from './room-structured-prompt-actions'
 import { formatRoomActivityDuration } from './room-activity-timeline'
@@ -44,7 +42,6 @@ export function RoomActivityCard({
   const [expanded, setExpanded] = useState(false)
   const stackCollapsed = stack?.open === false
   const expandable = hasRoomActivityDetails(activity.messages, activity.detail)
-  const steerResponse = visibleSteerResponse(activity)
   const primaryPermissionOptionIndex =
     activity.permission?.options.findIndex((option) => option.kind !== 'reject') ?? -1
   return (
@@ -65,12 +62,7 @@ export function RoomActivityCard({
             className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             onClick={stack.onOpen}
           >
-            <RoomActivitySummaryContent
-              activity={activity}
-              participant={participant}
-              showChevron
-              showSteerResponse
-            />
+            <RoomActivitySummaryContent activity={activity} participant={participant} showChevron />
           </button>
         ) : expandable ? (
           <CollapsibleTrigger asChild>
@@ -104,21 +96,6 @@ export function RoomActivityCard({
                   fallback={{ kind: activity.kind, detail: activity.detail }}
                 />
               </CollapsibleContent>
-            ) : null}
-            {steerResponse && !expanded ? (
-              <div
-                className={cn(
-                  'mt-2 max-h-40 overflow-y-auto border-l border-border/70 pl-4 pr-2 scrollbar-sleek',
-                  stackCollapsed && 'invisible'
-                )}
-              >
-                <CommentMarkdown
-                  content={steerResponse}
-                  variant="document"
-                  className="text-sm"
-                  allowFileUriLinks
-                />
-              </div>
             ) : null}
             {activity.permission &&
             participant?.providerSession?.transport === 'machine' &&
@@ -206,44 +183,19 @@ export function RoomActivityCard({
   )
 }
 
-function visibleSteerResponse(activity: RoomAgentActivity): string {
-  const steer = activity.messages.findLastIndex((message) => message.role === 'user')
-  if (steer === -1) {
-    return ''
-  }
-  for (let index = activity.messages.length - 1; index > steer; index -= 1) {
-    const message = activity.messages[index]!
-    if (message.role !== 'assistant') {
-      continue
-    }
-    const text = message.blocks
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n\n')
-    const visible = visibleRoomReplyText(text)
-    if (visible) {
-      return visible
-    }
-  }
-  return ''
-}
-
 function RoomActivitySummaryContent({
   activity,
   participant,
   expanded = false,
-  showChevron = false,
-  showSteerResponse = false
+  showChevron = false
 }: {
   activity: RoomAgentActivity
   participant?: RoomParticipant
   expanded?: boolean
   showChevron?: boolean
-  showSteerResponse?: boolean
 }): React.JSX.Element {
   const label = activityLabel(activity)
   const duration = useRoomActivityDuration(activity)
-  const steerResponse = showSteerResponse ? visibleSteerResponse(activity) : ''
   return (
     <span className="block min-w-0">
       <span className="flex w-full items-center gap-2 text-left text-xs">
@@ -269,11 +221,6 @@ function RoomActivitySummaryContent({
           />
         ) : null}
       </span>
-      {steerResponse ? (
-        <span className="mt-1 block truncate pl-8 text-xs text-muted-foreground">
-          {steerResponse}
-        </span>
-      ) : null}
     </span>
   )
 }

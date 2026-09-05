@@ -95,20 +95,26 @@ export class RoomProviderMessageStore {
     activity?: RoomSettledActivity
     settleDelivery?: boolean
     enqueueDeliveries?: boolean
+    replyToId?: string
+    retainObserved?: boolean
   }): RoomMessage | null {
     this.db.exec('SAVEPOINT room_provider_reply')
     try {
       const observed = this.db
         .prepare(
-          `INSERT OR IGNORE INTO room_provider_messages
+          `INSERT INTO room_provider_messages
            (participant_id, provider_session_id, provider_message_id, observed_at)
-           VALUES (?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(participant_id, provider_session_id, provider_message_id)
+           DO UPDATE SET observed_at = room_provider_messages.observed_at
+           WHERE ? = 1 AND room_provider_messages.room_message_id IS NULL`
         )
         .run(
           input.participant.id,
           input.providerSessionId,
           input.providerMessageId,
-          input.createdAt
+          input.createdAt,
+          input.retainObserved ? 1 : 0
         )
       if (observed.changes === 0) {
         this.db.exec('RELEASE room_provider_reply')
@@ -120,7 +126,9 @@ export class RoomProviderMessageStore {
             input.delivery.providerTurnId
           )
         : []
-      const parent = this.messages.get(group[0]?.messageId ?? input.delivery.messageId)
+      const parent = this.messages.get(
+        input.replyToId ?? group[0]?.messageId ?? input.delivery.messageId
+      )
       const message = this.messages.create({
         id: randomUUID(),
         roomId: input.participant.roomId,

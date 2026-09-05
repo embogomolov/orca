@@ -221,12 +221,17 @@ describe('structured session cold restoration', () => {
     setStructuredAgentSessionHost({
       reconcileRestartLeases: async () => undefined,
       restoreReadableSessions: async () => undefined,
+      getPersistedVisibleSessionTabIndex: () => ({
+        present: true,
+        sessionIds: ['agent-session:agent-session:restored-session']
+      }),
       listSessionTabs: () => [
         {
           sessionId: 'agent-session:agent-session:restored-session',
           workspaceId: 'workspace-1',
           agent: 'codex'
-        }
+        },
+        { sessionId: 'hidden-room-session', workspaceId: 'workspace-1', agent: 'codex' }
       ]
     } as never)
     runtime.syncWindowGraph(1, {
@@ -266,6 +271,7 @@ describe('structured session cold restoration', () => {
     await runtime.restoreStructuredAgentSessionTabs()
 
     const restored = await runtime.listMobileSessionTabs('id:workspace-1')
+    expect(restored.tabs.some((tab) => tab.id === 'agent-session:hidden-room-session')).toBe(false)
     expect(restored.tabs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

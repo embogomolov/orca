@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react'
-import { useEffect, useId, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useState, useSyncExternalStore } from 'react'
 import { translate } from '@/i18n/i18n'
 import type {
   SessionOptionDescriptor,
@@ -41,24 +41,26 @@ export function useExclusiveSessionControlMenu(): {
     },
     [id]
   )
-  return {
-    open,
-    setOpen: (next) => {
+  const setOpen = useCallback(
+    (next: boolean) => {
       if (next) {
         setOpenControlId(id)
       } else if (openControlId === id) {
         setOpenControlId(null)
       }
-    }
+    },
+    [id]
+  )
+  return {
+    open,
+    setOpen
   }
 }
 
 export function SynchronizedSpinner(): React.JSX.Element {
+  const [animationDelay] = useState(() => -(Date.now() % 1_000))
   return (
-    <Loader2
-      className="size-4 animate-spin"
-      style={{ animationDelay: `${-(Date.now() % 1_000)}ms` }}
-    />
+    <Loader2 className="size-4 animate-spin" style={{ animationDelay: `${animationDelay}ms` }} />
   )
 }
 

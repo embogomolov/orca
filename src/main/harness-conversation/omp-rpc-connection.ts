@@ -1,5 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { spawnProcess } from '../../shared/child-process/run-process'
 import { harnessProcessInvocation } from './harness-process-invocation'
 import { killCodexAppServerProcessTree } from '../codex/codex-app-server-session'
 import { waitForProcessExitUntil } from '../codex/codex-process-exit-deadline'
@@ -10,7 +10,7 @@ export type OmpRpcFrame = Record<string, unknown> & { type?: string; id?: string
 export class OmpRpcError extends Error {}
 
 export class OmpRpcConnection {
-  private readonly child: ChildProcessWithoutNullStreams
+  private readonly child: ReturnType<typeof spawnProcess>
   private readonly pending = new Map<string, PendingRequest>()
   private buffer = ''
   private readonly readyPromise: Promise<void>
@@ -30,11 +30,12 @@ export class OmpRpcConnection {
       this.rejectReady = reject
     })
     const invocation = harnessProcessInvocation(command, args, env)
-    this.child = spawn(invocation.command, invocation.args, {
+    this.child = spawnProcess({
+      program: invocation.command,
+      args: invocation.args,
       cwd,
       env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      windowsHide: true
+      stdio: ['pipe', 'pipe', 'pipe']
     })
     this.child.stderr.on('data', () => undefined)
     this.child.stdout.setEncoding('utf8').on('data', (chunk: string) => this.ingest(chunk))

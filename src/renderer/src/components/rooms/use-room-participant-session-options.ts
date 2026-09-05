@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { roomRpc } from '@/runtime/runtime-rooms-client'
 import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 import type { RoomParticipant } from '../../../../shared/rooms'
@@ -42,47 +42,52 @@ export function useRoomParticipantSessionOptions(
   surface: SessionOptionsSurface | null
   snapshot: SessionOptionDescriptor[]
   canCompact: boolean
+  refreshMachineOptions: () => Promise<void>
 } {
   const machineConversationId =
     participant.providerSession?.transport === 'machine' ? participant.providerSession.id : null
   const [machineOptions, setMachineOptions] = useState<SessionOptionDescriptor[]>(EMPTY_SNAPSHOT)
   const [machineFence, setMachineFence] = useState<number | null>(null)
   const [machineCanCompact, setMachineCanCompact] = useState(false)
-  useEffect(() => {
-    setMachineOptions(EMPTY_SNAPSHOT)
-    setMachineFence(null)
-    setMachineCanCompact(false)
+  const machineRequestRef = useRef(0)
+  const refreshMachineOptions = useCallback(async (): Promise<void> => {
     if (!machineConversationId) {
       return
     }
-    let disposed = false
-    void Promise.all([
-      callStructuredAgentSession<AgentSessionOptionsResult>(target, 'agentSession.options', {
-        sessionId: machineConversationId
-      }),
-      callStructuredAgentSession<AgentSessionHistoryResult>(target, 'agentSession.history', {
-        sessionId: machineConversationId,
-        direction: 'tail',
-        limit: 1
-      })
-    ])
-      .then(([options, history]) => {
-        if (disposed) {
-          return
-        }
-        setMachineOptions(options.descriptors ?? EMPTY_SNAPSHOT)
-        setMachineCanCompact(options.canCompact === true)
-        setMachineFence(history.page.fence ?? null)
-      })
-      .catch((error) => {
-        if (!disposed) {
-          console.warn('[rooms] failed to read structured session options', error)
-        }
-      })
-    return () => {
-      disposed = true
+    const request = ++machineRequestRef.current
+    try {
+      const [options, history] = await Promise.all([
+        callStructuredAgentSession<AgentSessionOptionsResult>(target, 'agentSession.options', {
+          sessionId: machineConversationId
+        }),
+        callStructuredAgentSession<AgentSessionHistoryResult>(target, 'agentSession.history', {
+          sessionId: machineConversationId,
+          direction: 'tail',
+          limit: 1
+        })
+      ])
+      if (machineRequestRef.current !== request) {
+        return
+      }
+      setMachineOptions(options.descriptors ?? EMPTY_SNAPSHOT)
+      setMachineCanCompact(options.canCompact === true)
+      setMachineFence(history.page.fence ?? null)
+    } catch (error) {
+      if (machineRequestRef.current === request) {
+        console.warn('[rooms] failed to read structured session options', error)
+      }
     }
   }, [machineConversationId, target])
+  useEffect(() => {
+    machineRequestRef.current += 1
+    setMachineOptions(EMPTY_SNAPSHOT)
+    setMachineFence(null)
+    setMachineCanCompact(false)
+    void refreshMachineOptions()
+    return () => {
+      machineRequestRef.current += 1
+    }
+  }, [machineConversationId, participant.state, refreshMachineOptions])
   const agent = participant.agent
   const discoveryContext = useMemo(
     () =>
@@ -210,9 +215,10 @@ export function useRoomParticipantSessionOptions(
     ? {
         surface: machineSurface,
         snapshot: reportedMachineOptions,
-        canCompact: machineCanCompact
+        canCompact: machineCanCompact,
+        refreshMachineOptions
       }
-    : { surface, snapshot, canCompact: true }
+    : { surface, snapshot, canCompact: true, refreshMachineOptions }
 }
 
 function createMachineSessionOptionsSurface(input: {

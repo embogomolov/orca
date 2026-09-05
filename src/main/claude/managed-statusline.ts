@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { isPlainObject, writeManagedScript, type HooksConfig } from '../agent-hooks/installer-utils'
 import {
   applyManagedStatusLine,
@@ -54,13 +55,22 @@ export function installManagedClaudeStatusLine(
   return next
 }
 
-export function getManagedClaudeStatusLineScript(
+export async function getManagedClaudeStatusLineScript(
   settings: ClaudeCompatibleHookSettings,
   agent: 'claude' | 'openclaude'
-): string {
-  const backup = readStatusLineBackup(getStatusLineBackupPath(settings))
+): Promise<string> {
+  const backup = await readStatusLineBackupAsync(getStatusLineBackupPath(settings))
   const userCommand = backup && typeof backup.command === 'string' ? backup.command : undefined
   return getManagedStatusLineScript('local', agent, userCommand)
+}
+
+async function readStatusLineBackupAsync(path: string): Promise<Record<string, unknown> | null> {
+  try {
+    const value: unknown = JSON.parse(await readFile(path, 'utf8'))
+    return isPlainObject(value) && typeof value.command === 'string' ? value : null
+  } catch {
+    return null
+  }
 }
 
 export function removeManagedClaudeStatusLine(

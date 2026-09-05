@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process'
 import { query, type CanUseTool, type Query } from '@anthropic-ai/claude-agent-sdk'
-import type { HarnessConversationDriver, HarnessConversationDriverSink } from './driver'
+import { spawnProcess } from '../../shared/child-process/run-process'
+import type { HarnessConversationDriver } from './driver'
 import {
   claudeTextMessage,
   emitClaudeAssistant,
@@ -17,23 +17,10 @@ import { ClaudeInteractionController } from './claude-interaction-controller'
 import { resolveSessionFilePath } from '../native-chat/session-file-resolver'
 import { ClaudeConversationActivity } from './claude-activity'
 import { readClaudeTranscriptMetadata } from './claude-transcript-metadata'
-import type { AgentPermissionMode } from '../../shared/tui-agent-permissions'
 import { claudeUserMessage } from './claude-user-message'
 import { ClaudeSteerController, type ClaudeTurn } from './claude-steer-controller'
 import { ClaudePromptQueue } from './claude-prompt-queue'
-
-type ClaudeDriverOptions = {
-  agent: 'claude' | 'openclaude'
-  cwd: string
-  providerSessionId: string | null
-  newProviderSessionId?: string
-  forkFromProviderSessionId: string | null
-  command: string
-  commandArgs: string[]
-  permissionMode: AgentPermissionMode
-  env: NodeJS.ProcessEnv
-  sink: HarnessConversationDriverSink
-}
+import type { ClaudeDriverOptions } from './claude-driver-options'
 
 export class ClaudeConversationDriver implements HarnessConversationDriver {
   private readonly current: Query
@@ -89,21 +76,19 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
             [...this.options.commandArgs, ...args],
             env
           )
-          const child = spawn(invocation.command, invocation.args, {
+          const child = spawnProcess({
+            program: invocation.command,
+            args: invocation.args,
             cwd,
             env,
             signal,
-            stdio: ['pipe', 'pipe', 'pipe'],
-            windowsHide: true
+            stdio: ['pipe', 'pipe', 'pipe']
           })
           if (child.pid !== undefined) {
             this.options.sink.setProcessId?.(child.pid)
           }
           child.stderr?.on('data', () => undefined)
-          return child as NonNullable<ReturnType<typeof spawn>> & {
-            stdin: NonNullable<ReturnType<typeof spawn>['stdin']>
-            stdout: NonNullable<ReturnType<typeof spawn>['stdout']>
-          }
+          return child
         }
       }
     })

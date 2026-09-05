@@ -8,10 +8,11 @@ export function useRoomQueueIdleExpansion(input: {
 }): { idleExpanded: boolean; expandIdle: () => void } {
   const { dragging, resetKey, squares } = input
   const [idleExpanded, setIdleExpanded] = useState(false)
-
-  useEffect(() => {
+  const [previousResetKey, setPreviousResetKey] = useState(resetKey)
+  if (resetKey !== previousResetKey) {
+    setPreviousResetKey(resetKey)
     setIdleExpanded(false)
-  }, [resetKey])
+  }
 
   useEffect(() => {
     if (!idleExpanded || dragging) {

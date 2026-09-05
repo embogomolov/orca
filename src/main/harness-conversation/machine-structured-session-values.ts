@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import type {
   AgentJournalItemIdentity,
   AgentJournalMessageItem,
-  AgentSessionJournalIdentity
+  AgentSessionJournalIdentity,
+  AgentJournalTurn
 } from '../../shared/agent-session-journal-types'
 import type { AgentSessionProviderHandleLink } from '../../shared/agent-session-provider-handle'
 import type { AgentSessionProcessIdentity } from '../../shared/agent-session-record'
@@ -15,6 +16,8 @@ import { readProcessStartTimeMs } from '../runtime/agent-session-process-identit
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
 import type { HarnessConversationDriver } from './driver'
 
+export type MachineStructuredMessage = { body: AgentJournalMessageItem; turn?: AgentJournalTurn }
+
 export type MachineStructuredSession = {
   agent: StructuredMachineAgent
   driver: HarnessConversationDriver
@@ -23,7 +26,7 @@ export type MachineStructuredSession = {
   acquisitionGeneration: string
   process: AgentSessionProcessIdentity
   providerSessionId: string
-  messages: Map<string, AgentJournalMessageItem>
+  messages: Map<string, MachineStructuredMessage>
   prompts: Map<string, { kind: 'approval' | 'question'; requestId: string }>
   activeTurn: string | null
   requestedClose: boolean
@@ -136,7 +139,9 @@ export function optionRecord(
 ): Record<string, string> {
   return Object.fromEntries(
     (configuration?.options ?? []).flatMap((option) =>
-      option.kind.currentValue === undefined ? [] : [[option.id, String(option.kind.currentValue)]]
+      option.kind.currentValue === undefined || option.kind.currentValue === ''
+        ? []
+        : [[option.id, String(option.kind.currentValue)]]
     )
   )
 }

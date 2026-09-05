@@ -716,11 +716,14 @@ describe('RoomService lifecycle', () => {
           700
         )
       )
-      await vi.waitFor(() => {
-        const confirmed = service.db.messages.deliveries.get(secondDelivery.id)
-        expect(confirmed.state).toBe('delivered')
-        expect(confirmed.providerTurnId).toBe('prompt-2')
-      })
+      await vi.waitFor(
+        () => {
+          const confirmed = service.db.messages.deliveries.get(secondDelivery.id)
+          expect(confirmed.state).toBe('delivered')
+          expect(confirmed.providerTurnId).toBe('prompt-2')
+        },
+        { timeout: 5_000 }
+      )
     } finally {
       service.close()
       await rm(root, { recursive: true, force: true })

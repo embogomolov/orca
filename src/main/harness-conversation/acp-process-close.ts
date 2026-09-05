@@ -1,11 +1,11 @@
-import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import type { ClientSideConnection } from '@agentclientprotocol/sdk'
+import type { spawnProcess } from '../../shared/child-process/run-process'
 import { killCodexAppServerProcessTree } from '../codex/codex-app-server-session'
 import { waitForProcessExitUntil } from '../codex/codex-process-exit-deadline'
 
 export async function closeAcpConversationProcess(
   connection: ClientSideConnection,
-  child: ChildProcessWithoutNullStreams,
+  child: ReturnType<typeof spawnProcess>,
   sessionId: string | null,
   supportsClose: boolean
 ): Promise<void> {

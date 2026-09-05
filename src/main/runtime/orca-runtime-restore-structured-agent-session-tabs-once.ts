@@ -20,6 +20,7 @@ import { getAgentLaunchPlatformForRepo } from './runtime-agent-launch-resolution
 import type { TerminalWorkspaceLaunchScope } from './runtime-legacy-worker-terminal-recovery-types'
 import { isWindowsAbsolutePathLike } from '../../shared/cross-platform-path'
 import { isWslUncPath } from '../../shared/wsl-paths'
+import type { StructuredMachineAgent } from '../../shared/structured-agent-provider'
 
 export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRuntimeWithResolveRecoveredStructuredTuiTranscript {
   protected async restoreStructuredAgentSessionTabsOnce(): Promise<void> {
@@ -32,9 +33,8 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
     const profileIds = collectSavedStructuredAgentSessionIds(
       this.store?.getWorkspaceSession?.(LOCAL_EXECUTION_HOST_ID) ?? null
     )
-    await host?.restoreReadableSessions(
-      persistedVisibleIndex.present ? persistedVisibleIndex.sessionIds : profileIds
-    )
+    const visibleIds = persistedVisibleIndex.present ? persistedVisibleIndex.sessionIds : profileIds
+    await host?.restoreReadableSessions(visibleIds)
     for (const worktreeId of this.getKnownWorkspaceSessionWorktreeIds()) {
       this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession(worktreeId, {
         allowAttachedWindow: true,
@@ -43,7 +43,7 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
     }
     this.hydrateHeadlessMobileSessionTabsFromWorkspaceSession()
     for (const session of host?.listSessionTabs() ?? []) {
-      if (session.agent !== 'codex') {
+      if (!visibleIds.includes(session.sessionId)) {
         continue
       }
       let sessionId = session.sessionId
@@ -52,7 +52,6 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
       }
       await this.publishStructuredAgentSessionTab({
         ...session,
-        agent: 'codex',
         sessionId,
         activate: false,
         notify: false
@@ -63,7 +62,7 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
   async publishStructuredAgentSessionTab(input: {
     workspaceId: string
     sessionId: string
-    agent: 'codex'
+    agent: StructuredMachineAgent
     activate: boolean
     notify?: boolean
   }): Promise<void> {
@@ -103,7 +102,7 @@ export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRu
     const tab: RuntimeMobileSessionAgentTab = {
       type: 'agent-session',
       id,
-      title: 'Codex Chat',
+      title: `${input.agent === 'openclaude' ? 'OpenClaude' : input.agent[0]!.toUpperCase() + input.agent.slice(1)} Chat`,
       sessionId: input.sessionId,
       agent: input.agent,
       isActive: input.activate

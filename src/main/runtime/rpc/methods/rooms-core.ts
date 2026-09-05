@@ -214,6 +214,13 @@ export const ROOM_CORE_METHODS: readonly RpcAnyMethod[] = [
     }
   }),
   defineMethod({
+    name: 'rooms.participants.wake',
+    params: z.object({ participantId: ParticipantId }).strict(),
+    handler: async (params, { runtime }) => ({
+      participant: await runtime.getRoomService().wakeParticipant(params.participantId)
+    })
+  }),
+  defineMethod({
     name: 'rooms.participants.update',
     params: z
       .object({

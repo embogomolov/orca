@@ -131,10 +131,10 @@ export class StructuredAgentSessionHost {
   private now = (): number => this.deps.now?.() ?? Date.now()
 
   hasSession = (sessionId: string): boolean => this.sessions.has(sessionId)
+  hasProviderChild = (id: string): boolean => this.sessions.get(id)?.hasProviderChild === true
   isHeld = (sessionId: string): boolean => this.holds.isHeld(sessionId)
 
-  /** A surface bound to this session and wants it live. The FIRST hold on a session with no
-   *  provider child is what resumes one; a retained hold (a subscription) only keeps it. */
+  /** The first hold resumes a missing provider child; retained holds only keep it live. */
   hold = (
     sessionId: string,
     holderId: string,
@@ -206,17 +206,13 @@ export class StructuredAgentSessionHost {
   supportsCreate = (location: AgentSessionExecutionLocation, agent: string): boolean =>
     providerSupport.adapterSupportsCreate(this.deps.adapter, location, agent)
 
-  listSessionTabs() {
-    return listStructuredAgentSessionTabs(this.sessions)
-  }
+  listSessionTabs = () => listStructuredAgentSessionTabs(this.sessions)
 
-  getPersistedVisibleSessionTabIndex(): { present: boolean; sessionIds: string[] } {
-    return this.deps.store.getVisibleSessionTabIndex()
-  }
+  getPersistedVisibleSessionTabIndex = (): { present: boolean; sessionIds: string[] } =>
+    this.deps.store.getVisibleSessionTabIndex()
 
-  setSessionTabVisibility(sessionId: string, visible: boolean): Promise<void> {
-    return this.deps.store.setSessionTabVisibility(sessionId, visible)
-  }
+  setSessionTabVisibility = (sessionId: string, visible: boolean): Promise<void> =>
+    this.deps.store.setSessionTabVisibility(sessionId, visible)
 
   reconcileRestartLeases = async (): Promise<void> => {
     const refusal = await this.reconcileLeases('startup')
@@ -318,13 +314,12 @@ export class StructuredAgentSessionHost {
     )
   }
 
-  history(request: AgentSessionHistoryRequest): AgentSessionHistoryResult {
-    return readStructuredAgentSessionHistoryResult({
+  history = (request: AgentSessionHistoryRequest): AgentSessionHistoryResult =>
+    readStructuredAgentSessionHistoryResult({
       journal: this.requireSession(request.sessionId).journal,
       record: this.deps.store.getRecord(request.sessionId),
       request
     })
-  }
 
   subscribe(input: AgentSessionSubscribeInput): () => void {
     const session = this.requireSession(input.sessionId)

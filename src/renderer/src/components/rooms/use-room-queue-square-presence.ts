@@ -18,7 +18,6 @@ export function useRoomQueueSquarePresence(input: {
     input
   const participants = state?.participants ?? EMPTY_PARTICIPANTS
   const prefersReducedMotion = usePrefersReducedMotion()
-  const [renderedIds, setRenderedIds] = useState<string[]>([])
   const desiredIds = useMemo(
     () =>
       new Set(
@@ -34,24 +33,37 @@ export function useRoomQueueSquarePresence(input: {
       ),
     [directedRows, dragging, expandedId, keptSquareId, participants]
   )
+  const [renderedIds, setRenderedIds] = useState(() =>
+    participants
+      .filter((participant) => desiredIds.has(participant.id))
+      .map((participant) => participant.id)
+  )
+  const [previousPresence, setPreviousPresence] = useState({
+    desiredIds,
+    prefersReducedMotion
+  })
   const desiredRef = useRef(desiredIds)
   desiredRef.current = desiredIds
-  useEffect(() => {
+  if (
+    desiredIds !== previousPresence.desiredIds ||
+    prefersReducedMotion !== previousPresence.prefersReducedMotion
+  ) {
+    setPreviousPresence({ desiredIds, prefersReducedMotion })
     if (prefersReducedMotion) {
       setRenderedIds(
         participants
           .filter((participant) => desiredIds.has(participant.id))
           .map((participant) => participant.id)
       )
-      return
+    } else {
+      setRenderedIds((current) => {
+        const rendered = new Set([...current, ...desiredIds])
+        return participants
+          .filter((participant) => rendered.has(participant.id))
+          .map((participant) => participant.id)
+      })
     }
-    setRenderedIds((current) => {
-      const rendered = new Set([...current, ...desiredIds])
-      return participants
-        .filter((participant) => rendered.has(participant.id))
-        .map((participant) => participant.id)
-    })
-  }, [desiredIds, participants, prefersReducedMotion])
+  }
   useEffect(() => {
     if (
       !dragging &&

@@ -96,6 +96,7 @@ export type RuntimeStore = {
     experimentalNewWorktreeCardStyle?: GlobalSettings['experimentalNewWorktreeCardStyle']
     experimentalStructuredNativeChat?: GlobalSettings['experimentalStructuredNativeChat']
     experimentalRoomLiveSteering?: GlobalSettings['experimentalRoomLiveSteering']
+    enabledHarnessStreamingAgents?: GlobalSettings['enabledHarnessStreamingAgents']
     compactWorktreeCards?: GlobalSettings['compactWorktreeCards']
     minimaxGroupId?: GlobalSettings['minimaxGroupId']
     minimaxUsageModels?: GlobalSettings['minimaxUsageModels']

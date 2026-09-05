@@ -170,7 +170,10 @@ export class RoomAttachmentTransferStore {
         this.downloads.delete(id)
       }
     }
-    await Promise.allSettled(this.activeReads.get(roomId) ?? [])
+    const activeReads = this.activeReads.get(roomId)
+    if (activeReads) {
+      await Promise.allSettled(activeReads)
+    }
     await Promise.all(uploadIds.map((id) => this.manager.cancelUpload(id)))
     return uploadIds
   }

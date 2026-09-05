@@ -3,6 +3,7 @@ import type React from 'react'
 import { Check, Pencil, Pin, RotateCcw, Trash2, X } from 'lucide-react'
 import CommentMarkdown from '@/components/sidebar/CommentMarkdown'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
 import { translate } from '@/i18n/i18n'
 import { roomRpc } from '@/runtime/runtime-rooms-client'
 import { cn } from '@/lib/utils'
@@ -182,6 +183,11 @@ export function RoomMessageRow({
             minute: '2-digit'
           })}
         </span>
+        {message.mentions.map((identity) => (
+          <Badge key={identity} variant="secondary" className="px-1.5 py-0 text-[10px]">
+            @{identity}
+          </Badge>
+        ))}
       </div>
       {activity ? <RoomSettledActivityTimeline activity={activity} /> : null}
       {activity && participant ? (
@@ -283,7 +289,7 @@ function roomMessageAudienceLabel(
       })
     case 'failed':
       return translate('rooms.message.failedFor', 'Delivery to {{targets}} failed', { targets })
-    default:
+    case 'directed':
       return translate('rooms.message.to', 'To {{targets}}', { targets })
   }
 }

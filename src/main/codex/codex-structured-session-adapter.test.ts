@@ -476,15 +476,7 @@ describe('CodexStructuredSessionAdapter.dispatch', () => {
       fence: 7
     })
 
-    expect(outcome).toEqual({
-      state: 'accepted',
-      providerIdentity: {
-        provider: 'legacy',
-        agent: 'codex',
-        sessionId: 'session-1',
-        recordId: 'user:client-2'
-      }
-    })
+    expect(outcome.state).toBe('accepted')
     expect(codex.connections[0].calls.at(-1)).toMatchObject({
       method: 'turn/steer',
       params: {

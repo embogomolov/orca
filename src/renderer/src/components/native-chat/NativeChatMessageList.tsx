@@ -68,18 +68,21 @@ function AssistantTurnRow({
       : null
   const [activityExpanded, setActivityExpanded] = useState(item.working)
   const latestSteerId = item.segments.findLast((segment) => segment.kind === 'message')?.id
-  const previousSteerId = useRef(latestSteerId)
-  const previousWorking = useRef(item.working)
-
-  useEffect(() => {
-    if (previousWorking.current && !item.working) {
+  const [previousActivity, setPreviousActivity] = useState({
+    working: item.working,
+    latestSteerId
+  })
+  if (
+    previousActivity.working !== item.working ||
+    previousActivity.latestSteerId !== latestSteerId
+  ) {
+    setPreviousActivity({ working: item.working, latestSteerId })
+    if (previousActivity.working && !item.working) {
       setActivityExpanded(false)
-    } else if (item.working && latestSteerId !== previousSteerId.current) {
+    } else if (item.working && latestSteerId !== previousActivity.latestSteerId) {
       setActivityExpanded(true)
     }
-    previousWorking.current = item.working
-    previousSteerId.current = latestSteerId
-  }, [item.working, latestSteerId])
+  }
 
   return (
     <article className="flex min-w-0 items-start gap-3 py-2">

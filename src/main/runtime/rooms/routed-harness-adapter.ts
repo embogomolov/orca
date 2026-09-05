@@ -135,7 +135,7 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
 
   restore(binding: RoomHarnessBinding, preferences?: AgentLaunchPreferences) {
     return binding.transport === 'machine'
-      ? this.machine!.restore(binding)
+      ? this.machine!.restore(binding, preferences)
       : this.terminal.restore(binding, preferences)
   }
 
@@ -199,6 +199,7 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
     return Boolean(
       options?.machineStreaming &&
       this.machine &&
+      this.runtime.structuredAgentStreamingEnabled?.(this.agent) === true &&
       ((this.agent !== 'claude' && this.agent !== 'openclaude') || options.trusted === true)
     )
   }

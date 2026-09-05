@@ -159,7 +159,9 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
       fence: number
       acquisitionGeneration: string
     }): void => {
-      if (event.cause !== 'unexpected-exit') return
+      if (event.cause !== 'unexpected-exit') {
+        return
+      }
       recoveryChain = recoveryChain.then(async () => {
         try {
           await host?.handleAdapterEvent(event)

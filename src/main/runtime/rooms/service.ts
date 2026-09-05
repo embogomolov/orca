@@ -33,6 +33,7 @@ import { addRoomMessageNotificationContext } from './room-event-notification'
 import { RoomQueueController } from './queue-controller'
 import { activateRoomParticipants } from './room-activation'
 import { RoomQueueEditController } from './queue-edit-controller'
+import { RoomParticipantSurface } from './participant-surface'
 
 export type { RoomParticipantConnection } from './participant-membership'
 
@@ -48,9 +49,7 @@ export class RoomService {
   private readonly events: RoomEventBus
   private readonly messageController: RoomMessageController
   readonly queueEdits: RoomQueueEditController
-  private readonly focusTerminal: RoomHarnessRuntime['focusTerminal']
-  private readonly hideRendererStatus: RoomHarnessRuntime['hideRoomAgentStatusFromRenderer']
-  private readonly publishAgentSession: RoomHarnessRuntime['publishRoomAgentProviderSession']
+  private readonly participantSurface: RoomParticipantSurface
   private readonly deletion: RoomDeletionCoordinator
   private readonly work: RoomWorkController
 
@@ -60,9 +59,10 @@ export class RoomService {
     adapters: Record<string, RoomHarnessAdapter> = createRoomHarnessAdapters(runtime)
   ) {
     this.events = new RoomEventBus(runtime.emitRoomEvent?.bind(runtime))
-    this.focusTerminal = runtime.focusTerminal?.bind(runtime)
-    this.hideRendererStatus = runtime.hideRoomAgentStatusFromRenderer?.bind(runtime)
-    this.publishAgentSession = runtime.publishRoomAgentProviderSession?.bind(runtime)
+    const focusTerminal = runtime.focusTerminal?.bind(runtime)
+    const hideRendererStatus = runtime.hideRoomAgentStatusFromRenderer?.bind(runtime)
+    const publishAgentSession = runtime.publishRoomAgentProviderSession?.bind(runtime)
+    const publishStructuredSession = runtime.publishStructuredAgentSessionTab?.bind(runtime)
     this.db = new RoomDatabase(path)
     this.archiveTransfers = new RoomArchiveTransferStore(new RoomArchive(this.db))
     const attachmentRoot =
@@ -84,7 +84,15 @@ export class RoomService {
       this.adapters,
       this.transcriptBridge,
       (roomId, event) => this.emitEvent(roomId, event),
-      this.hideRendererStatus
+      hideRendererStatus
+    )
+    this.participantSurface = new RoomParticipantSurface(
+      this.db,
+      this.participantController,
+      focusTerminal,
+      hideRendererStatus,
+      publishAgentSession,
+      publishStructuredSession
     )
     this.deliveryWorker = new RoomDeliveryWorker(
       this.db,
@@ -173,7 +181,7 @@ export class RoomService {
       snapshot.participants,
       this.participantController,
       this.transcriptBridge,
-      (participant) => this.publishParticipantSession(participant)
+      (participant) => this.participantSurface.publish(participant)
     )
     return this.db.snapshot(roomId, readerKey)
   }
@@ -240,45 +248,15 @@ export class RoomService {
 
   async revealParticipant(id: string, viewMode: 'terminal' | 'chat'): Promise<void> {
     const roomId = this.db.participants.get(id).roomId
-    return this.deletion.run(roomId, () => this.revealParticipantNow(id, viewMode))
+    return this.deletion.run(roomId, () => this.participantSurface.reveal(id, viewMode))
   }
 
-  private async revealParticipantNow(id: string, viewMode: 'terminal' | 'chat'): Promise<void> {
-    if (!this.focusTerminal) {
-      throw new Error('room_participant_not_ready')
-    }
-    const participant = await this.participantController.ensureReady(id)
-    if (!participant.terminalHandle) {
-      throw new Error('room_participant_not_ready')
-    }
-    await this.focusTerminal(participant.terminalHandle, { viewMode })
-    const revealed = this.db.participants.update(participant.id, {
-      terminalHandle: participant.terminalHandle,
-      paneKey: participant.paneKey,
-      providerSession: participant.providerSession,
-      terminalSurfaceVisible: true
-    })
-    this.publishParticipantSession(revealed, true)
-  }
+  wakeParticipant = (id: string): Promise<RoomParticipant> =>
+    this.deletion.run(this.db.participants.get(id).roomId, () =>
+      this.participantController.ensureReady(id)
+    )
 
-  hideParticipantTerminal(handle: string): void {
-    const participant = this.db.participants.findByTerminalHandle(handle)
-    if (participant?.terminalSurfaceVisible) {
-      const hidden = this.db.participants.update(participant.id, { terminalSurfaceVisible: false })
-      if (hidden.paneKey) {
-        this.hideRendererStatus?.(hidden.paneKey)
-      }
-    }
-  }
-
-  private publishParticipantSession(
-    { terminalHandle, agent, providerSession }: RoomParticipant,
-    force = false
-  ): void {
-    if (terminalHandle && agent && providerSession) {
-      this.publishAgentSession?.(terminalHandle, agent, providerSession, force)
-    }
-  }
+  hideParticipantTerminal = (handle: string): void => this.participantSurface.hide(handle)
 
   removeParticipant(id: string): Promise<void> {
     const roomId = this.db.participants.get(id).roomId

@@ -7,10 +7,11 @@ import {
   reduceStructuredAgentSession,
   type StructuredAgentSessionState
 } from '../../../shared/structured-agent-session-reducer'
-import type { projectStructuredItemsToNativeChat } from '../../../shared/structured-agent-session-projection'
+import { projectStructuredItemsToNativeChat } from '../../../shared/structured-agent-session-projection'
+import { isNoiseMessage } from '../../../shared/native-chat-noise'
 import { getStructuredAgentSessionHost } from '../../native-chat/agent-session-wire/structured-agent-session-registry'
 import {
-  currentTurnMessages,
+  activityFromMessages,
   turnUserMessage,
   type RoomHarnessLifecycleEvent
 } from './harness-lifecycle'
@@ -34,18 +35,48 @@ export function readStructuredRoomState(sessionId: string): StructuredAgentSessi
 
 export function roomStructuredLifecycle(
   state: StructuredAgentSessionState,
-  messages: ReturnType<typeof projectStructuredItemsToNativeChat>
+  replay = false
 ): RoomHarnessLifecycleEvent | null {
-  const lifecycle = state.items
-    .toReversed()
-    .find((item) => item.body.kind === 'status' && item.body.turnLifecycle)?.body
-  if (!lifecycle || lifecycle.kind !== 'status' || !lifecycle.turnLifecycle) {
+  const lifecycleItem = latestStructuredRoomLifecycleItem(state)
+  const lifecycle = lifecycleItem?.body
+  if (!lifecycleItem || !lifecycle || lifecycle.kind !== 'status' || !lifecycle.turnLifecycle) {
     return null
   }
-  const userMessage = turnUserMessage(messages)
+  const turnId = lifecycle.turnLifecycle.turnId
+  const lifecycleItems = state.items.filter(
+    (item) => item.body.kind === 'status' && item.body.turnLifecycle
+  )
+  const previousLifecycle = lifecycleItems.at(-2)
   const active = lifecycle.turnLifecycle.state === 'running'
+  const turnItems = state.items.filter((item) => item.turn?.turnId === turnId)
+  // Older journals predate explicit turn ownership.
+  const scopedItems = state.items.filter((item) =>
+    turnItems.length > 0
+      ? item.turn?.turnId === turnId
+      : item.sequence > (previousLifecycle?.sequence ?? -1) &&
+        (active || item.sequence <= lifecycleItem.sequence)
+  )
+  const projected = projectStructuredItemsToNativeChat(scopedItems)
+  const rootId = scopedItems.find(
+    (item) => item.turn?.root && item.body.kind === 'message' && item.body.role === 'user'
+  )?.itemId
+  const rootUserIndex = projected.findIndex(
+    (message) =>
+      message.role === 'user' &&
+      (turnItems.length === 0 || message.id === rootId) &&
+      !message.blocks.some((block) => block.type === 'tool-result') &&
+      !isNoiseMessage(message)
+  )
+  const turnMessages =
+    turnItems.length > 0 ? projected : rootUserIndex === -1 ? [] : projected.slice(rootUserIndex)
+  const observedUserMessage = turnUserMessage(turnMessages)
+  const userMessage = observedUserMessage ? { ...observedUserMessage, id: turnId } : undefined
+  const messages =
+    turnItems.length > 0
+      ? projected.filter((_, index) => index !== rootUserIndex)
+      : turnMessages.slice(1)
   const outcome = lifecycle.turnLifecycle.outcome
-  const prompt = state.items.findLast(
+  const prompt = scopedItems.findLast(
     (item) =>
       (item.body.kind === 'approval' || item.body.kind === 'question') &&
       item.body.resolution.state === 'pending'
@@ -90,14 +121,29 @@ export function roomStructuredLifecycle(
           ? 'interrupted'
           : 'final',
     source: 'transcript',
-    turnId: lifecycle.turnLifecycle.turnId,
-    timestamp: state.items.at(-1)?.observedAt ?? Date.now(),
-    messages: currentTurnMessages(messages),
+    turnId,
+    timestamp: active
+      ? (scopedItems.at(-1)?.observedAt ?? lifecycleItem.observedAt)
+      : (lifecycleItem.updatedAt ?? lifecycleItem.observedAt),
+    messages,
     ...(userMessage ? { userMessage } : {}),
-    ...(active ? { activity: { kind: 'thinking' as const } } : {}),
+    ...(replay ? { replay: true as const } : {}),
+    ...(active
+      ? {
+          activity: messages.some((message) => message.role !== 'user' && message.role !== 'system')
+            ? activityFromMessages(messages)
+            : { kind: 'thinking' as const }
+        }
+      : {}),
     ...(permission ? { permission } : {}),
     ...(input ? { input } : {})
   }
+}
+
+export function latestStructuredRoomLifecycleItem(state: StructuredAgentSessionState) {
+  return (
+    state.items.findLast((item) => item.body.kind === 'status' && item.body.turnLifecycle) ?? null
+  )
 }
 
 export function structuredRoomMutationEnvelope(

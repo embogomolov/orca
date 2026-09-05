@@ -4,11 +4,7 @@ import { sendRuntimePtyInput } from '@/runtime/runtime-terminal-inspection'
 import { getSettingsForAgentTabRuntimeOwner } from '@/lib/agent-paste-draft'
 import { getVerifiedNativeChatCommands } from '../../../../shared/native-chat-agent-profiles'
 import { STRUCTURED_AGENT_SESSION_SLASH_COMMANDS } from '../../../../shared/structured-agent-session-composer'
-import {
-  applyMentionSuggestion,
-  EMPTY_HISTORY,
-  type HistoryState
-} from './native-chat-composer-state'
+import { EMPTY_HISTORY, type HistoryState } from './native-chat-composer-state'
 import { useNativeChatDraft } from './use-native-chat-draft'
 import { useNativeChatLaunchDraftAdoption } from './use-native-chat-launch-draft-adoption'
 import { NativeChatComposerField } from './NativeChatComposerField'
@@ -16,7 +12,6 @@ import type { NativeChatResolvedTarget } from './native-chat-composer-target'
 import { useNativeChatComposerAttachments } from './use-native-chat-composer-attachments'
 import { useNativeChatComposerPaste } from './use-native-chat-composer-paste'
 import { useNativeChatExternalAttachments } from './use-native-chat-external-attachments'
-import { useNativeChatComposerKeyDown } from './use-native-chat-composer-keydown'
 import { useNativeChatSendLifecycle } from './use-native-chat-send-lifecycle'
 import { useNativeChatComposerSessionControl } from './use-native-chat-composer-session-control'
 import { useNativeChatFileAttachmentActions } from './use-native-chat-file-attachment-actions'
@@ -33,6 +28,7 @@ import { useNativeChatPtyComposerSend } from './use-native-chat-pty-composer-sen
 import { useNativeChatStructuredComposerSend } from './use-native-chat-structured-composer-send'
 import { useImeEnterGestureOwnership } from '@/lib/ime-composition-keyboard-event'
 import { useNativeChatComposerAppMenuSelection } from './use-native-chat-composer-app-menu-selection'
+import { useNativeChatComposerInputActions } from './use-native-chat-composer-input-actions'
 
 export type {
   NativeChatComposerHandle,
@@ -135,14 +131,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       setCaret,
       setActiveSuggestion
     })
-    const {
-      autocomplete,
-      classifySend,
-      clearSkillOrigin,
-      completeItem,
-      dismiss,
-      handleDraftOrCaretChange
-    } = picker
+    const { autocomplete, classifySend, clearSkillOrigin, completeItem } = picker
 
     // Resolve the live ptyId for this chat leaf; runtime owner settings route
     // local vs remote (SSH) sends.
@@ -214,12 +203,13 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
         clearImageAttachments()
         appendImageAttachments([...imagePaths])
         setNotice(null)
+        const textarea = textareaRef.current
         requestAnimationFrame(() => {
-          textareaRef.current?.focus()
-          textareaRef.current?.setSelectionRange(text.length, text.length)
+          textarea?.focus()
+          textarea?.setSelectionRange(text.length, text.length)
         })
       },
-      [appendImageAttachments, clearImageAttachments, clearSkillOrigin, setDraft]
+      [appendImageAttachments, clearImageAttachments, clearSkillOrigin, setDraft, textareaRef]
     )
 
     const { attachExternalPaths, resolveAttachmentOwner } = useNativeChatExternalAttachments({
@@ -372,44 +362,26 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
       clearImageAttachments,
       setNotice
     })
-    const dispatchPickerCommand = useCallback(
-      (command: Parameters<typeof dispatchPtyPickerCommand>[0]) => {
-        if (structuredTransport) {
-          sendStructured(`/${command.name}`)
-          return
-        }
-        dispatchPtyPickerCommand(command)
-      },
-      [dispatchPtyPickerCommand, sendStructured, structuredTransport]
-    )
-
-    const handleKeyDown = useNativeChatComposerKeyDown({
-      autocomplete,
-      activeSuggestion,
-      draft,
-      history,
-      isComposing: imeEnterGesture.isComposing,
-      completePickerItem: completeItem,
-      dispatchPickerCommand,
-      dismissPicker: dismiss,
-      interrupt,
-      send,
-      setActiveSuggestion,
-      setDraft,
-      setCaret,
-      setHistory
-    })
-
-    const handleDraftChange = useCallback(
-      (value: string, element: HTMLTextAreaElement) => {
-        setDraft(value)
-        setHistory((prev) => ({ entries: prev.entries, index: null }))
-        syncCaret(element)
-        handleDraftOrCaretChange(value, element.selectionStart ?? value.length)
-        setActiveSuggestion(0)
-      },
-      [handleDraftOrCaretChange, setDraft, syncCaret]
-    )
+    const { handleKeyDown, handleDraftChange, handleTextareaSelect, acceptMention } =
+      useNativeChatComposerInputActions({
+        picker,
+        dispatchPtyPickerCommand,
+        structuredTransport: Boolean(structuredTransport),
+        sendStructured,
+        activeSuggestion,
+        draft,
+        caret,
+        history,
+        isComposing: imeEnterGesture.isComposing,
+        interrupt,
+        send,
+        textareaRef,
+        syncCaret,
+        setActiveSuggestion,
+        setDraft,
+        setCaret,
+        setHistory
+      })
 
     return (
       <NativeChatComposerField
@@ -431,11 +403,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
         isDictationHoldMode={voiceSettings?.dictationMode === 'hold'}
         imeEnterGesture={imeEnterGesture}
         onDraftChange={handleDraftChange}
-        onTextareaSelect={(element) => {
-          syncCaret(element)
-          handleDraftOrCaretChange(element.value, element.selectionStart ?? element.value.length)
-          setActiveSuggestion(0)
-        }}
+        onTextareaSelect={handleTextareaSelect}
         onKeyDown={handleKeyDown}
         onImeSettled={(element) => {
           if (element.value !== draft) {
@@ -447,17 +415,7 @@ const NativeChatComposerPane = forwardRef<NativeChatComposerHandle, NativeChatCo
         pickerListboxId={picker.listboxId}
         onChoosePickerItem={completeItem}
         onRetrySkills={picker.retrySkills}
-        onAcceptMention={() => {
-          if (autocomplete.mode !== 'mention') {
-            return
-          }
-          const result = applyMentionSuggestion(draft, caret, autocomplete.query)
-          setDraft(result.draft)
-          setCaret(result.caret)
-          const textarea = textareaRef.current
-          textarea?.focus()
-          requestAnimationFrame(() => textarea?.setSelectionRange(result.caret, result.caret))
-        }}
+        onAcceptMention={acceptMention}
         onRemoveImageAttachment={(id) => removeImageAttachment(id)}
         onAttach={pickAttachment}
         onDictationToggle={toggleDictation}

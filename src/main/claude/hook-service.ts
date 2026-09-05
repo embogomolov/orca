@@ -198,7 +198,7 @@ export class ClaudeHookService {
     // Why: no agent gate — the statusline script only ever exists for claude, so presence is the gate.
     await refreshManagedScriptIfPresent(
       getStatusLineScriptPath(this.options.settings),
-      getManagedClaudeStatusLineScript(this.options.settings, this.options.agent)
+      await getManagedClaudeStatusLineScript(this.options.settings, this.options.agent)
     )
   }
 

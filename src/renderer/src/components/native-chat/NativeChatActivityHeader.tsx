@@ -23,7 +23,7 @@ export function NativeChatActivityHeader({
   expanded: boolean
   onExpandedChange: (expanded: boolean) => void
 }): React.JSX.Element {
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(() => Date.now())
   const sections = useMemo(() => buildRoomActivitySections(messages), [messages])
   const latest = sections.at(-1)
   const latestTool = latest?.kind === 'tools' ? latest.tools.at(-1) : null

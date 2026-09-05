@@ -35,7 +35,7 @@ export function finalizeStoppedRoomTranscripts(input: {
     const anchorSequence = input.db.messages.get(delivery.messageId).sequence
     if (
       activeId !== delivery.id &&
-      (activeId !== undefined ||
+      (activeId != null ||
         activity?.state !== 'working' ||
         activity.anchorSequence !== anchorSequence)
     ) {

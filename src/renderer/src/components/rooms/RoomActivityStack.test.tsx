@@ -207,7 +207,7 @@ describe('RoomActivityStack', () => {
     expect(container.textContent).not.toContain('Worked for')
   })
 
-  it('brings the last steered agent and its real response to the front', () => {
+  it('brings the last steered agent to the front without exposing its response', () => {
     const first = activity('first', 10)
     const second: RoomAgentActivity = {
       ...activity('second', 20),
@@ -246,8 +246,13 @@ describe('RoomActivityStack', () => {
 
     const trigger = screen.getByLabelText('Show 2 activity updates')
     expect(trigger.textContent).toContain('@second')
-    expect(trigger.textContent).toContain('Course changed')
+    expect(trigger.textContent).not.toContain('Course changed')
+    expect(container.textContent).not.toContain('Course changed')
     fireEvent.click(trigger)
+    const frontRow = container.querySelector('[data-room-activity-row="second"]')!
+    expect(frontRow.textContent).not.toContain('Course changed')
+    fireEvent.click(frontRow.querySelector('button')!)
+    expect(frontRow.textContent).toContain('Course changed')
     expect(
       [...container.querySelectorAll('[data-room-activity-row]')].map((row) =>
         row.getAttribute('data-room-activity-row')
@@ -277,4 +282,47 @@ describe('RoomActivityStack', () => {
       )
     ).toEqual(['second', 'first'])
   })
+
+  it.each(['commentary', 'final'] as const)(
+    'keeps streamed %s after steer under the single-card disclosure',
+    (assistantPhase) => {
+      const current: RoomAgentActivity = {
+        ...activity('codex', 10),
+        messages: [
+          {
+            id: 'steer',
+            role: 'user',
+            blocks: [{ type: 'text', text: 'Continue' }],
+            timestamp: 11,
+            source: 'stream'
+          }
+        ]
+      }
+      const { container, rerender } = render(
+        <RoomActivityStack activities={[current]} participants={[participant('codex')]} />
+      )
+      const streamed: RoomAgentActivity = {
+        ...current,
+        messages: [
+          ...current.messages,
+          {
+            id: 'response',
+            role: 'assistant',
+            assistantPhase,
+            blocks: [{ type: 'text', text: 'Sleep finished' }],
+            timestamp: 12,
+            source: 'stream'
+          }
+        ]
+      }
+      rerender(<RoomActivityStack activities={[streamed]} participants={[participant('codex')]} />)
+      expect(container.textContent).not.toContain('Sleep finished')
+      const trigger = container.querySelector('button')!
+      fireEvent.click(trigger)
+      expect(container.textContent).toContain('Sleep finished')
+      expect(trigger.textContent).not.toContain('Sleep finished')
+      fireEvent.click(trigger)
+      expect(container.textContent).not.toContain('Sleep finished')
+    }
+  )
 })

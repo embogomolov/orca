@@ -38,7 +38,8 @@ export async function steerCodexTurn(
       provider: 'legacy',
       agent: 'codex',
       sessionId,
-      recordId: `user:${input.clientMessageId}`
+      recordId: `user:${input.clientMessageId}`,
+      turn: { turnId: input.turnId }
     }
   }
 }

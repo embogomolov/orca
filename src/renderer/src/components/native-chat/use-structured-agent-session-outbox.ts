@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { AgentJournalSubmission } from '../../../../shared/agent-session-journal-types'
 import type {
   AgentSessionMutationResult,
@@ -7,16 +7,15 @@ import type {
 import { createStructuredAgentSessionOperationId } from '../../../../shared/structured-agent-session-mutation'
 import {
   classifyStructuredAgentSessionSendFailure,
-  createStructuredAgentSessionOutboxEntry,
   reconcileStructuredAgentSessionOutbox,
   requeueStructuredAgentSessionSendRefusal,
-  structuredAgentSessionSendBody,
   structuredAgentSessionSendRequest,
   type StructuredAgentSessionOutboxEntry
 } from '../../../../shared/structured-agent-session-outbox'
 import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 import { callStructuredAgentSession } from '@/runtime/structured-agent-session-client'
 import { readOutbox, writeOutbox } from './structured-agent-session-outbox-storage'
+import { useStructuredAgentSessionOutboxActions } from './use-structured-agent-session-outbox-actions'
 
 export function structuredSessionOperationId(): string {
   return createStructuredAgentSessionOperationId(() => crypto.randomUUID())
@@ -253,179 +252,15 @@ export function useStructuredAgentSessionOutbox(args: {
     return () => clearTimeout(timer)
   }, [fence, probeId, probeSettled, sessionId, targetKey])
 
-  const send = useCallback(
-    (text: string, attachments: readonly { path: string; previewUri: string }[] = []): boolean => {
-      if (!text.trim() && attachments.length === 0) {
-        return false
-      }
-      const entry = createStructuredAgentSessionOutboxEntry({
-        clientMessageId: structuredSessionOperationId(),
-        sessionId,
-        text,
-        attachments,
-        queuedAt: Date.now()
-      })
-      const next = [...outboxRef.current, entry]
-      if (!writeOutbox(sessionId, next)) {
-        setError('Message could not be saved to the outbox')
-        return false
-      }
-      outboxRef.current = next
-      setOutbox(next)
-      setError(null)
-      return true
-    },
-    [sessionId]
-  )
-
-  const edit = useCallback(
-    (
-      clientMessageId: string,
-      text: string,
-      attachments: readonly { path: string; previewUri: string }[] = []
-    ): boolean => {
-      const current = outboxRef.current.find((entry) => entry.clientMessageId === clientMessageId)
-      if (!current || current.state === 'dispatching' || current.state === 'unconfirmed') {
-        return false
-      }
-      const next = outboxRef.current.map((entry) =>
-        entry.clientMessageId === clientMessageId
-          ? {
-              ...entry,
-              body: structuredAgentSessionSendBody(text, attachments),
-              previewUris: attachments.map((attachment) => attachment.previewUri),
-              intent: undefined
-            }
-          : entry
-      )
-      if (!writeOutbox(sessionId, next)) {
-        setError('Message could not be saved to the outbox')
-        return false
-      }
-      outboxRef.current = next
-      setOutbox(next)
-      setError(null)
-      return true
-    },
-    [sessionId]
-  )
-
-  const remove = useCallback(
-    (clientMessageId: string): boolean => {
-      const current = outboxRef.current.find((entry) => entry.clientMessageId === clientMessageId)
-      if (!current || current.state === 'dispatching' || current.state === 'unconfirmed') {
-        return false
-      }
-      const next = outboxRef.current.filter((entry) => entry.clientMessageId !== clientMessageId)
-      if (!writeOutbox(sessionId, next)) {
-        setError('Message could not be saved to the outbox')
-        return false
-      }
-      blockedIdRef.current = blockedIdRef.current === clientMessageId ? null : blockedIdRef.current
-      outboxRef.current = next
-      setOutbox(next)
-      setError(null)
-      return true
-    },
-    [sessionId]
-  )
-
-  const reorder = useCallback(
-    (clientMessageIds: readonly string[]): boolean => {
-      const current = outboxRef.current
-      if (
-        clientMessageIds.length !== current.length ||
-        new Set(clientMessageIds).size !== current.length ||
-        current.some((entry) => entry.state === 'dispatching')
-      ) {
-        return false
-      }
-      const byId = new Map(current.map((entry) => [entry.clientMessageId, entry]))
-      const next = clientMessageIds.map((id) => byId.get(id)).filter((entry) => entry !== undefined)
-      if (next.length !== current.length || !writeOutbox(sessionId, next)) {
-        setError('Message could not be saved to the outbox')
-        return false
-      }
-      outboxRef.current = next
-      setOutbox(next)
-      return true
-    },
-    [sessionId]
-  )
-
-  const steer = useCallback(
-    (clientMessageId: string): boolean => {
-      const next = outboxRef.current.map((entry) =>
-        entry.clientMessageId === clientMessageId && entry.state === 'queued'
-          ? { ...entry, intent: 'steer' as const }
-          : entry
-      )
-      if (
-        next.every((entry, index) => entry === outboxRef.current[index]) ||
-        !writeOutbox(sessionId, next)
-      ) {
-        return false
-      }
-      blockedIdRef.current = null
-      outboxRef.current = next
-      setOutbox(next)
-      setError(null)
-      return true
-    },
-    [sessionId]
-  )
-
-  const retry = (clientMessageId: string): void => {
-    blockedIdRef.current = null
-    setError(null)
-    const submission = submissions.find(
-      (candidate) => candidate.clientMessageId === clientMessageId
-    )
-    const current = outboxRef.current.find((entry) => entry.clientMessageId === clientMessageId)
-    // A provider-history reconciliation can settle an earlier unknown as
-    // rejected before the user presses Retry. Reusing that operation id only
-    // replays the settled rejection forever, so rotate the id for a safe resend.
-    if (current && submission?.dispatchState === 'rejected') {
-      const rotated = outboxRef.current.map((entry) =>
-        entry.clientMessageId === clientMessageId
-          ? {
-              ...entry,
-              clientMessageId: structuredSessionOperationId(),
-              state: 'queued' as const,
-              retryAfterUnknownSubmittedAt: null
-            }
-          : entry
-      )
-      if (!writeOutbox(sessionId, rotated)) {
-        setError('Message could not be saved to the outbox')
-        return
-      }
-      outboxRef.current = rotated
-      setOutbox(rotated)
-      return
-    }
-    const retryAfterUnknownSubmittedAt =
-      submission?.dispatchState === 'unknown'
-        ? submission.submittedAt
-        : current?.state === 'unconfirmed'
-          ? -1
-          : null
-    const next = outboxRef.current.map((entry) =>
-      entry.clientMessageId === clientMessageId
-        ? {
-            ...entry,
-            state: 'queued' as const,
-            retryAfterUnknownSubmittedAt
-          }
-        : entry
-    )
-    if (!writeOutbox(sessionId, next)) {
-      setError('Message could not be saved to the outbox')
-      return
-    }
-    outboxRef.current = next
-    setOutbox(next)
-  }
+  const { send, edit, remove, reorder, steer, retry } = useStructuredAgentSessionOutboxActions({
+    sessionId,
+    submissions,
+    outboxRef,
+    blockedIdRef,
+    setOutbox,
+    setError,
+    createOperationId: structuredSessionOperationId
+  })
   return {
     outbox,
     error,

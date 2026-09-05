@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useContext, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertCircle, MessagesSquare } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -136,7 +136,11 @@ export default function RoomsPage({ roomId }: { roomId: string }): React.JSX.Ele
   const [transferring, setTransferring] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [queueEdit, setQueueEdit] = useState<RoomQueueComposerEdit | null>(null)
-  useEffect(() => setQueueEdit(null), [data.roomId])
+  const [queueEditRoomId, setQueueEditRoomId] = useState(data.roomId)
+  if (data.roomId !== queueEditRoomId) {
+    setQueueEditRoomId(data.roomId)
+    setQueueEdit(null)
+  }
   const archiveInputRef = useRef<HTMLInputElement>(null)
 
   const exportArchive = async (): Promise<void> => {
@@ -288,6 +292,7 @@ export default function RoomsPage({ roomId }: { roomId: string }): React.JSX.Ele
           worktrees={worktrees}
           target={target}
           machineStreaming={settings?.experimentalStructuredNativeChat === true}
+          enabledStreamingAgents={settings?.enabledHarnessStreamingAgents}
         />
         {settingsOpen ? (
           <RoomSettingsDialog

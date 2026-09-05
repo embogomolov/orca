@@ -2,19 +2,12 @@ import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import type { AgentJournalMessageItem } from '../../../shared/agent-session-journal-types'
 import {
-  EMPTY_STRUCTURED_AGENT_SESSION,
-  reduceStructuredAgentSession,
-  type StructuredAgentSessionState
-} from '../../../shared/structured-agent-session-reducer'
-import {
   activeStructuredAgentSessionTurnId,
-  projectStructuredAgentSessionStatus,
   projectStructuredItemsToNativeChat
 } from '../../../shared/structured-agent-session-projection'
 import type { StructuredMachineAgent } from '../../../shared/structured-agent-provider'
 import { computeAgentSessionPayloadFingerprint } from '../../../shared/agent-session-mutation-envelope'
 import { attachFingerprintFields } from '../../native-chat/agent-session-wire/structured-agent-session-attach'
-import type { NativeChatTranscriptSubscription } from '../../native-chat/transcript-watch'
 import type { RoomContextSnapshot } from '../../../shared/rooms'
 import type {
   RoomHarnessLaunchOptions,
@@ -26,13 +19,21 @@ import type {
 import {
   createRoomMachineBinding,
   readStructuredRoomState,
-  roomStructuredLifecycle,
   structuredRoomCaller,
   structuredRoomHolderId,
   structuredRoomHost,
   structuredRoomMutationEnvelope,
   structuredRoomOperationId
 } from './machine-harness-session'
+import {
+  applyMachineRoomPreferences,
+  machineRoomInputReady,
+  machineRoomLastActivityAt,
+  readMachineRoomContext,
+  readMachineRoomReady,
+  readMachineRoomStatus,
+  subscribeMachineRoomSession
+} from './machine-room-session-observation'
 
 type MachineExistingInput = {
   worktreeId: string
@@ -253,9 +254,16 @@ export class MachineRoomHarnessAdapter {
     return { handle: value.conversationId, tabId: value.conversationId, ptyKilled: true }
   }
 
-  async restore(value: RoomMachineHarnessBinding): Promise<RoomMachineHarnessBinding> {
+  async restore(
+    value: RoomMachineHarnessBinding,
+    preferences?: RoomHarnessLaunchOptions['preferences']
+  ): Promise<RoomMachineHarnessBinding> {
     if (!(await this.locate(value))) {
-      throw new Error('conversation_not_found')
+      const sourceSessionId = value.providerSession.sourceSessionId
+      if (!sourceSessionId) {
+        throw new Error('conversation_not_found')
+      }
+      return this.attach(value.worktreeId, preferences && { preferences }, sourceSessionId)
     }
     await structuredRoomHost().hold(value.conversationId, structuredRoomHolderId(value))
     return { ...value, disposition: 'adopted' }
@@ -270,54 +278,28 @@ export class MachineRoomHarnessAdapter {
   }
 
   async status(value: RoomMachineHarnessBinding) {
-    const status = projectStructuredAgentSessionStatus(
-      readStructuredRoomState(value.conversationId).items
-    )
-    return {
-      handle: value.conversationId,
-      isRunningAgent: true,
-      status:
-        status === 'attention'
-          ? ('permission' as const)
-          : status === 'working'
-            ? ('working' as const)
-            : ('idle' as const)
-    }
+    return readMachineRoomStatus(value)
   }
 
-  incarnation(): null {
-    return null
-  }
+  incarnation = (): null => null
 
   async awaitReady(value: RoomMachineHarnessBinding) {
-    const status = projectStructuredAgentSessionStatus(
-      readStructuredRoomState(value.conversationId).items
-    )
-    return {
-      handle: value.conversationId,
-      condition: 'tui-idle' as const,
-      satisfied: status === 'idle',
-      status: 'running' as const,
-      exitCode: null
-    }
+    return readMachineRoomReady(value)
   }
 
   async awaitInputReady(value: RoomMachineHarnessBinding): Promise<boolean> {
-    return (
-      projectStructuredAgentSessionStatus(readStructuredRoomState(value.conversationId).items) ===
-      'idle'
-    )
+    return machineRoomInputReady(value)
   }
 
   async context(
     value: RoomMachineHarnessBinding,
     current: RoomContextSnapshot
   ): Promise<RoomContextSnapshot> {
-    return structuredRoomHost().readContext(value.conversationId) ?? current
+    return readMachineRoomContext(this.agent, value, current)
   }
 
   async lastTranscriptActivityAt(value: RoomMachineHarnessBinding): Promise<number> {
-    return readStructuredRoomState(value.conversationId).items.at(-1)?.observedAt ?? Date.now()
+    return machineRoomLastActivityAt(value)
   }
 
   stageAttachment(
@@ -327,62 +309,14 @@ export class MachineRoomHarnessAdapter {
     return this.runtime.stageRoomAttachment(value.worktreeId, undefined, attachment)
   }
 
-  async subscribe(
-    value: RoomMachineHarnessBinding,
-    callbacks: RoomHarnessSubscriptionCallbacks
-  ): Promise<NativeChatTranscriptSubscription> {
-    let state: StructuredAgentSessionState = EMPTY_STRUCTURED_AGENT_SESSION
-    let lastLifecycle = ''
-    const unsubscribe = structuredRoomHost().subscribe({
-      id: `room:${value.conversationId}:${randomUUID()}`,
-      sessionId: value.conversationId,
-      emit: (event) => {
-        if (event.type === 'end') {
-          return
-        }
-        state = reduceStructuredAgentSession(state, { type: 'event', event })
-        const messages = projectStructuredItemsToNativeChat(state.items)
-        if (event.type === 'snapshot' || event.type === 'reset') {
-          callbacks.onSnapshot(messages)
-        }
-        const lifecycle = roomStructuredLifecycle(state, messages)
-        const lifecycleKey = lifecycle
-          ? `${lifecycle.turnId}:${lifecycle.type}:${state.cursor?.sequence ?? 0}`
-          : ''
-        if (lifecycle && lifecycleKey !== lastLifecycle) {
-          lastLifecycle = lifecycleKey
-          callbacks.onEvent(lifecycle)
-        }
-      }
-    })
-    await structuredRoomHost().hold(value.conversationId, structuredRoomHolderId(value))
-    return { watching: true, unsubscribe }
+  subscribe(value: RoomMachineHarnessBinding, callbacks: RoomHarnessSubscriptionCallbacks) {
+    return subscribeMachineRoomSession(value, callbacks)
   }
 
   private async applyPreferences(
     value: RoomMachineHarnessBinding,
     preferences?: RoomHarnessLaunchOptions['preferences']
   ): Promise<void> {
-    const available = structuredRoomHost().readConfiguration(value.conversationId)?.options ?? []
-    for (const [key, rawValue] of Object.entries(preferences ?? {})) {
-      if (
-        rawValue === undefined ||
-        !available.some((option) => option.id === key && option.settable)
-      ) {
-        continue
-      }
-      const stringValue = String(rawValue)
-      const result = await structuredRoomHost().setOption(structuredRoomCaller(value), {
-        envelope: structuredRoomMutationEnvelope(value.conversationId, 'agentSession.setOption', {
-          key,
-          value: stringValue
-        }),
-        key,
-        value: stringValue
-      })
-      if (!result.ok) {
-        throw new Error(result.refusal.message)
-      }
-    }
+    await applyMachineRoomPreferences(value, preferences)
   }
 }

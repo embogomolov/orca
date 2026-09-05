@@ -234,10 +234,7 @@ export default function TabGroupPanel({
         {isVisible && activeTab?.contentType === 'room' ? (
           <div className="absolute inset-0 flex min-h-0 min-w-0">
             <Suspense fallback={null}>
-              <RoomsPage
-                key={activeTab.entityId}
-                roomId={activeTab.entityId}
-              />
+              <RoomsPage key={activeTab.entityId} roomId={activeTab.entityId} />
             </Suspense>
           </div>
         ) : null}

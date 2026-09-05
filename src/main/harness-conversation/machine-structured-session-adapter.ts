@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
 import type {
   AgentJournalItemIdentity,
   AgentJournalMessageItem,
   AgentSessionJournalIdentity
 } from '../../shared/agent-session-journal-types'
-import type { AgentSessionOptionsResult } from '../../shared/agent-session-wire'
+import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
 import type { StructuredProviderConfiguration } from '../../shared/structured-agent-provider'
 import type {
   AgentSessionAcquisition,
@@ -13,7 +12,6 @@ import type {
   StructuredAgentSessionAcquireInput,
   StructuredAgentSessionAdapter
 } from '../native-chat/agent-session-wire/structured-agent-session-adapter'
-import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
 import type { HarnessConversationDriverFactory } from './driver'
 import { createMachineStructuredSessionDriverSink } from './machine-structured-session-driver-sink'
 import {
@@ -21,16 +19,14 @@ import {
   lifecycleIdentity,
   machineAgent,
   type MachineStructuredSession,
-  optionRecord,
-  optionValue,
+  type MachineStructuredMessage,
   processIdentity,
   providerHandleLink,
-  providerOptions,
   providerPrompt,
   providerSessionId,
-  requiredEvents,
-  waitForProcessExit
+  requiredEvents
 } from './machine-structured-session-values'
+import { MachineStructuredSessionAdapterState } from './machine-structured-session-adapter-state'
 
 export type MachineStructuredSessionAdapterDeps = {
   createDriver: HarnessConversationDriverFactory
@@ -50,11 +46,10 @@ export type MachineStructuredSessionAdapterDeps = {
   now?: () => number
 }
 
-export class MachineStructuredSessionAdapter implements StructuredAgentSessionAdapter {
-  private readonly sessions = new Map<string, MachineStructuredSession>()
-
-  constructor(private readonly deps: MachineStructuredSessionAdapterDeps) {}
-
+export class MachineStructuredSessionAdapter
+  extends MachineStructuredSessionAdapterState
+  implements StructuredAgentSessionAdapter
+{
   supportsCreate = (_location: unknown, agent: string): boolean =>
     agent === 'claude' || agent === 'openclaude' || agent === 'grok' || agent === 'omp'
 
@@ -74,7 +69,7 @@ export class MachineStructuredSessionAdapter implements StructuredAgentSessionAd
       configuration: null as StructuredProviderConfiguration | null,
       transcriptPath: null as string | null
     }
-    const messages = new Map<string, AgentJournalMessageItem>()
+    const messages = new Map<string, MachineStructuredMessage>()
     const prompts = new Map<string, { kind: 'approval' | 'question'; requestId: string }>()
     const sessionRef = { current: null as MachineStructuredSession | null }
     const sink = createMachineStructuredSessionDriverSink({
@@ -204,7 +199,16 @@ export class MachineStructuredSessionAdapter implements StructuredAgentSessionAd
       return { state: 'rejected', reason: error instanceof Error ? error.message : String(error) }
     }
     return accepted
-      ? { state: 'accepted', providerIdentity: identity }
+      ? {
+          state: 'accepted',
+          providerIdentity: {
+            provider: 'legacy',
+            agent: session.agent,
+            sessionId: input.sessionId,
+            recordId: `user:${input.clientMessageId}`,
+            turn: { turnId, root: true }
+          }
+        }
       : { state: 'unknown', reason: 'provider completed without accepting the submission' }
   }
 
@@ -228,10 +232,16 @@ export class MachineStructuredSessionAdapter implements StructuredAgentSessionAd
     let outcome: AgentSessionDispatchOutcome | null = null
     try {
       await session.driver.steer(text, imagePaths, input.clientMessageId, async (accepted) => {
-        this.append(session, identity, input.body)
         if (accepted.placement === 'next') {
           this.completeTurn(input.sessionId, input.turnId, 'completed')
           session.activeTurn = input.clientMessageId
+        }
+        identity.turn = {
+          turnId: session.activeTurn!,
+          ...(accepted.placement === 'next' ? { root: true as const } : {})
+        }
+        this.append(session, identity, input.body)
+        if (accepted.placement === 'next') {
           this.append(
             session,
             lifecycleIdentity(session.agent, input.sessionId, input.clientMessageId),
@@ -291,101 +301,5 @@ export class MachineStructuredSessionAdapter implements StructuredAgentSessionAd
       return
     }
     session.driver.answerInput(prompt.requestId, decodeAnswers(input.optionId))
-  }
-
-  async setOption(input: { sessionId: string; key: string; value: string }) {
-    const session = this.session(input.sessionId)
-    if (!session.driver.setOption) {
-      throw new Error('conversation_option_unsupported')
-    }
-    await session.driver.setOption(
-      input.key,
-      optionValue(session.configuration, input.key, input.value)
-    )
-    return optionRecord(session.configuration)
-  }
-
-  async readOptions(input: { sessionId: string }): Promise<AgentSessionOptionsResult> {
-    const session = this.session(input.sessionId)
-    return providerOptions(session.configuration)
-  }
-
-  historyFilePath = async ({ identity }: { identity: AgentSessionJournalIdentity }) =>
-    this.sessions.get(identity.sessionId)?.transcriptPath ?? null
-
-  readContext(sessionId: string): AgentSessionContextSnapshot | null {
-    return this.sessions.get(sessionId)?.context ?? null
-  }
-
-  readConfiguration(sessionId: string): StructuredProviderConfiguration | null {
-    return this.sessions.get(sessionId)?.configuration ?? null
-  }
-
-  closeSession = (sessionId: string): Promise<boolean> => this.close(sessionId)
-  forceCloseSession = (sessionId: string): Promise<boolean> => this.close(sessionId)
-  disposeSession = (sessionId: string): Promise<boolean> => this.close(sessionId)
-  releaseAcquisition = ({ sessionId }: { sessionId: string }): Promise<boolean> =>
-    this.close(sessionId)
-
-  async closeAll(): Promise<void> {
-    await Promise.all([...this.sessions.keys()].map((sessionId) => this.close(sessionId)))
-  }
-
-  private async close(sessionId: string): Promise<boolean> {
-    const session = this.sessions.get(sessionId)
-    if (!session) {
-      return true
-    }
-    session.requestedClose = true
-    await session.driver.close()
-    const closed = await waitForProcessExit(session.process, this.deps.readProcessStartTime)
-    if (closed) {
-      this.sessions.delete(sessionId)
-    }
-    return closed
-  }
-
-  private completeTurn(
-    sessionId: string,
-    turnId: string,
-    outcome: 'completed' | 'failed' | 'interrupted',
-    error?: unknown
-  ): void {
-    const session = this.sessions.get(sessionId)
-    if (!session || session.activeTurn !== turnId) {
-      return
-    }
-    session.activeTurn = null
-    this.append(session, lifecycleIdentity(session.agent, sessionId, turnId), {
-      kind: 'status',
-      text:
-        outcome === 'completed'
-          ? 'Completed'
-          : outcome === 'interrupted'
-            ? 'Interrupted'
-            : `Failed: ${error instanceof Error ? error.message : String(error)}`,
-      turnLifecycle: { turnId, state: 'completed', outcome }
-    })
-  }
-
-  private append(
-    session: MachineStructuredSession,
-    identity: AgentJournalItemIdentity,
-    body: Parameters<StructuredAgentSessionEventSink['appendItem']>[1]
-  ): void {
-    session.events.appendItem(identity, body, [], { lifecycle: body.kind === 'status' })
-    session.events.publish({ lifecycle: body.kind === 'status' })
-  }
-
-  private session(sessionId: string): MachineStructuredSession {
-    const session = this.sessions.get(sessionId)
-    if (!session) {
-      throw new Error(`no live provider for session ${sessionId}`)
-    }
-    return session
-  }
-
-  private now(): number {
-    return this.deps.now?.() ?? Date.now()
   }
 }

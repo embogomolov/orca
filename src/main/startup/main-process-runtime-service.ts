@@ -126,7 +126,8 @@ export function initializeMainProcessRuntime(): OrcaRuntimeService {
   store.onSettingsChanged((updates) => {
     if (
       'experimentalStructuredNativeChat' in updates ||
-      'experimentalRoomLiveSteering' in updates
+      'experimentalRoomLiveSteering' in updates ||
+      'enabledHarnessStreamingAgents' in updates
     ) {
       runtime.getRoomService().wakeDeliveries()
     }

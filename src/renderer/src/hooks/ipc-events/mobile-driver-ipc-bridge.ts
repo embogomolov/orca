@@ -108,7 +108,12 @@ export function registerMobileDriverIpcBridge(
   if (unsubscribeLaunchDraftResolution) {
     unsubs.push(unsubscribeLaunchDraftResolution)
   }
-  unsubs.push(window.api.runtime.onRoomEvent(({ event }) => notifyRoomMessage(event)))
+  const unsubscribeRoomEvents = window.api.runtime.onRoomEvent?.(({ event }) =>
+    notifyRoomMessage(event)
+  )
+  if (unsubscribeRoomEvents) {
+    unsubs.push(unsubscribeRoomEvents)
+  }
   unsubs.push(
     window.api.runtime.onBrowserDriverChanged((event) => {
       if (isRuntimeEnvironmentActive()) {

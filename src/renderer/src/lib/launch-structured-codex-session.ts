@@ -16,37 +16,47 @@ import {
   resolveWebSessionVisibleTabId
 } from '@/runtime/web-session-focus-intent'
 import { LOCAL_STRUCTURED_SESSION_OWNER } from '@/runtime/local-structured-session-tabs-sync'
+import type { StructuredMachineAgent } from '../../../shared/structured-agent-provider'
+import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 
 type StructuredAgentSessionCreateParams = {
   envelope: AgentSessionMutationEnvelope
   worktree: string
-  agent: 'codex'
+  agent: StructuredMachineAgent
 }
 
 export type StructuredAgentSessionLaunchIntent = {
   sessionId: string
   worktreeId: string
+  target: RuntimeClientTarget
   params: StructuredAgentSessionCreateParams
 }
 
 export class StructuredAgentSessionCreateRefusalError extends Error {}
 
-export function createStructuredCodexSessionLaunchIntent(
-  worktreeId: string
+export function createStructuredAgentSessionLaunchIntent(
+  worktreeId: string,
+  agent: StructuredMachineAgent = 'codex',
+  target: RuntimeClientTarget = { kind: 'local' },
+  groupId?: string
 ): StructuredAgentSessionLaunchIntent {
-  const sessionId = `codex_${crypto.randomUUID().replaceAll('-', '_')}`
-  const fields = { worktree: toRuntimeWorktreeSelector(worktreeId), agent: 'codex' as const }
+  const sessionId = `${agent}_${crypto.randomUUID().replaceAll('-', '_')}`
+  const fields = { worktree: toRuntimeWorktreeSelector(worktreeId), agent }
   const state = useAppStore.getState()
   recordWebSessionFocusIntent(
-    { environmentId: LOCAL_STRUCTURED_SESSION_OWNER },
+    {
+      environmentId:
+        target.kind === 'environment' ? target.environmentId : LOCAL_STRUCTURED_SESSION_OWNER
+    },
     worktreeId,
     `agent-session:${sessionId}`,
-    undefined,
+    groupId,
     resolveWebSessionVisibleTabId(state, worktreeId)
   )
   return {
     sessionId,
     worktreeId,
+    target,
     params: {
       envelope: {
         sessionId,
@@ -67,18 +77,23 @@ export function abandonStructuredAgentSessionLaunchIntent(
   intent: StructuredAgentSessionLaunchIntent
 ): void {
   clearWebSessionFocusIntentIfMatches(
-    { environmentId: LOCAL_STRUCTURED_SESSION_OWNER },
+    {
+      environmentId:
+        intent.target.kind === 'environment'
+          ? intent.target.environmentId
+          : LOCAL_STRUCTURED_SESSION_OWNER
+    },
     intent.worktreeId,
     `agent-session:${intent.sessionId}`
   )
 }
 
-export async function launchStructuredCodexSession(
+export async function launchStructuredAgentSession(
   intent: StructuredAgentSessionLaunchIntent
 ): Promise<string> {
   const result = await callStructuredAgentSession<
     AgentSessionMutationResult<AgentSessionAttachResult>
-  >({ kind: 'local' }, 'agentSession.create', intent.params)
+  >(intent.target, 'agentSession.create', intent.params)
   if (!result.ok) {
     abandonStructuredAgentSessionLaunchIntent(intent)
     throw new StructuredAgentSessionCreateRefusalError(result.refusal.message)

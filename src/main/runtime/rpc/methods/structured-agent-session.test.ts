@@ -203,7 +203,7 @@ describe('capability gating', () => {
     }
     // Bump deliberately: the whole agentSession.* surface is behind the structured capability,
     // so an additive method is invisible to old clients and needs no protocol bump.
-    expect(STRUCTURED_AGENT_SESSION_METHODS).toHaveLength(16)
+    expect(STRUCTURED_AGENT_SESSION_METHODS).toHaveLength(17)
   })
 
   it('hides the surface from a declared client that did not advertise it', async () => {
@@ -366,12 +366,12 @@ describe('parameter validation', () => {
     )
   })
 
-  it('rejects Claude structured create shapes', async () => {
+  it('rejects unsupported structured agent create shapes', async () => {
     await rejects('agentSession.createSupport', {
       worktree: 'id:workspace-1',
-      agent: 'claude'
+      agent: 'gemini'
     })
-    const fields = { worktree: 'id:workspace-1', agent: 'claude' }
+    const fields = { worktree: 'id:workspace-1', agent: 'gemini' }
     await rejects('agentSession.create', {
       envelope: envelope({
         expectedRuntimeFence: null,

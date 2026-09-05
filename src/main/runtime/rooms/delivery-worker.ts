@@ -2,19 +2,15 @@ import type { RoomDelivery, RoomEvent, RoomParticipant } from '../../../shared/r
 import type { RoomDatabase } from './database'
 import type { RoomHarnessAdapter } from './harness-adapter'
 import type { RoomHarnessTurnUserMessage } from './harness-lifecycle'
-import { formatRoomDeliveryPrompt } from './delivery-prompt'
 import type { RoomAttachmentManager } from './attachments'
-import { deferPausedDelivery, deliveryFailureState } from './delivery-selection'
-import { stageRoomDeliveryAttachments } from './delivery-attachments'
 import { RoomDeliveryConfirmations } from './delivery-confirmations'
-import { roomParticipantHarnessBinding } from './participant-harness-binding'
 import { claimReadyRoomDelivery } from './delivery-machine-readiness'
 import { runRoomSteer } from './delivery-steer-selection'
 import { claimReadyRoomBroadcast } from './delivery-broadcast-dispatch'
 import { scheduleRoomDeliveryDrain } from './delivery-scheduler'
-import { assertCurrentRoomDelivery, isRoomDeliveryMissing } from './delivery-current-guard'
 import { RoomDeliveryGate, type RoomDeliveryFence } from './delivery-room-gate'
 import { runRoomAutoSteer } from './delivery-auto-steer'
+import { deliverRoomDelivery } from './delivery-execution'
 
 export class RoomDeliveryWorker {
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -206,111 +202,18 @@ export class RoomDeliveryWorker {
     steer = false,
     moveRejectedSteerToHead = true
   ): Promise<void> {
-    const message = this.db.messages.get(delivery.messageId)
-    let target = this.db.participants.get(delivery.participantId)
-    this.emit(message.roomId, { type: 'delivery.updated', delivery })
-    try {
-      this.db.core.get(message.roomId)
-      const initiallyDeferred = deferPausedDelivery(this.db, delivery)
-      if (initiallyDeferred) {
-        return this.emit(target.roomId, { type: 'delivery.updated', delivery: initiallyDeferred })
-      }
-      // A second status probe would reject silent daemon-recovered PTYs.
-      if (!steer) {
-        target = await this.ensureParticipantReady(target.id)
-      }
-      assertCurrentRoomDelivery(this.db, delivery)
-      const adapter = target.agent ? this.adapters[target.agent] : undefined
-      const binding = roomParticipantHarnessBinding(target)
-      if (!adapter || !binding) {
-        throw new Error('room_agent_not_attached')
-      }
-      const snapshot = this.db.snapshot(message.roomId)
-      const role = snapshot.roles.find((item) => item.id === target.roleId) ?? null
-      const configuration = this.db.deliveryConfiguration.pending({
-        participant: target,
-        room: snapshot.room,
-        role
-      })
-      const replyParent = message.replyToId ? this.db.messages.get(message.replyToId) : null
-      const attachmentPaths = await stageRoomDeliveryAttachments({
-        adapter,
-        binding,
-        attachments: this.attachments,
-        messages: replyParent ? [replyParent, message] : [message]
-      })
-      assertCurrentRoomDelivery(this.db, delivery)
-      const prompt = formatRoomDeliveryPrompt({
-        deliveryId: delivery.id,
-        attempt: delivery.attempts,
-        response: message.mentions.some(
-          (identity) => identity.toLocaleLowerCase() === target.identity.toLocaleLowerCase()
-        )
-          ? 'required'
-          : 'optional',
-        roomName: snapshot.room.name,
-        message,
-        replyParent,
-        target,
-        participants: snapshot.participants,
-        configuration: configuration.configuration,
-        attachmentPaths
-      })
-      const imagePaths = message.attachments
-        .filter((attachment) => attachment.mimeType.startsWith('image/'))
-        .map((attachment) => attachmentPaths.get(attachment.id)!)
-      target = this.db.participants.get(delivery.participantId)
-      const deferred = deferPausedDelivery(this.db, delivery)
-      if (deferred) {
-        return this.emit(target.roomId, { type: 'delivery.updated', delivery: deferred })
-      }
-      this.confirmations.prepare(delivery.id, target.id, configuration.snapshot)
-      delivery = this.db.messages.deliveries.setPhase(delivery.id, 'submitting')
-      this.emit(message.roomId, { type: 'delivery.updated', delivery })
-      const result = steer
-        ? await adapter.steer!(binding, prompt, imagePaths.length > 0 ? { imagePaths } : undefined)
-        : await adapter.send(binding, prompt, {
-            beforeWrite: () => assertCurrentRoomDelivery(this.db, delivery),
-            clearInput: delivery.attempts > 1,
-            ...(imagePaths.length > 0 ? { imagePaths } : {})
-          })
-      if (!result.accepted) {
-        throw new Error(result.refusedReason ?? 'room_delivery_refused')
-      }
-      if (this.db.messages.deliveries.get(delivery.id).state !== 'delivering') {
-        return
-      }
-      delivery = this.db.messages.deliveries.setPhase(delivery.id, 'awaiting-turn')
-      this.emit(message.roomId, { type: 'delivery.updated', delivery })
-      // Only a provider turn confirms PTY paste; a swallowed paste must be requeued.
-      this.confirmations.arm(delivery.id)
-    } catch (error) {
-      this.confirmations.discard(delivery.id)
-      if (this.disposed || isRoomDeliveryMissing(this.db, delivery.id)) {
-        return
-      }
-      const messageText = error instanceof Error ? error.message : String(error)
-      const uncertain = messageText === 'conversation_steer_uncertain'
-      if (steer && !uncertain) {
-        const queued = this.db.messages.deliveries.returnSteerToNext(
-          delivery.id,
-          messageText,
-          Date.now(),
-          moveRejectedSteerToHead
-        )
-        this.emit(message.roomId, { type: 'delivery.updated', delivery: queued })
-        throw new Error(messageText)
-      }
-      const exhausted = delivery.attempts >= 5
-      const delay = Math.min(60_000, 1000 * 2 ** Math.max(0, delivery.attempts - 1))
-      const failed = this.db.messages.deliveries.complete(
-        delivery.id,
-        uncertain ? 'failed' : deliveryFailureState(exhausted),
-        uncertain ? 'room_delivery_uncertain' : messageText,
-        uncertain || exhausted ? Number.MAX_SAFE_INTEGER : Date.now() + delay
-      )
-      this.emit(message.roomId, { type: 'delivery.updated', delivery: failed })
-    }
+    return deliverRoomDelivery({
+      db: this.db,
+      adapters: this.adapters,
+      attachments: this.attachments,
+      confirmations: this.confirmations,
+      emit: this.emit,
+      ensureParticipantReady: this.ensureParticipantReady,
+      delivery,
+      steer,
+      moveRejectedSteerToHead,
+      disposed: () => this.disposed
+    })
   }
 
   private async track(roomId: string, run: () => Promise<void>): Promise<void> {

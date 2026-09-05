@@ -20,6 +20,7 @@ import {
 } from './codex-structured-session-close'
 import {
   applyCodexStructuredSessionOption,
+  codexStructuredSessionOptionUpdate,
   readLiveCodexSessionOptions
 } from './codex-structured-session-options'
 import {
@@ -211,15 +212,17 @@ export class CodexStructuredSessionAdapter implements StructuredAgentSessionAdap
   async setOption(
     input: StructuredAgentSessionSetOptionInput
   ): Promise<Readonly<Record<string, string>>> {
-    if (!isCodexTurnOptionKey(input.key)) {
+    const { key, value } = codexStructuredSessionOptionUpdate(input.key, input.value)
+    if (!isCodexTurnOptionKey(key) || !value) {
       throw new Error(`codex app-server has no thread option named ${input.key}`)
     }
-    return applyCodexStructuredSessionOption(
+    const applied = await applyCodexStructuredSessionOption(
       this.session(input.sessionId),
-      input.key,
-      input.value,
+      key,
+      value,
       this.deps.requestTimeoutMs
     )
+    return input.key === 'fastMode' ? { ...applied, fastMode: input.value } : applied
   }
 
   readOptions = async (input: { sessionId: string; fence: number }) => ({

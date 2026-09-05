@@ -159,7 +159,7 @@ function toolActivityMessage(
   }
 }
 
-function activityFromMessages(messages: NativeChatMessage[]): {
+export function activityFromMessages(messages: NativeChatMessage[]): {
   kind: RoomHarnessActivityKind
   detail?: string
 } {
@@ -179,7 +179,7 @@ function activityFromMessages(messages: NativeChatMessage[]): {
       return { kind: 'thinking' }
     }
   }
-  return { kind: messages.length > 0 ? 'thinking' : 'working' }
+  return { kind: 'working' }
 }
 
 function activeToolFromMessages(messages: NativeChatMessage[]) {
@@ -203,6 +203,9 @@ function activeToolFromMessages(messages: NativeChatMessage[]) {
     .filter((block) => {
       if (block.type !== 'tool-call') {
         return false
+      }
+      if (block.state !== undefined) {
+        return block.state === 'running'
       }
       if (block.toolCallId) {
         return !completedIds.has(block.toolCallId)

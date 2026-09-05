@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  STRUCTURED_AGENT_SESSION_MACHINE_PROVIDERS_CAPABILITY,
   STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
   type RuntimeCapability
 } from '../../../../shared/protocol-version'
@@ -73,6 +74,17 @@ describe('session tab structured capability mutations', () => {
 
       expect(response.ok).toBe(false)
       expect(fixture.calls[method.runtimeMethod]).not.toHaveBeenCalled()
+    })
+
+    it(`allows ${method.name} for a negotiated machine-provider row`, async () => {
+      const fixture = createFixture([
+        STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY,
+        STRUCTURED_AGENT_SESSION_MACHINE_PROVIDERS_CAPABILITY
+      ])
+      const response = await fixture.dispatch(method.name, method.params('claude-session'))
+
+      expect(response.ok).toBe(true)
+      expect(fixture.calls[method.runtimeMethod]).toHaveBeenCalledOnce()
     })
   }
 })

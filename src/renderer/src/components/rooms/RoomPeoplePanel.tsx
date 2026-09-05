@@ -25,7 +25,6 @@ import { RoomPanelEmpty, RoomPanelSection } from './RoomPanelSection'
 import { RoomParticipantEditDialog } from './RoomParticipantEditDialog'
 import type { RoomData } from './use-room-data'
 import { showRoomActionError } from './room-action-error'
-import { activateStructuredAgentSessionById } from '@/lib/structured-agent-session-tab-activation'
 
 export function PeoplePanel({
   data,
@@ -125,16 +124,6 @@ export function PeoplePanel({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onSelect={() => {
-                        if (
-                          participant.providerSession?.transport === 'machine' &&
-                          participant.worktreeId
-                        ) {
-                          activateStructuredAgentSessionById({
-                            worktreeId: participant.worktreeId,
-                            sessionId: participant.providerSession.id
-                          })
-                          return
-                        }
                         void roomRpc(data.target, 'rooms.participants.reveal', {
                           participantId: participant.id,
                           viewMode: 'chat'

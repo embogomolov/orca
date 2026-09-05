@@ -8,12 +8,8 @@ import { track } from '../../../telemetry/client'
 import { getCohortAtEmit } from '../../../telemetry/cohort-classifier'
 import { agentKindSchema } from '../../../../shared/telemetry-events'
 import { normalizeNodePtySpawnError } from '../provider/liveness'
-import {
-  capturePtyOutputBoundary,
-  resolveStablePaneOwner,
-  spawnForStablePane,
-  type PtyOutputBoundary
-} from '../pane/stable-owner'
+import { resolveStablePaneOwner, type PtyOutputBoundary } from '../pane/stable-owner'
+import { spawnForStablePane } from '../pane/stable-pane-spawn'
 import { assertSpawnReplyWasLive } from '../pane/agent-session-owners'
 import { deletePtyOwnership } from '../provider/ownership-state'
 import { ptySizes } from '../delivery/visibility-state'
@@ -47,10 +43,11 @@ export async function executePtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<void> {
           preserveExisting: !ctx.isMintedSessionId || Boolean(stablePaneOwnerCandidate)
         }) ?? false
     }
-    let outputBoundary: PtyOutputBoundary = capturePtyOutputBoundary(
-      ctx.deps.runtime,
-      expectedPtyId
-    )
+    let outputBoundary: PtyOutputBoundary = {
+      ptyId: expectedPtyId ?? null,
+      sequence: 0,
+      recentOutputMark: null
+    }
     if (
       ctx.preAdoptedStablePane &&
       'outputBoundary' in ctx.preAdoptedStablePane &&
@@ -103,20 +100,27 @@ export async function executePtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<void> {
     assertSpawnReplyWasLive(ctx.result)
     ctx.deps.runtime?.assertPtyRegistrationAllowed?.(ctx.result.id, ctx.result.incarnationId)
     if (ctx.result.providerSequence) {
-      const providerBoundary = outputBoundary.ptyId === ctx.result.id ? outputBoundary : null
+      const providerMark =
+        outputBoundary.ptyId === ctx.result.id ? outputBoundary.recentOutputMark : null
       const runtimeSequenceBeforeReconcile =
         ctx.deps.runtime?.getPtyOutputSequence?.(ctx.result.id) ?? 0
       // Why kept: this is the reattach boundary in the RENDERER's sequence
       // domain, and the daemon snapshot's kitty flags mean nothing without
       // the boundary they were proven at.
-      ctx.reconciledSnapshotSeq =
-        ctx.deps.runtime?.synchronizePtyOutputSequenceFromProvider?.(
-          ctx.result.id,
-          ctx.result.providerSequence,
-          providerBoundary?.sequence ?? 0,
-          providerBoundary?.recentOutputMark ?? null
-        ) ?? null
-      if (runtimeSequenceBeforeReconcile > (providerBoundary?.sequence ?? 0)) {
+      const synchronize = ctx.deps.runtime?.synchronizePtyOutputSequenceFromProvider?.bind(
+        ctx.deps.runtime
+      )
+      ctx.reconciledSnapshotSeq = synchronize
+        ? providerMark
+          ? synchronize(
+              ctx.result.id,
+              ctx.result.providerSequence,
+              outputBoundary.sequence,
+              providerMark
+            )
+          : synchronize(ctx.result.id, ctx.result.providerSequence, outputBoundary.sequence)
+        : null
+      if (runtimeSequenceBeforeReconcile > outputBoundary.sequence) {
         ctx.snapshotKittyFlagsCoverReconciledSeq = false
       }
     }

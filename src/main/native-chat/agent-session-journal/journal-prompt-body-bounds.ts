@@ -66,7 +66,9 @@ function boundJournalPromptBody(
               ? {
                   options: question.options.slice(0, MAX_JOURNAL_PROMPT_OPTIONS).map((option) => ({
                     label: boundPromptText(option.label),
-                    ...(option.description ? { description: boundPromptText(option.description) } : {})
+                    ...(option.description
+                      ? { description: boundPromptText(option.description) }
+                      : {})
                   }))
                 }
               : {})

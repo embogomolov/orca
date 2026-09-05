@@ -62,7 +62,7 @@ export function registerMobileAndTerminalCloseIpcBridge(
         // Why: the CLI/RPC caller is answered immediately, so it cannot wait on a modal.
         closeTerminalTab(tabId, {
           skipRunningProcessConfirm: true,
-          preserveSessionOnClose: preserveSessionOnClose === true
+          ...(preserveSessionOnClose ? { preserveSessionOnClose: true } : {})
         })
       }
     })

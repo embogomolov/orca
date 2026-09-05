@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   spawn: vi.fn()
 }))
 
-vi.mock('node:child_process', () => ({ spawn: mocks.spawn }))
+vi.mock('../../shared/child-process/run-process', () => ({ spawnProcess: mocks.spawn }))
 vi.mock('./acp-session-start', () => ({
   startAcpSession: vi.fn(async () => ({
     capabilities: {},

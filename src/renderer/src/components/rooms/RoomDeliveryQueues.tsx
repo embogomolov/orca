@@ -80,11 +80,9 @@ export function RoomDeliveryQueues({
   const settlingDragId = dragging ? null : activeDragItem?.id
   const previewingSharedDrag =
     dragging && pointerDragging && parseSharedRowId(activeDragItem?.id ?? '') !== null
-  useEffect(() => {
-    if (isRoomQueueTransferSettled(state, settlingDragId)) {
-      setActiveDragItem(null)
-    }
-  }, [settlingDragId, state])
+  if (isRoomQueueTransferSettled(state, settlingDragId)) {
+    setActiveDragItem(null)
+  }
   const longPress = useRef<RoomQueueLongPressState>({ targetId: null, timer: null })
   const dragBrowseActive = useRef(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)

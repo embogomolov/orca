@@ -4,6 +4,7 @@
 // is how a newer client's field becomes a different effect on an older host.
 
 import { z } from 'zod'
+import { STRUCTURED_MACHINE_AGENTS } from '../../../../shared/structured-agent-provider'
 import { isAgentSessionId } from '../../../../shared/agent-session-record'
 import {
   AGENT_SESSION_HISTORY_DIRECTIONS,
@@ -105,7 +106,7 @@ export const CreateIntentParams = z
   .object({
     envelope: MutationEnvelope,
     worktree: Identifier('Invalid worktree selector'),
-    agent: z.literal('codex')
+    agent: z.enum(STRUCTURED_MACHINE_AGENTS)
   })
   .strict()
 
@@ -114,7 +115,7 @@ export const CreateParams = z.union([AttachParams, CreateIntentParams])
 export const CreateSupportParams = z
   .object({
     worktree: Identifier('Invalid worktree selector'),
-    agent: z.literal('codex')
+    agent: z.enum(STRUCTURED_MACHINE_AGENTS)
   })
   .strict()
 

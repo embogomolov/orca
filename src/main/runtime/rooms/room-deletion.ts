@@ -70,7 +70,10 @@ export class RoomDeletionCoordinator {
   private async deleteNow(roomId: string): Promise<void> {
     let fence: ReturnType<RoomDeliveryWorker['requestRoomFence']> | null = null
     try {
-      await Promise.allSettled(this.operations.get(roomId) ?? [])
+      const operations = this.operations.get(roomId)
+      if (operations) {
+        await Promise.allSettled(operations)
+      }
       fence = this.deliveries.requestRoomFence(roomId, { discardConfirmations: true })
       await fence.ready
       const forgetParticipants = await this.participants.blockRoom(roomId)

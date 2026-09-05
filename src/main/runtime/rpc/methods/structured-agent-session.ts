@@ -13,6 +13,7 @@ import {
 import { defineMethod, defineStreamingMethod, type RpcAnyMethod, type RpcContext } from '../core'
 import {
   ensureStructuredHostInstalled as ensureHostInstalled,
+  requireStructuredAgentCapability,
   requireStructuredCapability,
   requireStructuredHost as requireHost,
   structuredCallerFor as callerFor,
@@ -52,6 +53,7 @@ export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
       if (!supportsStructuredSessions(ctx)) {
         throw new Error('structured_agent_session_unsupported')
       }
+      requireStructuredAgentCapability(ctx, params.agent)
       return ctx.runtime.getStructuredAgentSessionCreateSupport(params.worktree, params.agent)
     }
   }),
@@ -64,6 +66,7 @@ export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
         throw new Error('agent_session_operation_invalid')
       }
       if ('worktree' in params) {
+        requireStructuredAgentCapability(ctx, params.agent)
         const intentFingerprint = computeAgentSessionPayloadFingerprint({
           method: 'agentSession.create',
           sessionId: params.envelope.sessionId,
@@ -80,7 +83,7 @@ export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
           fields: {
             location: resolved.location,
             provider: resolved.provider,
-            agent: resolved.agent,
+            agent: params.agent,
             accountHome: resolved.accountHome,
             runtimeKind: resolved.runtimeKind,
             expectedRuntimeFence: null
@@ -91,11 +94,11 @@ export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
           ...resolved,
           envelope: { ...params.envelope, payloadFingerprint: hostFingerprint }
         })
-        if (result.ok && resolved.agent === 'codex') {
+        if (result.ok) {
           await ctx.runtime.publishStructuredAgentSessionTab({
             workspaceId: resolved.location.workspaceId,
             sessionId: result.value.sessionId,
-            agent: 'codex',
+            agent: params.agent,
             activate: true
           })
         }

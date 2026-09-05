@@ -23,7 +23,7 @@ export async function probeRoomDeliveryReadiness(
     }
     throw error
   }
-  if (participant.state === 'starting' || participant.state === 'error') {
+  if (participant.state === 'starting') {
     return { kind: 'blocked' }
   }
   const binding = roomParticipantHarnessBinding(participant)
@@ -38,11 +38,12 @@ export async function probeRoomDeliveryReadiness(
   try {
     const status = await adapter.status(binding)
     if (!status.isRunningAgent) {
-      return { kind: 'recoverable' }
+      return participant.state === 'error' ? { kind: 'ready', evidence } : { kind: 'recoverable' }
     }
     return status.status === 'idle' ? { kind: 'ready', evidence } : { kind: 'blocked' }
   } catch {
-    return { kind: 'recoverable' }
+    // A failed wake must retry inside a claimed, counted delivery attempt.
+    return participant.state === 'error' ? { kind: 'ready', evidence } : { kind: 'recoverable' }
   }
 }
 

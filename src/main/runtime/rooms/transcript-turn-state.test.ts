@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { AgentJournalRenderItemSchema } from '../../../shared/agent-session-journal-schemas'
+import type { AgentJournalRenderItem } from '../../../shared/agent-session-journal-types'
 import type { NativeChatMessage } from '../../../shared/native-chat-types'
+import type { RoomDelivery, RoomParticipant } from '../../../shared/rooms'
+import { projectStructuredItemsToNativeChat } from '../../../shared/structured-agent-session-projection'
+import { boundStreamItem } from '../../codex/codex-structured-item-stream-bounds'
+import {
+  codexJournalItem,
+  codexStreamingJournalItem,
+  type CodexThreadItem
+} from '../../codex/codex-structured-item-translation'
 import { RoomDatabase } from './database'
 import { RoomTranscriptTurnState, selectRoomTranscriptFinal } from './transcript-turn-state'
 
@@ -13,6 +23,81 @@ function assistant(id: string, phase: 'commentary' | 'final', text: string): Nat
     source: 'stream'
   }
 }
+
+it.each(['commentary', 'final_answer', undefined])(
+  'preserves Codex phase %s through streaming, journal replay and interrupted publication',
+  (phase) => {
+    const text = 'Waiting. <orca-room-recipients>["codex2"]</orca-room-recipients>'
+    const item: CodexThreadItem = { type: 'agentMessage', id: 'reply', text, phase }
+    const bounded = boundStreamItem({ ...item, padding: 'x'.repeat(70_000) }) as CodexThreadItem
+    const bodies = [
+      codexJournalItem(item).body,
+      codexStreamingJournalItem(item, text).body,
+      codexStreamingJournalItem(bounded, text).body
+    ]
+    for (const body of bodies) {
+      const saved: AgentJournalRenderItem = {
+        itemId: 'reply',
+        revision: 2,
+        sequence: 1,
+        observedAt: 100,
+        body: body!
+      }
+      const replayed = JSON.parse(JSON.stringify(saved)) as AgentJournalRenderItem
+      expect(AgentJournalRenderItemSchema.safeParse(replayed).success).toBe(true)
+      const messages = projectStructuredItemsToNativeChat([replayed])
+      expect(messages[0]?.assistantPhase).toBe(phase === 'final_answer' ? 'final' : phase)
+      const createReply = vi.fn(() => ({ id: 'published' }))
+      const participant = {
+        id: 'participant',
+        roomId: 'room',
+        identity: 'codex',
+        actorKind: 'agent'
+      } as RoomParticipant
+      const db = {
+        transaction: <T>(action: () => T) => action(),
+        participants: { list: () => [participant, { identity: 'codex2', actorKind: 'agent' }] },
+        messages: { get: () => ({ sequence: 1 }) },
+        providerMessages: { createReply, ignore: vi.fn() }
+      } as unknown as RoomDatabase
+      const state = new RoomTranscriptTurnState(db, vi.fn())
+      const delivery = {
+        id: 'delivery',
+        messageId: 'user',
+        deliveredAt: 50,
+        state: 'delivered',
+        error: null
+      } as RoomDelivery
+      state.rememberStart(participant, delivery, {
+        type: 'activity',
+        source: 'transcript',
+        turnId: 'turn',
+        timestamp: 50,
+        messages: []
+      })
+      state.remember(participant.id, messages, true)
+      state.publishInterrupted(
+        participant,
+        delivery,
+        'session',
+        { type: 'interrupted', source: 'transcript', turnId: 'turn', timestamp: 200, messages },
+        vi.fn()
+      )
+      expect(createReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: phase === 'commentary' ? '' : 'Waiting.',
+          mentions: [],
+          enqueueDeliveries: false,
+          activity: expect.objectContaining({
+            state: 'interrupted',
+            messages: phase === 'commentary' ? messages : [],
+            completedAt: 200
+          })
+        })
+      )
+    }
+  }
+)
 
 describe('selectRoomTranscriptFinal', () => {
   it('publishes only an explicitly confirmed final when phases are available', () => {
