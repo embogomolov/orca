@@ -165,6 +165,56 @@ describe('buildNativeChatRenderItems', () => {
 })
 
 describe('buildNativeChatConversationItems', () => {
+  it('keeps provider diagnostics in one turn without losing them or creating a second Worked for', () => {
+    const diagnostic = msg({
+      id: 'warning',
+      role: 'system',
+      timestamp: 3,
+      blocks: [
+        {
+          type: 'text',
+          text: 'Codex warning',
+          providerFrame: {
+            provider: 'codex',
+            kind: 'notification:warning',
+            payload: { head: '{}', truncated: false, byteLength: 2, digest: 'd' }
+          }
+        }
+      ]
+    })
+    const items = buildNativeChatConversationItems(
+      [
+        msg({ id: 'user', role: 'user', turnId: 'turn', timestamp: 1 }),
+        msg({
+          id: 'call',
+          turnId: 'turn',
+          timestamp: 2,
+          blocks: [{ type: 'tool-call', name: 'spawn_agent', input: {} }]
+        }),
+        diagnostic,
+        msg({
+          id: 'final',
+          turnId: 'turn',
+          timestamp: 4,
+          assistantPhase: 'final',
+          blocks: [{ type: 'text', text: 'Done' }]
+        })
+      ],
+      false
+    )
+    expect(items).toHaveLength(2)
+    expect(items[1]).toMatchObject({
+      kind: 'assistant-turn',
+      turnId: 'turn',
+      finalMessage: { id: 'final' },
+      activityMessages: [{ id: 'call' }, { id: 'warning' }],
+      segments: [{ kind: 'activity', messages: [{ id: 'call' }, { id: 'warning' }] }]
+    })
+    expect(buildNativeChatConversationItems([diagnostic], false)).toEqual([
+      { kind: 'message', id: 'warning', message: diagnostic }
+    ])
+  })
+
   it('keeps an explicit final in activity until terminal completion', () => {
     const turn = buildNativeChatConversationItems(
       [

@@ -53,44 +53,43 @@ export function NativeChatActivityHeader({
         : translate('rooms.activity.completed', 'Completed')
 
   return (
-    <div className="mb-2 border-b border-border/60 pb-2">
-      <button
-        type="button"
-        disabled={!hasDetails}
-        aria-expanded={hasDetails ? expanded : undefined}
-        onClick={() => onExpandedChange(!expanded)}
-        className={cn(
-          'flex max-w-full items-center gap-1.5 text-xs text-muted-foreground',
-          hasDetails && 'hover:text-foreground'
-        )}
-      >
-        {outcome ? null : latestTool ? (
-          <ActivityKindIcon kind={latestTool.kind} />
-        ) : (
-          <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
-        )}
-        <span className="shrink-0">
-          {completed
-            ? translate('rooms.activity.workedFor', 'Worked for {{duration}}', {
-                duration: formatElapsed(startedAt, completedAt)
-              })
-            : outcome
-              ? terminalLabel
-              : label}
-        </span>
-        {!outcome && detail ? <span className="truncate font-mono">· {detail}</span> : null}
-        {!outcome && startedAt != null ? (
-          <span className="shrink-0 text-muted-foreground/70">
-            · {formatElapsed(startedAt, now)}
-          </span>
-        ) : null}
-        {hasDetails ? (
-          <ChevronRight
-            className={cn('size-3.5 shrink-0 transition-transform', expanded && 'rotate-90')}
-          />
-        ) : null}
-      </button>
-    </div>
+    <button
+      type="button"
+      disabled={!hasDetails}
+      aria-expanded={hasDetails ? expanded : undefined}
+      onClick={() => onExpandedChange(!expanded)}
+      className={cn(
+        'flex max-w-full items-center gap-1.5 text-xs text-muted-foreground',
+        hasDetails && 'hover:text-foreground'
+      )}
+    >
+      {outcome ? null : latestTool ? (
+        <ActivityKindIcon kind={latestTool.kind} />
+      ) : (
+        <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
+      )}
+      <span className="shrink-0">
+        {completed
+          ? translate('rooms.activity.workedFor', 'Worked for {{duration}}', {
+              duration: formatElapsed(startedAt, completedAt)
+            })
+          : outcome
+            ? terminalLabel
+            : label}
+      </span>
+      {!outcome && detail ? <span className="truncate font-mono">· {detail}</span> : null}
+      {!outcome && startedAt != null ? (
+        <span className="shrink-0 text-muted-foreground/70">· {formatElapsed(startedAt, now)}</span>
+      ) : null}
+      {hasDetails ? (
+        <ChevronRight
+          className={cn(
+            'size-3.5 shrink-0 transition-transform duration-200 ease motion-reduce:transition-none',
+            expanded && 'rotate-90'
+          )}
+        />
+      ) : null}
+    </button>
   )
 }
 

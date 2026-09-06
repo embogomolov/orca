@@ -1,5 +1,6 @@
 import { closeSync, openSync, readSync, readdirSync, statSync, type Stats } from 'node:fs'
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
+import { acceptCodexRolloutRecord, type CodexRolloutScope } from './codex-rollout-scope'
 
 import {
   finishCodexSubagent,
@@ -16,6 +17,7 @@ const CHILD_UNREADABLE_GRACE_MS = 60_000
 const SAFE_THREAD_ID = /^[A-Za-z0-9-]{1,64}$/
 
 type JsonlCursor = {
+  scope?: CodexRolloutScope
   filePath?: string
   offset: number
   carry: string
@@ -59,6 +61,7 @@ function readJsonlCursor(cursor: JsonlCursor): JsonRecord[] | undefined {
   if (stats.size < cursor.offset) {
     cursor.offset = 0
     cursor.carry = ''
+    cursor.scope = undefined
   }
   if (stats.size === cursor.offset) {
     return []
@@ -93,7 +96,7 @@ function readJsonlCursor(cursor: JsonlCursor): JsonRecord[] | undefined {
     }
     try {
       const parsed = record(JSON.parse(line) as unknown)
-      if (parsed) {
+      if (parsed && acceptCodexRolloutRecord((cursor.scope ??= {}), parsed)) {
         records.push(parsed)
       }
     } catch {
@@ -240,10 +243,7 @@ function childIsComplete(records: JsonRecord[]): boolean {
 }
 
 export function createCodexSubagentTranscriptState(): CodexSubagentTranscriptState {
-  return {
-    parent: { offset: 0, carry: '' },
-    subagents: new Map()
-  }
+  return { parent: { offset: 0, carry: '' }, subagents: new Map() }
 }
 
 export function hasTrackedCodexTranscriptSubagents(

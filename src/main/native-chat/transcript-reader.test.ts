@@ -271,9 +271,10 @@ describe('readNativeChatTranscript (codex)', () => {
     expect(call?.blocks[0]).toEqual({
       type: 'tool-call',
       name: 'shell',
+      toolCallId: 'call-build',
       input: '{"command":["bash","-lc","make"]}'
     })
-    expect(call?.turnId).toBe('call-build')
+    expect(call?.turnId).toBeUndefined()
 
     const toolResult = result.messages.find((m) => m.blocks[0]?.type === 'tool-result')
     expect(toolResult?.blocks[0]).toEqual({ type: 'tool-result', output: 'build ok' })

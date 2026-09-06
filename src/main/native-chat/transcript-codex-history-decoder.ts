@@ -1,6 +1,7 @@
 import type { NativeChatMessage } from '../../shared/native-chat-types'
 import { asRecord, extractString, parseJsonObject } from '../ai-vault/session-scanner-values'
 import { decodeCodexTranscriptLine } from './transcript-line-decoders-codex'
+import { acceptCodexRolloutRecord, type CodexRolloutScope } from '../../shared/codex-rollout-scope'
 
 type CodexMessageOrigin = 'response' | 'legacy-event' | 'completed-item' | 'other'
 
@@ -19,10 +20,14 @@ export function createCodexTranscriptHistoryDecoder(initialHistoryMode: string |
   seedHistoryMode: (line: string) => void
 } {
   let historyMode = initialHistoryMode
+  const scope: CodexRolloutScope = {}
   let previousLegacyMessage: { origin: CodexMessageOrigin; key: string } | null = null
 
   const decode = (line: string, fallbackId: string): NativeChatMessage | null => {
     const record = parseJsonObject(line)
+    if (record && !acceptCodexRolloutRecord(scope, record)) {
+      return null
+    }
     const payload = asRecord(record?.payload)
     if (record?.type === 'session_meta' && payload) {
       historyMode = extractString(payload.history_mode)
@@ -48,6 +53,10 @@ export function createCodexTranscriptHistoryDecoder(initialHistoryMode: string |
     return message
   }
   decode.seedHistoryMode = (line: string): void => {
+    const record = parseJsonObject(line)
+    if (record) {
+      acceptCodexRolloutRecord(scope, record)
+    }
     historyMode = codexTranscriptHistoryModeFromLine(line)
     previousLegacyMessage = null
   }

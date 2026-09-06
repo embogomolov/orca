@@ -43,13 +43,16 @@ export function decodeCodexTranscriptLine(
       }
     }
   }
-  if (record.type === 'response_item') {
-    return codexResponseItem(payload, baseId, timestamp)
-  }
-  if (record.type === 'event_msg') {
-    return codexEventMessage(payload, baseId, timestamp)
-  }
-  return null
+  const message =
+    record.type === 'response_item'
+      ? codexResponseItem(payload, baseId, timestamp)
+      : record.type === 'event_msg'
+        ? codexEventMessage(payload, baseId, timestamp)
+        : null
+  const turnId =
+    extractString(payload.turn_id) ??
+    extractString(asRecord(payload.internal_chat_message_metadata_passthrough)?.turn_id)
+  return message && turnId ? { ...message, turnId } : message
 }
 
 function codexUnwrappedResponseItem(
@@ -121,12 +124,18 @@ function codexResponseItem(
     if (payload.type === 'custom_tool_call' && name === 'exec') {
       return null
     }
-    const turnId = extractString(payload.call_id)
+    const toolCallId = extractString(payload.call_id)
     return {
       id,
-      ...(turnId ? { turnId } : {}),
       role: 'assistant',
-      blocks: [{ type: 'tool-call', name, input: codexCallInput(payload) }],
+      blocks: [
+        {
+          type: 'tool-call',
+          name,
+          input: codexCallInput(payload),
+          ...(toolCallId ? { toolCallId } : {})
+        }
+      ],
       timestamp,
       source: 'transcript'
     }
@@ -138,7 +147,7 @@ function codexResponseItem(
     return {
       id,
       role: 'tool',
-      blocks: [codexToolResult(payload.output)],
+      blocks: [codexToolResult(payload.output, extractString(payload.call_id) ?? undefined)],
       timestamp,
       source: 'transcript'
     }
@@ -251,11 +260,12 @@ function codexCallInput(payload: Record<string, unknown>): unknown {
   return payload.input ?? payload.action ?? null
 }
 
-function codexToolResult(output: unknown): NativeChatBlock {
+function codexToolResult(output: unknown, toolCallId?: string): NativeChatBlock {
   const record = asRecord(output)
   const isError = record?.success === false || record?.is_error === true
   return {
     type: 'tool-result',
+    ...(toolCallId ? { toolCallId } : {}),
     output: toolResultOutput(record?.content ?? record?.output ?? output),
     ...(isError ? { isError: true } : {})
   }

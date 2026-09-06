@@ -5,10 +5,12 @@ import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import type { AgentType } from '../../../../shared/native-chat-types'
 import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 import { translate } from '@/i18n/i18n'
+import type { AgentDotState } from '@/components/AgentStateDot'
 
 export type AgentSubagentSource = {
   key: string
   identity: string
+  showIdentity?: boolean
   agent: AgentType
   paneKey?: string
   sessionId: string | null
@@ -24,6 +26,21 @@ export type AgentSubagentSourceData = {
   source: AgentSubagentSource
   loading: boolean
   sessions: AiVaultSession[]
+}
+
+export type SubagentSelection = {
+  sourceData: AgentSubagentSourceData
+  session: AiVaultSession
+}
+
+export function subagentStatusDot(session: AiVaultSession): AgentDotState {
+  if (session.subagent?.status === 'failed') {
+    return 'failed'
+  }
+  if (session.subagent?.status === 'stopped') {
+    return 'interrupted'
+  }
+  return 'done'
 }
 
 type AgentSubagentContextValue = {

@@ -3,10 +3,92 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { listCodexSubagentSessions } from './session-scanner-codex-subagents'
+import { readNativeChatTranscript } from '../native-chat/transcript-reader'
+import { readNativeChatTranscriptTailFile } from '../native-chat/transcript-tail-reader'
+import { createCodexTranscriptHistoryDecoder } from '../native-chat/transcript-codex-history-decoder'
 
 const CHILD_ID = '019f0000-1111-7222-8333-444444444444'
 
 describe('listCodexSubagentSessions', () => {
+  it('keeps a forked child identity and excludes inherited history from count, full read and tail', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'orca-codex-fork-'))
+    const parentId = '019f0000-0000-7000-8000-000000000000'
+    const parentPath = join(root, `rollout-parent-${parentId}.jsonl`)
+    const childPath = join(root, `rollout-child-${CHILD_ID}.jsonl`)
+    await writeLines(parentPath, [])
+    const records = [
+      {
+        type: 'session_meta',
+        payload: {
+          id: CHILD_ID,
+          session_id: parentId,
+          history_mode: 'paginated',
+          subagent_history_start_ordinal: 5,
+          source: {
+            subagent: { thread_spawn: { parent_thread_id: parentId, agent_nickname: 'Huygens' } }
+          }
+        }
+      },
+      { type: 'session_meta', payload: { id: parentId, history_mode: 'legacy' } },
+      { type: 'event_msg', payload: { type: 'task_started' } },
+      {
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Inherited response' }]
+        }
+      },
+      {
+        type: 'event_msg',
+        payload: { type: 'task_complete', last_agent_message: 'Inherited response' }
+      },
+      { type: 'event_msg', payload: { type: 'task_started' } },
+      {
+        type: 'event_msg',
+        payload: {
+          type: 'item_completed',
+          item: {
+            id: 'answer',
+            type: 'AgentMessage',
+            content: [{ type: 'Text', text: 'Own response' }]
+          }
+        }
+      },
+      {
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Own response' }]
+        }
+      },
+      { type: 'event_msg', payload: { type: 'task_complete', last_agent_message: 'Own response' } }
+    ].map((record, ordinal) => ({
+      ...record,
+      ordinal,
+      timestamp: new Date(1000 + ordinal).toISOString()
+    }))
+    await writeLines(childPath, records)
+    const scanned = await listCodexSubagentSessions({ parentFilePath: parentPath })
+    expect(scanned.sessions).toMatchObject([
+      {
+        sessionId: CHILD_ID,
+        title: 'Huygens',
+        messageCount: 2,
+        subagent: { status: 'completed', turnStartedAts: [1005] }
+      }
+    ])
+    const full = await readNativeChatTranscript('codex', CHILD_ID, { filePath: childPath })
+    const tail = await readNativeChatTranscriptTailFile(
+      childPath,
+      100,
+      createCodexTranscriptHistoryDecoder()
+    )
+    expect(full).toMatchObject({ messages: [{ blocks: [{ type: 'text', text: 'Own response' }] }] })
+    expect(tail.messages).toEqual('messages' in full ? full.messages : [])
+  })
+
   it('honors completion in the parent even when the child tail has not flushed', async () => {
     const root = await mkdtemp(join(tmpdir(), 'orca-codex-subagents-'))
     const parentPath = join(root, 'rollout-parent.jsonl')

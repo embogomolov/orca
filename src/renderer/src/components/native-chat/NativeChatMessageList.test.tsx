@@ -1,13 +1,43 @@
 /* @vitest-environment happy-dom */
 
-import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 import type { NativeChatMessage } from '../../../../shared/native-chat-types'
 import type { NativeChatLiveSession } from './use-native-chat-live-session'
 import { NativeChatMessageList } from './NativeChatMessageList'
 
+afterEach(cleanup)
+
 describe('NativeChatMessageList', () => {
+  it('uses the shared animated disclosure and keeps spacing before the final answer', () => {
+    const { container } = render(
+      <NativeChatMessageList
+        session={session([
+          message('user', 'user', 'Start', 1000),
+          message('detail', 'assistant', 'Activity detail', 2000, 'commentary'),
+          message('answer', 'assistant', 'Final answer', 3000, 'final')
+        ])}
+        isWorking={false}
+        expandSignal={false}
+        fontScale={1}
+      />
+    )
+    const view = within(container)
+    expect(view.queryByText('Activity detail')).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: 'Worked for 2s' }))
+    expect(
+      view
+        .getByText('Activity detail')
+        .closest('[data-slot="collapsible-content"]')
+        ?.classList.contains('chat-activity-disclosure-content')
+    ).toBe(true)
+    expect(container.querySelector('article')?.firstElementChild?.classList.contains('mb-2')).toBe(
+      true
+    )
+    expect(view.getByText('Final answer').closest('[data-slot="collapsible-content"]')).toBeNull()
+  })
+
   it('places user actions beside the bubble and assistant actions below the response', () => {
     render(
       <NativeChatMessageList

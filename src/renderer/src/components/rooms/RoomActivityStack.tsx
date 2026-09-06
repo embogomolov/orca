@@ -111,7 +111,7 @@ export function RoomActivityStack({
         <CollapsibleContent
           data-room-activity-others
           inert={!open || undefined}
-          className="room-activity-disclosure-content"
+          className="chat-activity-disclosure-content"
           onAnimationEnd={(event) => {
             if (event.target === event.currentTarget && !open && closing) {
               finishClose()

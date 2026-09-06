@@ -35,6 +35,7 @@ import {
 import { remoteSessionContentLines } from './remote-session-content-lines'
 import { readCodexTimelineOnlyRecord } from './session-scanner-codex-record-fast-path'
 import { extractCodexSessionMetadataTitle, isCodexWorkerSession } from './codex-session-metadata'
+import { acceptCodexRolloutRecord, type CodexRolloutScope } from '../../shared/codex-rollout-scope'
 
 export async function parseCodexSessionFile(
   file: FileWithMtime,
@@ -81,6 +82,7 @@ export async function parseCodexSessionContent(args: {
 }
 
 type CodexSessionParseState = {
+  scope: CodexRolloutScope
   accumulator: SessionAccumulator
   previousTotals: CodexUsageSnapshot | null
   rejectedWorkerSession: boolean
@@ -93,6 +95,7 @@ type CodexSessionParseState = {
 
 function createCodexParseState(file: FileWithMtime): CodexSessionParseState {
   return {
+    scope: {},
     accumulator: createAccumulator({
       agent: 'codex',
       file,
@@ -109,6 +112,7 @@ function createCodexParseState(file: FileWithMtime): CodexSessionParseState {
 function cloneCodexParseState(state: CodexSessionParseState): CodexSessionParseState {
   return {
     ...state,
+    scope: { ...state.scope },
     accumulator: cloneSessionAccumulator(state.accumulator)
   }
 }
@@ -118,7 +122,7 @@ function consumeCodexLine(state: CodexSessionParseState, line: string, allowWork
     return
   }
   const record = parseJsonObject(line)
-  if (!record) {
+  if (!record || !acceptCodexRolloutRecord(state.scope, record)) {
     return
   }
   const { accumulator } = state
@@ -271,7 +275,7 @@ function codexResumeStateFromParseState(
     consumeLine: (line) => consumeCodexLine(state, line),
     consumeLineBytes: (line) => {
       const timelineOnlyRecord = readCodexTimelineOnlyRecord(line)
-      if (timelineOnlyRecord) {
+      if (timelineOnlyRecord && state.scope.historyStartOrdinal === undefined) {
         updateTimeline(state.accumulator, timelineOnlyRecord.timestamp)
       } else {
         consumeCodexLine(state, line.toString('utf8'))

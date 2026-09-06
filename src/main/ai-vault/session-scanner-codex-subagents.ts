@@ -1,5 +1,6 @@
 import { dirname, join } from 'node:path'
 import { createInterface } from 'node:readline'
+import { acceptCodexRolloutRecord, type CodexRolloutScope } from '../../shared/codex-rollout-scope'
 import type {
   AiVaultScanIssue,
   AiVaultSession,
@@ -74,6 +75,7 @@ export async function listCodexSubagentSessions(args: {
 }
 
 async function readChildren(parentFilePath: string): Promise<Child[]> {
+  const scope: CodexRolloutScope = {}
   const children = new Map<string, Child>()
   const spawnTimes: number[] = []
   try {
@@ -83,7 +85,7 @@ async function readChildren(parentFilePath: string): Promise<Child[]> {
     })
     for await (const line of lines) {
       const record = parseJsonObject(line)
-      if (!record) {
+      if (!record || !acceptCodexRolloutRecord(scope, record)) {
         continue
       }
       if (isSpawnCall(record)) {
@@ -259,11 +261,12 @@ async function readChildConversation(filePath: string): Promise<{
     crlfDelay: Infinity
   })
   let complete = false
+  const scope: CodexRolloutScope = {}
   let messageCount = 0
   const turnStartedAts: number[] = []
   for await (const line of lines) {
     const record = parseJsonObject(line)
-    if (record?.type !== 'event_msg') {
+    if (!record || !acceptCodexRolloutRecord(scope, record) || record.type !== 'event_msg') {
       continue
     }
     const payload = asRecord(record.payload)

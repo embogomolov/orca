@@ -17,6 +17,7 @@ import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
 import { AgentSubagentTurnLink } from '../agent-subagents/AgentSubagentContext'
 import type { NativeChatImageLoadContext } from './NativeChatImageAttachments'
 import { NativeChatActivityHeader } from './NativeChatActivityHeader'
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 
 export { ProviderFrameRow } from './NativeChatTranscriptChrome'
 
@@ -82,34 +83,40 @@ function AssistantTurnRow({
 
   return (
     <article className="min-w-0 py-2">
-      <div className="min-w-0 flex-1">
-        {item.working || item.outcome ? (
-          <NativeChatActivityHeader
-            messages={item.activityMessages}
-            startedAt={item.startedAt}
-            completedAt={completion?.completedAt ?? null}
-            outcome={item.outcome}
-            expanded={activityExpanded}
-            onExpandedChange={setActivityExpanded}
-          />
-        ) : null}
-        {item.segments.map((segment) =>
-          segment.kind === 'message' ? (
-            <div key={segment.id} className="my-3">
-              <NativeChatMessageRow
-                message={segment.message}
-                expandSignal={expandSignal}
-                onScrollMessageToTop={onScrollMessageToTop}
-                onLinkClick={onLinkClick}
-                allowFileUriLinks={allowFileUriLinks}
-                imageLoadContext={imageLoadContext}
-                runtimeContext={runtimeContext}
-              />
-            </div>
-          ) : activityExpanded ? (
-            <RoomActivityDetails key={segment.id} messages={segment.messages} />
-          ) : null
-        )}
+      <div className="mb-2">
+        <div className="mb-2 border-b border-border/60 pb-2">
+          {item.working || item.outcome ? (
+            <NativeChatActivityHeader
+              messages={item.activityMessages}
+              startedAt={item.startedAt}
+              completedAt={completion?.completedAt ?? null}
+              outcome={item.outcome}
+              expanded={activityExpanded}
+              onExpandedChange={setActivityExpanded}
+            />
+          ) : null}
+          {item.segments.map((segment) =>
+            segment.kind === 'message' ? (
+              <div key={segment.id} className="my-3">
+                <NativeChatMessageRow
+                  message={segment.message}
+                  expandSignal={expandSignal}
+                  onScrollMessageToTop={onScrollMessageToTop}
+                  onLinkClick={onLinkClick}
+                  allowFileUriLinks={allowFileUriLinks}
+                  imageLoadContext={imageLoadContext}
+                  runtimeContext={runtimeContext}
+                />
+              </div>
+            ) : (
+              <Collapsible key={segment.id} open={activityExpanded}>
+                <CollapsibleContent className="chat-activity-disclosure-content">
+                  <RoomActivityDetails messages={segment.messages} />
+                </CollapsibleContent>
+              </Collapsible>
+            )
+          )}
+        </div>
         {subagentSourceKey ? (
           <AgentSubagentTurnLink
             sourceKey={subagentSourceKey}
@@ -117,19 +124,19 @@ function AssistantTurnRow({
             completedAt={item.completedAt}
           />
         ) : null}
-        {item.finalMessage ? (
-          <NativeChatMessageRow
-            message={item.finalMessage}
-            expandSignal={expandSignal}
-            onScrollMessageToTop={onScrollMessageToTop}
-            onLinkClick={onLinkClick}
-            allowFileUriLinks={allowFileUriLinks}
-            imageLoadContext={imageLoadContext}
-            runtimeContext={runtimeContext}
-            streamingFade={{ id: `native-chat:${item.id}`, start: item.working }}
-          />
-        ) : null}
       </div>
+      {item.finalMessage ? (
+        <NativeChatMessageRow
+          message={item.finalMessage}
+          expandSignal={expandSignal}
+          onScrollMessageToTop={onScrollMessageToTop}
+          onLinkClick={onLinkClick}
+          allowFileUriLinks={allowFileUriLinks}
+          imageLoadContext={imageLoadContext}
+          runtimeContext={runtimeContext}
+          streamingFade={{ id: `native-chat:${item.id}`, start: item.working }}
+        />
+      ) : null}
     </article>
   )
 }

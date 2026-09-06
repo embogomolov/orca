@@ -60,6 +60,10 @@ export type NativeChatTurnCompletion = {
   completedAt: number
 }
 
+function isProviderDiagnostic(message: NativeChatMessage): boolean {
+  return message.blocks.some((block) => block.type === 'text' && block.providerFrame)
+}
+
 /** Order messages stably: null timestamps first (model rule), then ascending
  *  timestamp, ties broken by id. Shares the assembler's comparator so both
  *  paths order identically. */
@@ -108,6 +112,14 @@ export function buildNativeChatConversationItems(
   }
 
   for (const message of messages) {
+    if (
+      turn &&
+      isProviderDiagnostic(message) &&
+      (!message.turnId || !turn.turnId || message.turnId === turn.turnId)
+    ) {
+      turn.messages.push(message)
+      continue
+    }
     if (message.role === 'user' || message.role === 'system') {
       if (message.role === 'user' && turn?.turnId && message.turnId === turn.turnId) {
         turn.messages.push(message)
@@ -170,7 +182,10 @@ function buildAssistantTurn(
   const finalIndex = working || !successful ? -1 : findNativeChatFinalMessageIndex(messages, true)
   const finalMessage = finalIndex !== -1 ? messages[finalIndex]! : null
   const activityMessages = messages.filter(
-    (message, index) => index !== finalIndex && message.role !== 'user' && message.role !== 'system'
+    (message, index) =>
+      index !== finalIndex &&
+      message.role !== 'user' &&
+      (message.role !== 'system' || isProviderDiagnostic(message))
   )
   const timestamps = messages.flatMap((message) =>
     message.timestamp == null ? [] : [message.timestamp]
@@ -213,7 +228,7 @@ function buildTurnSegments(
     if (index === finalIndex) {
       return
     }
-    if (message.role === 'user' || message.role === 'system') {
+    if (message.role === 'user' || (message.role === 'system' && !isProviderDiagnostic(message))) {
       flushActivity()
       segments.push({ kind: 'message', id: message.id, message })
     } else {

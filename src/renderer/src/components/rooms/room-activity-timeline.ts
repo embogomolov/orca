@@ -1,4 +1,5 @@
 import type {
+  NativeChatBlock,
   NativeChatMessage,
   NativeChatToolCallBlock,
   NativeChatToolResultBlock
@@ -18,6 +19,7 @@ export type RoomActivityToolStep = {
 
 export type RoomActivitySection =
   | { kind: 'commentary'; id: string; text: string }
+  | { kind: 'diagnostic'; id: string; block: NativeChatBlock }
   | { kind: 'tools'; id: string; tools: RoomActivityToolStep[] }
 
 export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomActivitySection[] {
@@ -35,6 +37,10 @@ export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomAc
       const block = event
         ? { type: 'tool-call' as const, name: event.name, input: event.input, state: event.state }
         : original
+      if (block.type === 'text' && block.providerFrame) {
+        sections.push({ kind: 'diagnostic', id: `${message.id}:diagnostic:${blockIndex}`, block })
+        continue
+      }
       if (block.type === 'text') {
         if (message.role === 'user') {
           continue
