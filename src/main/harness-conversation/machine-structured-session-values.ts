@@ -15,7 +15,7 @@ import type {
 } from '../../shared/structured-agent-provider'
 import { readProcessStartTimeMs } from '../runtime/agent-session-process-identity-probe'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
-import type { HarnessConversationDriver } from './driver'
+import type { HarnessConversationDriver, HarnessConversationSubagent } from './driver'
 
 export type MachineStructuredMessage = { body: AgentJournalMessageItem; turn?: AgentJournalTurn }
 
@@ -34,6 +34,7 @@ export type MachineStructuredSession = {
   context: AgentSessionContextSnapshot | null
   configuration: StructuredProviderConfiguration | null
   transcriptPath: string | null
+  subagents?: HarnessConversationSubagent[]
 }
 
 export function machineAgent(agent: string): StructuredMachineAgent {
@@ -55,6 +56,16 @@ export function providerSessionId(identity: AgentSessionJournalIdentity): string
     return handle.sessionId
   }
   return null
+}
+
+export function newClaudeSessionId(
+  agent: string,
+  currentId: string | null,
+  previousId: string | null
+): string | undefined {
+  return (agent === 'claude' || agent === 'openclaude') && !currentId
+    ? (previousId ?? randomUUID())
+    : undefined
 }
 
 export function providerHandleLink(

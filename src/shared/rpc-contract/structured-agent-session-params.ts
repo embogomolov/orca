@@ -276,6 +276,9 @@ export const SetOptionParams = z
   .strict()
 
 export const OptionsParams = z.object({ sessionId: SessionId }).strict()
+export const SubagentsParams = OptionsParams.extend({
+  parentFilePath: z.string().min(1).max(4096).optional()
+})
 
 /** `sessionId` scopes the catalog to that session's pinned account; without a
  *  session record the host keys it by the account a new launch would pin.

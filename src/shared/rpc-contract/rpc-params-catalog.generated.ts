@@ -546,6 +546,7 @@ import {
   RewindParams,
   SendParams,
   SetOptionParams,
+  SubagentsParams,
   SubscribeParams,
   ThreadGoalParams,
   UnsubscribeParams
@@ -656,7 +657,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'agentSession.send': SendParams,
   'agentSession.setOption': SetOptionParams,
   'agentSession.steer': SendParams,
-  'agentSession.subagents': OptionsParams,
+  'agentSession.subagents': SubagentsParams,
   'agentSession.subscribe': SubscribeParams,
   'agentSession.subscribeStatus': null,
   'agentSession.subscribeTurnCompletions': null,

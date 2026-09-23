@@ -1,4 +1,5 @@
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
+import { resolveGrokSessionsDir } from '../../shared/grok-session-paths'
 import { getAiVaultWslHomeDirs } from '../ai-vault/cached-session-list'
 import { listAiVaultSubagentSessionsInBackground } from '../ai-vault/session-scanner-background'
 import {
@@ -13,15 +14,18 @@ import type {
   AiVaultSubagentListResult
 } from '../../shared/ai-vault-types'
 
-// Provider-gated: only Claude, OMP and Codex materialize subagent transcripts
-// as sibling files today; other agents resolve to an empty list.
 export async function listAiVaultSubagentSessions(
   args?: AiVaultSubagentListArgs
 ): Promise<AiVaultSubagentListResult> {
   // IPC payloads are untyped at runtime; malformed input resolves empty like
   // every other rejected input instead of throwing.
   const agent =
-    args?.agent === 'claude' || args?.agent === 'omp' || args?.agent === 'codex' ? args.agent : null
+    args?.agent === 'claude' ||
+    args?.agent === 'omp' ||
+    args?.agent === 'codex' ||
+    args?.agent === 'grok'
+      ? args.agent
+      : null
   if (!args || !agent || typeof args.parentFilePath !== 'string' || !args.parentFilePath.trim()) {
     return { sessions: [], issues: [] }
   }
@@ -43,7 +47,12 @@ export async function listAiVaultSubagentSessions(
       ? claudeProjectsRootDirs({ wslHomeDirs })
       : agent === 'omp'
         ? ompSessionsRootDirs({ wslHomeDirs })
-        : codexSessionsRootDirs({ wslHomeDirs })
+        : agent === 'grok'
+          ? [
+              resolveGrokSessionsDir(),
+              ...wslHomeDirs.map((homeDir) => join(homeDir, '.grok', 'sessions'))
+            ]
+          : codexSessionsRootDirs({ wslHomeDirs })
   if (!roots.some((root) => isPathInsideOrEqual(resolve(root), parentFilePath))) {
     return { sessions: [], issues: [] }
   }

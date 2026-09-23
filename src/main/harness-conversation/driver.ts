@@ -8,13 +8,19 @@ import type {
 import type { SessionOptionValue } from '../../shared/native-chat-session-options'
 import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
 import type { AgentSubagentSnapshot } from '../../shared/agent-status-types'
+import type { AiVaultSubagentRunStatus } from '../../shared/ai-vault-types'
+
+export type HarnessConversationSubagent = AgentSubagentSnapshot & {
+  transcriptPath?: string
+  runStatus?: AiVaultSubagentRunStatus
+}
 
 export type HarnessConversationDriverSink = {
   emit: (event: HarnessConversationDriverEvent) => void
   setProviderSessionId: (sessionId: string) => void
   setConfiguration: (configuration: StructuredProviderConfiguration) => void
   setContext: (context: AgentSessionContextSnapshot) => void
-  setSubagents: (subagents: AgentSubagentSnapshot[]) => void
+  setSubagents: (subagents: HarnessConversationSubagent[]) => void
   setTranscriptPath: (transcriptPath: string) => void
   setProcessId?: (pid: number) => void
   end?: (reason: string) => void

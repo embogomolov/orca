@@ -110,12 +110,17 @@ it.each([
         observedAt: NOW
       },
       now: NOW,
+      transcriptPath: '/custom/provider/session.jsonl',
       ...(options ? { options } : {})
     }
     await expect(store.proveOwner({ ...proof, options: { model: '' } })).rejects.toThrow(
       'agent_session_options_invalid'
     )
     expect(store.getRecord(SESSION)?.lease.claimStatus).toBe('reserved')
+    await expect(store.proveOwner({ ...proof, transcriptPath: 'relative.jsonl' })).rejects.toThrow(
+      'agent_session_operation_invalid'
+    )
+    expect(store.getRecord(SESSION)?.providerTranscript).toBeUndefined()
     await store.proveOwner(proof)
 
     await expect(
@@ -123,6 +128,10 @@ it.each([
     ).rejects.toThrow('agent_session_options_invalid')
 
     const reopened = await AgentSessionRecordStore.open({ directory, hostId: 'local' })
+    expect(reopened.getRecord(SESSION)?.providerTranscript).toEqual({
+      path: '/custom/provider/session.jsonl',
+      handleRoot: 'codex:"thread-options"'
+    })
     expect(reopened.getRecord(SESSION)?.options).toEqual(expected)
     expect(reopened.getRecord(SESSION)?.lease.claimStatus).toBe('live')
     expect(isAgentSessionRecord(reopened.getRecord(SESSION))).toBe(true)

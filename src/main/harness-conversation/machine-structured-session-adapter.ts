@@ -24,6 +24,7 @@ import {
   providerHandleLink,
   providerPrompt,
   providerSessionId,
+  newClaudeSessionId,
   requiredEvents
 } from './machine-structured-session-values'
 import { MachineStructuredSessionAdapterState } from './machine-structured-session-adapter-state'
@@ -67,7 +68,8 @@ export class MachineStructuredSessionAdapter
       endedReason: null as string | null,
       context: null as AgentSessionContextSnapshot | null,
       configuration: null as StructuredProviderConfiguration | null,
-      transcriptPath: null as string | null
+      transcriptPath: null as string | null,
+      subagents: [] as NonNullable<MachineStructuredSession['subagents']>
     }
     const messages = new Map<string, MachineStructuredMessage>()
     const prompts = new Map<string, { kind: 'approval' | 'question'; requestId: string }>()
@@ -95,10 +97,7 @@ export class MachineStructuredSessionAdapter
         })
       }
     })
-    const newProviderSessionId =
-      (agent === 'claude' || agent === 'openclaude') && !state.providerSessionId
-        ? (previousId ?? randomUUID())
-        : undefined
+    const newProviderSessionId = newClaudeSessionId(agent, state.providerSessionId, previousId)
     const driver = await this.deps.createDriver({
       conversationId: identity.sessionId,
       agent,
@@ -137,13 +136,15 @@ export class MachineStructuredSessionAdapter
         requestedClose: false,
         context: state.context,
         configuration: state.configuration,
-        transcriptPath: state.transcriptPath
+        transcriptPath: state.transcriptPath,
+        subagents: state.subagents
       }
       sessionRef.current = session
       this.sessions.set(identity.sessionId, session)
       return {
         process,
         link: providerHandleLink(identity, agent, sessionProviderId, input.fence, this.now()),
+        transcriptPath: state.transcriptPath,
         acquisitionGeneration
       }
     } catch (error) {

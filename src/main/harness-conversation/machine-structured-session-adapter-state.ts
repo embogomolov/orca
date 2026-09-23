@@ -67,6 +67,8 @@ export class MachineStructuredSessionAdapterState {
   historyFilePath = async ({ identity }: { identity: AgentSessionJournalIdentity }) =>
     this.sessions.get(identity.sessionId)?.transcriptPath ?? null
 
+  readSubagents = (sessionId: string) => this.sessions.get(sessionId)?.subagents ?? []
+
   readContext(sessionId: string): AgentSessionContextSnapshot | null {
     return this.sessions.get(sessionId)?.context ?? null
   }

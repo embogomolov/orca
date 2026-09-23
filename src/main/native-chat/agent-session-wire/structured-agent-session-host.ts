@@ -51,7 +51,7 @@ import {
   type StructuredAgentSessionRestartResume
 } from './structured-agent-session-restart-resume-host'
 import { structuredAgentSessionRestartResumeSurfaces } from './structured-agent-session-restart-resume-wiring'
-import { listStructuredSessionSubagents } from './structured-agent-session-subagents'
+import { listHostSubagentSessions } from './structured-agent-session-subagents'
 export type { StructuredAgentSessionHostDeps } from './structured-agent-session-host-types'
 
 export class StructuredAgentSessionHost {
@@ -59,8 +59,8 @@ export class StructuredAgentSessionHost {
     () => this.mutationContext(),
     this
   )
-  listSubagentSessions = (sessionId: string) =>
-    listStructuredSessionSubagents(this.deps.store.getRecord(sessionId))
+  listSubagentSessions = (sessionId: string, parentFilePath?: string) =>
+    listHostSubagentSessions(this.deps, this.sessions, sessionId, parentFilePath)
   private readonly sessions = new StructuredAgentSessionConversations({
     deliver: (sessionId, journal) => this.subscribers.publish(sessionId, journal),
     onDeliveryError: (sessionId, error) => this.deps.onEventSinkError?.({ sessionId, error })

@@ -3,7 +3,11 @@ import { agentJournalItemKey } from '../../shared/agent-session-journal-item-key
 import type { AgentSessionJournalIdentity } from '../../shared/agent-session-journal-types'
 import type { StructuredProviderConfiguration } from '../../shared/structured-agent-provider'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
-import type { HarnessConversationDriverEvent, HarnessConversationDriverSink } from './driver'
+import type {
+  HarnessConversationDriverEvent,
+  HarnessConversationDriverSink,
+  HarnessConversationSubagent
+} from './driver'
 import {
   messageIdentity,
   promptIdentity,
@@ -17,6 +21,7 @@ type DriverState = {
   context: AgentSessionContextSnapshot | null
   configuration: StructuredProviderConfiguration | null
   transcriptPath: string | null
+  subagents?: HarnessConversationSubagent[]
 }
 
 type LiveSessionState = {
@@ -25,6 +30,7 @@ type LiveSessionState = {
   context: AgentSessionContextSnapshot | null
   configuration: StructuredProviderConfiguration | null
   transcriptPath: string | null
+  subagents?: HarnessConversationSubagent[]
 }
 
 const EMPTY_RESOLUTION = {
@@ -80,7 +86,12 @@ export function createMachineStructuredSessionDriverSink(input: {
         input.sessionRef.current.context = context
       }
     },
-    setSubagents: () => undefined,
+    setSubagents: (subagents) => {
+      input.state.subagents = subagents
+      if (input.sessionRef.current) {
+        input.sessionRef.current.subagents = subagents
+      }
+    },
     setTranscriptPath: (transcriptPath) => {
       input.state.transcriptPath = transcriptPath
       if (input.sessionRef.current) {
