@@ -15,6 +15,7 @@ import {
 } from './transcript-line-decoders'
 import { createCodexTranscriptHistoryDecoder } from './transcript-codex-history-decoder'
 import { decodeTranscriptStream } from './transcript-stream-lines'
+import { isGrokUpdatesPath, readGrokUpdatesReplay } from './transcript-grok-updates-replay'
 
 export type ReadTranscriptResult =
   | {
@@ -62,7 +63,11 @@ export async function readNativeChatTranscript(
       return { messages: await readTranscript(filePath, createCodexTranscriptHistoryDecoder()) }
     }
     if (transcriptAgent === 'grok') {
-      return { messages: await readTranscript(filePath, decodeGrokTranscriptLine) }
+      return {
+        messages: isGrokUpdatesPath(filePath)
+          ? (await readGrokUpdatesReplay(filePath)).messages
+          : await readTranscript(filePath, decodeGrokTranscriptLine)
+      }
     }
     if (transcriptAgent === 'omp') {
       return { messages: await readTranscript(filePath, decodeOmpTranscriptLine) }

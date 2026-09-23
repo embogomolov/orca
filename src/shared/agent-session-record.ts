@@ -1,4 +1,5 @@
 import type { AgentType } from './agent-status-types'
+import { isOptionalAgentSessionTranscript } from './agent-session-provider-transcript'
 /**
  * Durable agent-session record and its single-writer lease.
  *
@@ -128,6 +129,8 @@ export type AgentSessionRecord = {
   /** Provider options acknowledged for the next turn, restored across owner replacement. */
   options?: Record<string, string>
   launchArgs?: AgentSessionLaunchArgs
+  /** Host-observed transcript location, bound to the proven provider conversation. */
+  providerTranscript?: { path: string; handleRoot: string }
   lease: AgentSessionLease
   createdAt: number
   updatedAt: number
@@ -344,6 +347,7 @@ export function isAgentSessionRecord(value: unknown): value is AgentSessionRecor
     isAgentSessionAccountHome(record.accountHome) &&
     (record.options === undefined || isAgentSessionOptions(record.options)) &&
     (record.launchArgs === undefined || isAgentSessionLaunchArgs(record.launchArgs)) &&
+    isOptionalAgentSessionTranscript(record.providerTranscript) &&
     !Object.hasOwn(record, 'launchEnv') &&
     isAgentSessionLease(record.lease) &&
     record.lease.sessionId === record.sessionId &&

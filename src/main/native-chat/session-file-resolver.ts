@@ -142,7 +142,11 @@ export async function resolveSessionFilePath(
       // it does not, so a stalled distro reads as unavailable, never "missing".
       unavailable = wslTranscriptFsRefusal(error)
     }
-    if (needsWslHostResolution(hookPath)) {
+    // A missing child presentation journal must not fall back to inherited model context.
+    if (
+      needsWslHostResolution(hookPath) ||
+      (transcriptAgent === 'grok' && basename(hookPath) === 'updates.jsonl')
+    ) {
       if (unavailable) {
         throw unavailable
       }

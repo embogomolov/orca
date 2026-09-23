@@ -14,6 +14,7 @@ import {
 import { OmpRpcInteractions } from './omp-rpc-interactions'
 import { OmpRpcTurnQueue } from './omp-rpc-turn-queue'
 import { completeOmpResponse, ompAssistantMessage, type OmpTextStreams } from './omp-rpc-message'
+import { OmpRpcSubagents } from './omp-rpc-subagents'
 
 type OmpRpcDriverOptions = {
   cwd: string
@@ -35,6 +36,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
   private currentModel = ''
   private currentEffort = 'medium'
   private interrupted = false
+  private readonly subagents = new OmpRpcSubagents()
 
   constructor(private readonly options: OmpRpcDriverOptions) {
     this.connection = new OmpRpcConnection(
@@ -42,7 +44,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
       options.args,
       options.env,
       options.cwd,
-      (frame) => this.frame(frame),
+      (frame) => this.subagents.consume(frame, options.sink) || this.frame(frame),
       (error) => this.fail(error)
     )
     options.sink.setProcessId?.(this.connection.pid)
@@ -52,9 +54,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
     this.initialized = this.initialize()
   }
 
-  ready(): Promise<void> {
-    return this.initialized
-  }
+  ready = (): Promise<void> => this.initialized
 
   async send(
     text: string,
@@ -164,8 +164,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
   }
 
   async close(): Promise<void> {
-    const error = new Error('omp_rpc_closed')
-    this.turnQueue.fail(error)
+    this.turnQueue.fail(new Error('omp_rpc_closed'))
     await this.connection.close()
   }
 
@@ -194,6 +193,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
     this.commands = parseOmpCommands(commandsResponse.data)
     this.modelChoices = parseOmpModels(modelsResponse.data)
     this.publishConfiguration()
+    await this.subagents.subscribe(this.connection, this.options.sink)
   }
 
   private frame(frame: OmpRpcFrame): void {

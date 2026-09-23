@@ -61,6 +61,56 @@ beforeEach(() => {
 })
 
 describe('OmpRpcConversationDriver', () => {
+  it('keeps older OMP releases usable when the optional lifecycle subscription is unsupported', async () => {
+    const { OmpRpcError } = await import('./omp-rpc-connection')
+    const request = rpc.request.getMockImplementation()!
+    rpc.request.mockImplementation(async (type: string) => {
+      if (type === 'set_subagent_subscription') {
+        throw new OmpRpcError('Unknown command')
+      }
+      return request(type)
+    })
+    const driver = new OmpRpcConversationDriver({
+      cwd: '/repo',
+      command: 'omp',
+      args: [],
+      env: {},
+      sink
+    })
+    await expect(driver.ready()).resolves.toBeUndefined()
+  })
+  it('subscribes to real subagent lifecycle frames without rendering child events in the parent', async () => {
+    const driver = new OmpRpcConversationDriver({
+      cwd: '/repo',
+      command: 'omp',
+      args: [],
+      env: {},
+      sink
+    })
+    await driver.ready()
+    expect(rpc.request).toHaveBeenCalledWith('set_subagent_subscription', { level: 'progress' })
+    rpc.frame({
+      type: 'subagent_lifecycle',
+      payload: {
+        id: 'Worker',
+        status: 'started',
+        agent: 'worker',
+        sessionFile: '/session/Worker.jsonl'
+      }
+    })
+    expect(sink.setSubagents).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'Worker', state: 'working', runStatus: 'running' })
+    ])
+    rpc.frame({
+      type: 'subagent_event',
+      payload: { event: { type: 'message_update', delta: 'private child reply' } }
+    })
+    expect(sink.emit).not.toHaveBeenCalled()
+    rpc.frame({ type: 'subagent_lifecycle', payload: { id: 'Worker', status: 'completed' } })
+    expect(sink.setSubagents).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'Worker', state: 'idle', runStatus: 'completed' })
+    ])
+  })
   it('keeps OMP assistant message boundaries and confirms only a stop response candidate', async () => {
     const driver = new OmpRpcConversationDriver({
       cwd: '/repo',

@@ -23,6 +23,7 @@ import type {
 } from '../../../shared/agent-session-wire'
 import type { StructuredAgentSessionEventSink } from './structured-agent-session-event-sink'
 import type { AgentSessionContextSnapshot } from '../../../shared/agent-session-context'
+import type { HarnessConversationSubagent } from '../../harness-conversation/driver'
 import type { StructuredProviderConfiguration } from '../../../shared/structured-agent-provider'
 
 export class AgentSessionAcquisitionRefusal extends Error {
@@ -59,6 +60,8 @@ export class AgentSessionAcquisitionExitUnprovenError extends Error {
 /** What a reservation turns into once something is actually running under it:
  *  the process the host can probe, and the provider handle it was minted with. */
 export type AgentSessionAcquisition = {
+  /** Provider-reported location already known at acquisition; no extra filesystem probe. */
+  transcriptPath?: string | null
   process: AgentSessionProcessIdentity
   link: AgentSessionProviderHandleLink
   /** Host-local identity for this exact provider child, distinct even when the durable fence is
@@ -168,6 +171,7 @@ export type StructuredAgentSessionAdapter = {
   /** Option keys skipped after a provider rejected their persisted restore value. */
   readOptionRestoreFailures?(sessionId: string): readonly string[]
   readContext?(sessionId: string): AgentSessionContextSnapshot | null
+  readSubagents?(sessionId: string): readonly HarnessConversationSubagent[]
   readConfiguration?(sessionId: string): StructuredProviderConfiguration | null
   /** Transcript path for journal recovery. Omit to let the existing session-file
    *  resolver discover it from the provider session id. */

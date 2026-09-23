@@ -82,6 +82,9 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
 
   readContext = (sessionId: string) => this.owners.get(sessionId)?.readContext?.(sessionId) ?? null
 
+  readSubagents = (sessionId: string) =>
+    this.owners.get(sessionId)?.readSubagents?.(sessionId) ?? []
+
   readConfiguration = (sessionId: string) =>
     this.owners.get(sessionId)?.readConfiguration?.(sessionId) ?? null
 

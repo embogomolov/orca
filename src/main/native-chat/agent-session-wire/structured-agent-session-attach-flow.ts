@@ -304,6 +304,7 @@ async function acquireOwner(
       sessionId: record.sessionId,
       fence,
       link: acquired.link,
+      transcriptPath: acquired.transcriptPath,
       now: input.now(),
       ...(options ? { options } : {})
     })

@@ -13,6 +13,7 @@ import {
   projectStructuredAiVaultSessions
 } from '../../../ai-vault/structured-session-ownership'
 import { listAiVaultSubagentSessions } from '../../../ipc/ai-vault-subagent-list'
+import { resolveSessionFilePath } from '../../../native-chat/session-file-resolver'
 
 // Why: bound limit + scopePaths so a client cannot force an unbounded scan.
 // Each scopePath is a host-local match prefix (validated/capped, never used for
@@ -81,10 +82,13 @@ export const AiVaultSessionTitlesParams = z.object({
     .max(AI_VAULT_SESSION_TITLE_REQUEST_MAX_COUNT)
 })
 
-const AiVaultListSubagentSessionsParams = z.object({
-  agent: z.enum(['claude', 'openclaude', 'codex']),
-  parentFilePath: z.string().min(1).max(AI_VAULT_SCOPE_PATH_MAX_LENGTH)
-})
+const AiVaultListSubagentSessionsParams = z
+  .object({
+    agent: z.enum(['claude', 'openclaude', 'codex', 'grok', 'omp']),
+    parentFilePath: z.string().min(1).max(AI_VAULT_SCOPE_PATH_MAX_LENGTH).optional(),
+    parentSessionId: z.string().min(1).max(512).optional()
+  })
+  .refine((params) => params.parentFilePath || params.parentSessionId, 'Missing parent session')
 
 export const AI_VAULT_METHODS: RpcMethod[] = [
   defineMethod({
@@ -130,11 +134,17 @@ export const AI_VAULT_METHODS: RpcMethod[] = [
     params: AiVaultListSubagentSessionsParams,
     // Why: clients speak AgentType, the vault lister speaks AiVaultAgent —
     // OpenClaude reads the same transcript layout as Claude.
-    handler: (params) =>
-      listAiVaultSubagentSessions({
-        agent: params.agent === 'openclaude' ? 'claude' : params.agent,
-        parentFilePath: params.parentFilePath
-      })
+    handler: async (params) => {
+      const parentFilePath =
+        params.parentFilePath ??
+        (await resolveSessionFilePath(params.agent, params.parentSessionId!))
+      return parentFilePath
+        ? listAiVaultSubagentSessions({
+            agent: params.agent === 'openclaude' ? 'claude' : params.agent,
+            parentFilePath
+          })
+        : { sessions: [], issues: [] }
+    }
   }),
   defineMethod({
     name: 'aiVault.prepareSessionResume',

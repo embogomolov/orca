@@ -5,6 +5,7 @@ import type { HarnessConversationDriverSink } from './driver'
 
 const mocks = vi.hoisted(() => ({
   client: null as null | {
+    requestPermission: (request: unknown) => Promise<unknown>
     sessionUpdate: (notification: unknown) => Promise<void>
     extNotification: (method: string, params: Record<string, unknown>) => void
   },
@@ -69,6 +70,70 @@ beforeEach(() => {
 })
 
 describe('AcpConversationDriver Grok steer', () => {
+  it('isolates child text, tools, controls and steer acknowledgements, but keeps permissions actionable', async () => {
+    const driver = new AcpConversationDriver({
+      agent: 'grok',
+      cwd: '/repo',
+      providerSessionId: null,
+      forkFromProviderSessionId: null,
+      command: 'grok',
+      args: ['agent', 'stdio'],
+      env: {},
+      sink
+    })
+    await driver.ready()
+    sink.emit.mockClear()
+    sink.setConfiguration.mockClear()
+    const accept = vi.fn(async () => undefined)
+    const steering = driver.steer('parent steer', undefined, crypto.randomUUID(), accept)
+    await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledOnce())
+    for (const update of [
+      { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'child answer' } },
+      { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'child thought' } },
+      { sessionUpdate: 'tool_call', toolCallId: 'child-tool', title: 'sleep', rawInput: {} },
+      { sessionUpdate: 'tool_call_update', toolCallId: 'child-tool', rawOutput: 'child output' },
+      { sessionUpdate: 'usage_update', used: 100, size: 1000 },
+      { sessionUpdate: 'config_option_update', configOptions: [] },
+      { sessionUpdate: 'available_commands_update', availableCommands: [] }
+    ]) {
+      await mocks.client!.sessionUpdate({
+        sessionId: 'child-session',
+        _meta: { promptId: 'child-prompt' },
+        update
+      })
+    }
+    expect(sink.emit).not.toHaveBeenCalled()
+    expect(sink.setContext).not.toHaveBeenCalled()
+    expect(sink.setConfiguration).not.toHaveBeenCalled()
+    expect(accept).not.toHaveBeenCalled()
+    const permission = mocks.client!.requestPermission({
+      sessionId: 'child-session',
+      toolCall: { toolCallId: 'child-tool', title: 'Run sleep' },
+      options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }]
+    })
+    expect(sink.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'permission',
+        permission: expect.objectContaining({ id: 'child-session:child-tool' })
+      })
+    )
+    driver.answerPermission('child-session:child-tool', 'allow')
+    await expect(permission).resolves.toEqual({
+      outcome: { outcome: 'selected', optionId: 'allow' }
+    })
+    await mocks.client!.sessionUpdate({
+      sessionId: 'session-1',
+      _meta: { promptId: 'parent-prompt' },
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: 'Parent response' }
+      }
+    })
+    await steering
+    expect(accept).toHaveBeenCalledOnce()
+    expect(JSON.stringify(sink.emit.mock.calls)).not.toContain('child answer')
+  })
+
   it('uses xAI response boundaries without guessing an end-turn message phase', async () => {
     const driver = new AcpConversationDriver({
       agent: 'grok',
@@ -216,6 +281,7 @@ describe('AcpConversationDriver Grok steer', () => {
       const steering = driver.steer(promptId, undefined, crypto.randomUUID(), accept)
       await vi.waitFor(() => expect(mocks.request).toHaveBeenCalledTimes(completions.length + 1))
       await mocks.client!.sessionUpdate({
+        sessionId: 'session-1',
         _meta: { promptId },
         update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: '' } }
       })
@@ -224,6 +290,7 @@ describe('AcpConversationDriver Grok steer', () => {
     expect(completions).toHaveLength(2)
 
     await mocks.client!.sessionUpdate({
+      sessionId: 'session-1',
       _meta: { promptId: 'interject-fallback-1' },
       update: { sessionUpdate: 'turn_completed', stop_reason: 'end_turn' }
     })
@@ -236,6 +303,7 @@ describe('AcpConversationDriver Grok steer', () => {
     expect(secondSettled).toBe(false)
 
     await mocks.client!.sessionUpdate({
+      sessionId: 'session-1',
       _meta: { promptId: 'interject-fallback-2' },
       update: { sessionUpdate: 'turn_completed', stop_reason: 'end_turn' }
     })

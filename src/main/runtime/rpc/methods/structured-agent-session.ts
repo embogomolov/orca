@@ -9,7 +9,7 @@ import {
   agentSessionFingerprintConflict,
   computeAgentSessionPayloadFingerprint
 } from '../../../../shared/agent-session-mutation-envelope'
-import type { z } from 'zod'
+import { z } from 'zod'
 import { defineMethod, defineStreamingMethod, type RpcAnyMethod, type RpcContext } from '../core'
 import {
   ensureStructuredHostInstalled as ensureHostInstalled,
@@ -240,10 +240,17 @@ export const STRUCTURED_AGENT_SESSION_METHODS: RpcAnyMethod[] = [
   }),
   defineMethod({
     name: 'agentSession.subagents',
-    params: OptionsParams,
+    params: OptionsParams.extend({ parentFilePath: z.string().min(1).max(4096).optional() }),
     handler: async (params, ctx) => {
       await ensureHostInstalled(ctx)
-      return requireHost(ctx).listSubagentSessions(params.sessionId)
+      const result = await requireHost(ctx).listSubagentSessions(
+        params.sessionId,
+        params.parentFilePath
+      )
+      return {
+        ...result,
+        ...(params.parentFilePath ? { parentFilePath: params.parentFilePath } : {})
+      }
     }
   }),
   defineStreamingMethod({

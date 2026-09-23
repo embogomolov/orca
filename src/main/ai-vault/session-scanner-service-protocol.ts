@@ -14,7 +14,7 @@ export type AiVaultServiceLane = 'cache' | 'interactive'
 export type AiVaultServiceOperation = 'scan' | 'titles' | 'subagents' | 'firstPrompt'
 
 export type AiVaultServiceSubagentRequest = {
-  agent: 'claude' | 'omp' | 'codex'
+  agent: 'claude' | 'omp' | 'codex' | 'grok'
   parentFilePath: string
 }
 

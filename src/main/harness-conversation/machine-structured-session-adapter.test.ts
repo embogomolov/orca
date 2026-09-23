@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentSessionJournalIdentity } from '../../shared/agent-session-journal-types'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
-import type { HarnessConversationDriverFactory, HarnessConversationSubmission } from './driver'
+import type {
+  HarnessConversationDriverFactory,
+  HarnessConversationSubmission,
+  HarnessConversationDriverSink
+} from './driver'
 import { MachineStructuredSessionAdapter } from './machine-structured-session-adapter'
 
 const identity: AgentSessionJournalIdentity = {
@@ -13,6 +17,56 @@ const identity: AgentSessionJournalIdentity = {
 }
 
 describe('MachineStructuredSessionAdapter', () => {
+  it('retains subagent lifecycle metadata before and after acquisition', async () => {
+    let publish: HarnessConversationDriverSink['setSubagents'] = () => undefined
+    const adapter = new MachineStructuredSessionAdapter({
+      createDriver: async (input) => {
+        input.sink.setProcessId?.(123)
+        input.sink.setProviderSessionId('omp-parent')
+        publish = input.sink.setSubagents
+        publish([
+          {
+            id: 'Worker',
+            state: 'working',
+            startedAt: 10,
+            transcriptPath: '/custom/Worker.jsonl',
+            runStatus: 'running'
+          }
+        ])
+        return {
+          ready: async () => undefined,
+          send: async () => undefined,
+          interrupt: async () => undefined,
+          answerPermission: () => undefined,
+          answerInput: () => undefined,
+          close: async () => undefined
+        }
+      },
+      resolveWorkspacePath: async () => '/repo',
+      readProcessStartTime: async () => 1_700_000_000_000
+    })
+    await adapter.acquire({
+      identity: {
+        ...identity,
+        agent: 'omp',
+        providerHandle: { kind: 'acp', agent: 'omp', sessionId: 'omp-parent' }
+      },
+      fence: 1,
+      spawnToken: 'spawn',
+      events: { appendItem: vi.fn(), appendTombstone: vi.fn(), publish: vi.fn() }
+    })
+    expect(adapter.readSubagents(identity.sessionId)[0]?.runStatus).toBe('running')
+    publish([
+      {
+        id: 'Worker',
+        state: 'idle',
+        startedAt: 10,
+        transcriptPath: '/custom/Worker.jsonl',
+        runStatus: 'completed'
+      }
+    ])
+    expect(adapter.readSubagents(identity.sessionId)[0]?.runStatus).toBe('completed')
+  })
   it.each([true, false])('keeps the OpenClaude id across an empty restart (%s)', async (empty) => {
     const setOption = vi.fn(async () => undefined)
     const createDriver = vi.fn<HarnessConversationDriverFactory>(async (input) => {

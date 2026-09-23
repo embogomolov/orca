@@ -51,12 +51,12 @@ import type {
 import { StructuredAgentSessionStatusFeed } from './structured-agent-session-status-feed'
 import { StructuredAgentSessionEventRecovery } from './structured-agent-session-event-recovery'
 import { StructuredAgentSessionBackgroundTaskChannel } from './structured-agent-session-background-task-channel'
-import { listStructuredSessionSubagents } from './structured-agent-session-subagents'
+import { listHostSubagentSessions } from './structured-agent-session-subagents'
 export type { StructuredAgentSessionHostDeps } from './structured-agent-session-host-types'
 
 export class StructuredAgentSessionHost {
-  listSubagentSessions = (sessionId: string) =>
-    listStructuredSessionSubagents(this.deps.store.getRecord(sessionId))
+  listSubagentSessions = (sessionId: string, parentFilePath?: string) =>
+    listHostSubagentSessions(this.deps, this.sessions, sessionId, parentFilePath)
   private readonly sessions = new Map<string, StructuredAgentSessionHostSession>()
   private readonly statusFeed = new StructuredAgentSessionStatusFeed({
     sessions: this.sessions,
