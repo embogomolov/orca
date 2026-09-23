@@ -18,6 +18,7 @@ export {
   OptionsParams,
   QueuedMessageActionParams,
   QueuedMessagesResumeParams,
+  SubagentsParams,
   RespondParams,
   RespondToQuestionParams,
   RestartResumableParams,

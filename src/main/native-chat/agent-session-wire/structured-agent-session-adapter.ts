@@ -48,6 +48,7 @@ import type { ProviderHistoryWindow } from '../agent-session-journal/journal-sub
 import type { StructuredAgentSessionEventSink } from './structured-agent-session-event-sink'
 import type { AgentSessionCreatePhaseRecorder } from '../../observability/agent-session-instrumentation'
 import type { AgentSessionContextSnapshot } from '../../../shared/agent-session-context'
+import type { HarnessConversationSubagent } from '../../harness-conversation/driver'
 import type { StructuredProviderConfiguration } from '../../../shared/structured-agent-provider'
 
 export class AgentSessionAcquisitionRefusal extends Error {
@@ -117,6 +118,8 @@ export class AgentSessionAcquisitionExitUnprovenError extends Error {
 /** What a reservation turns into once something is actually running under it:
  *  the process the host can probe, and the provider handle it was minted with. */
 export type AgentSessionAcquisition = {
+  /** Provider-reported location already known at acquisition; no extra filesystem probe. */
+  transcriptPath?: string | null
   process: AgentSessionProcessIdentity
   link: AgentSessionProviderHandleLink
   /** Host-local identity for this exact provider child, distinct even when the durable fence is
@@ -296,13 +299,6 @@ export type StructuredAgentSessionAdapter = StructuredAgentSessionAdapterStop & 
     fence: number
     command: StructuredAgentSessionCommandRun
   }): Promise<AgentSessionCommandAdmission>
-  steer?(input: {
-    sessionId: string
-    clientMessageId: string
-    body: AgentJournalMessageItem
-    turnId: string
-    fence: number
-  }): Promise<AgentSessionDispatchOutcome>
   /** Cancels one turn, not the session: a session-wide interrupt would also kill
    *  a turn the client never asked to stop. With no `turnId` the conversation asked to stop
    *  everything it has in flight — a running turn, or a dispatch whose turn has not opened yet. */
@@ -373,6 +369,7 @@ export type StructuredAgentSessionAdapter = StructuredAgentSessionAdapterStop & 
   /** Option keys skipped after a provider rejected their persisted restore value. */
   readOptionRestoreFailures?(sessionId: string): readonly string[]
   readContext?(sessionId: string): AgentSessionContextSnapshot | null
+  readSubagents?(sessionId: string): readonly HarnessConversationSubagent[]
   readConfiguration?(sessionId: string): StructuredProviderConfiguration | null
   /** Transcript path for journal recovery. Omit to let the existing session-file
    *  resolver discover it from the provider session id. */

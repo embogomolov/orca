@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import { agentSessionFailureFact, providerDiagnosticOf } from '../../shared/agent-session-failure'
+import { agentSessionFailureWords } from '../../shared/agent-session-failure-words'
 import type {
   AgentJournalItemIdentity,
   AgentJournalMessageItem,
   AgentSessionJournalIdentity
 } from '../../shared/agent-session-journal-types'
-import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
-import type { StructuredProviderConfiguration } from '../../shared/structured-agent-provider'
 import type {
   AgentSessionAcquisition,
   AgentSessionDispatchOutcome,
@@ -15,7 +15,6 @@ import type {
 import type { HarnessConversationDriverFactory } from './driver'
 import { createMachineStructuredSessionDriverSink } from './machine-structured-session-driver-sink'
 import {
-  decodeAnswers,
   lifecycleIdentity,
   machineAgent,
   type MachineStructuredSession,
@@ -24,6 +23,7 @@ import {
   providerHandleLink,
   providerPrompt,
   providerSessionId,
+  newClaudeSessionId,
   requiredEvents
 } from './machine-structured-session-values'
 import { MachineStructuredSessionAdapterState } from './machine-structured-session-adapter-state'
@@ -61,17 +61,18 @@ export class MachineStructuredSessionAdapter
     const previousId = providerSessionId(identity)
     const startEmpty =
       agent === 'openclaude' && (await this.deps.canStartEmptyClaudeSession?.(identity.sessionId))
-    const state = {
+    const state: Parameters<typeof createMachineStructuredSessionDriverSink>[0]['state'] = {
       processId: 0,
       providerSessionId: startEmpty ? null : previousId,
-      endedReason: null as string | null,
-      context: null as AgentSessionContextSnapshot | null,
-      configuration: null as StructuredProviderConfiguration | null,
-      transcriptPath: null as string | null
+      endedReason: null,
+      context: null,
+      configuration: null,
+      transcriptPath: null,
+      subagents: []
     }
     const messages = new Map<string, MachineStructuredMessage>()
-    const prompts = new Map<string, { kind: 'approval' | 'question'; requestId: string }>()
-    const sessionRef = { current: null as MachineStructuredSession | null }
+    const prompts: MachineStructuredSession['prompts'] = new Map()
+    const sessionRef: { current: MachineStructuredSession | null } = { current: null }
     const sink = createMachineStructuredSessionDriverSink({
       identity,
       events: input.events,
@@ -95,10 +96,7 @@ export class MachineStructuredSessionAdapter
         })
       }
     })
-    const newProviderSessionId =
-      (agent === 'claude' || agent === 'openclaude') && !state.providerSessionId
-        ? (previousId ?? randomUUID())
-        : undefined
+    const newProviderSessionId = newClaudeSessionId(agent, state.providerSessionId, previousId)
     const driver = await this.deps.createDriver({
       conversationId: identity.sessionId,
       agent,
@@ -111,7 +109,7 @@ export class MachineStructuredSessionAdapter
       sink
     })
     try {
-      await this.readyDriver(driver, startEmpty ? input.options : undefined)
+      await this.readyDriver(driver, state, input.options)
       const sessionProviderId = state.providerSessionId ?? newProviderSessionId
       if (!state.processId || !sessionProviderId || state.endedReason) {
         throw new Error(state.endedReason ?? 'provider acquisition did not publish its identity')
@@ -137,13 +135,15 @@ export class MachineStructuredSessionAdapter
         requestedClose: false,
         context: state.context,
         configuration: state.configuration,
-        transcriptPath: state.transcriptPath
+        transcriptPath: state.transcriptPath,
+        subagents: state.subagents
       }
       sessionRef.current = session
       this.sessions.set(identity.sessionId, session)
       return {
         process,
         link: providerHandleLink(identity, agent, sessionProviderId, input.fence, this.now()),
+        transcriptPath: state.transcriptPath,
         acquisitionGeneration
       }
     } catch (error) {
@@ -160,7 +160,7 @@ export class MachineStructuredSessionAdapter
   }): Promise<AgentSessionDispatchOutcome> {
     const session = this.session(input.sessionId)
     if (session.activeTurn) {
-      return { state: 'rejected', reason: 'conversation_busy' }
+      return this.steer({ ...input, turnId: session.activeTurn })
     }
     const turnId = input.clientMessageId
     const identity = lifecycleIdentity(session.agent, input.sessionId, turnId)
@@ -196,7 +196,7 @@ export class MachineStructuredSessionAdapter
     try {
       await Promise.race([acceptance, completion])
     } catch (error) {
-      return { state: 'rejected', reason: error instanceof Error ? error.message : String(error) }
+      return { state: 'unknown', reason: error instanceof Error ? error.message : String(error) }
     }
     return accepted
       ? {
@@ -220,7 +220,12 @@ export class MachineStructuredSessionAdapter
   }): Promise<AgentSessionDispatchOutcome> {
     const session = this.session(input.sessionId)
     if (session.activeTurn !== input.turnId || !session.driver.steer) {
-      return { state: 'rejected', reason: 'conversation_steer_unsupported' }
+      return {
+        state: 'rejected',
+        ...agentSessionFailureWords(agentSessionFailureFact('notDelivered'), {
+          surface: 'rejection'
+        })
+      }
     }
     const identity: AgentJournalItemIdentity = {
       provider: 'legacy',
@@ -269,37 +274,26 @@ export class MachineStructuredSessionAdapter
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       return /(?:unsupported|rejected|not_working|busy|turn_mismatch)$/.test(reason)
-        ? { state: 'rejected', reason }
+        ? {
+            state: 'rejected',
+            ...agentSessionFailureWords(
+              agentSessionFailureFact('providerRejected', { detail: providerDiagnosticOf(error) }),
+              { surface: 'rejection' }
+            )
+          }
         : { state: 'unknown', reason }
     }
     return outcome ?? { state: 'unknown', reason: 'provider did not confirm steering' }
   }
 
-  async cancelTurn(input: { sessionId: string; turnId: string }): Promise<{ cancelled: boolean }> {
+  async cancelTurn(
+    input: Parameters<StructuredAgentSessionAdapter['cancelTurn']>[0]
+  ): Promise<{ cancelled: boolean }> {
     const session = this.session(input.sessionId)
-    if (session.activeTurn !== input.turnId) {
+    if (!session.activeTurn || (input.turnId && session.activeTurn !== input.turnId)) {
       return { cancelled: false }
     }
     await session.driver.interrupt()
     return { cancelled: true }
-  }
-
-  async answerPrompt(input: {
-    sessionId: string
-    itemId: string
-    kind: 'approval' | 'question'
-    optionId: string
-  }): Promise<void> {
-    const session = this.session(input.sessionId)
-    const prompt = session.prompts.get(input.itemId)
-    if (!prompt || prompt.kind !== input.kind) {
-      throw new Error('provider prompt is no longer pending')
-    }
-    session.prompts.delete(input.itemId)
-    if (prompt.kind === 'approval') {
-      session.driver.answerPermission(prompt.requestId, input.optionId)
-      return
-    }
-    session.driver.answerInput(prompt.requestId, decodeAnswers(input.optionId))
   }
 }

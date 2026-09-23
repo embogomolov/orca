@@ -175,7 +175,7 @@ describe('capability gating', () => {
     }
     // Bump deliberately: the whole agentSession.* surface is behind the structured capability,
     // so an additive method is invisible to old clients and needs no protocol bump.
-    expect(STRUCTURED_AGENT_SESSION_METHODS).toHaveLength(32)
+    expect(STRUCTURED_AGENT_SESSION_METHODS).toHaveLength(34)
   })
 
   it('hides the surface from a declared client that did not advertise it', async () => {
@@ -492,7 +492,15 @@ describe('method routing', () => {
         }),
         ...fields
       }
-      expect(await call('agentSession.create', params, STRUCTURED_CLIENT)).toMatchObject({
+      expect(
+        await call('agentSession.create', params, {
+          ...STRUCTURED_CLIENT,
+          clientCapabilities: [
+            ...STRUCTURED_CLIENT.clientCapabilities,
+            CLAUDE_STRUCTURED_AGENT_SESSION_RUNTIME_CAPABILITY
+          ]
+        })
+      ).toMatchObject({
         ok: true,
         result: { ok: true }
       })
@@ -808,8 +816,19 @@ describe('parameter validation', () => {
     expect(
       await call('agentSession.subagents', { sessionId: SESSION }, STRUCTURED_CLIENT)
     ).toMatchObject({ ok: true, result: { sessions: [], issues: [] } })
-    expect(hostCalls.listSubagentSessions).toHaveBeenCalledWith(SESSION)
+    expect(hostCalls.listSubagentSessions).toHaveBeenCalledWith(SESSION, undefined)
     await rejects('agentSession.subagents', { sessionId: '' })
+  })
+
+  it('acknowledges the owning-host nested parent selector for mixed-version clients', async () => {
+    expect(
+      await call(
+        'agentSession.subagents',
+        { sessionId: SESSION, parentFilePath: '/host/child.jsonl' },
+        STRUCTURED_CLIENT
+      )
+    ).toMatchObject({ ok: true, result: { parentFilePath: '/host/child.jsonl' } })
+    expect(hostCalls.listSubagentSessions).toHaveBeenCalledWith(SESSION, '/host/child.jsonl')
   })
 })
 

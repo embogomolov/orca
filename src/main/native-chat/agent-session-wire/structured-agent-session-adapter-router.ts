@@ -1,4 +1,5 @@
 import type { SubmissionRejectionFact } from '../../../shared/agent-session-failure'
+import { agentSessionRecordAgent } from '../../../shared/agent-session-record'
 import type { StructuredAgentSessionAtRestCommands } from './structured-agent-session-at-rest-commands'
 import type { AgentSessionJournalIdentity } from '../../../shared/agent-session-journal-types'
 import type {
@@ -70,10 +71,6 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
   dispatch: StructuredAgentSessionAdapter['dispatch'] = (input) =>
     this.owner(input.sessionId).dispatch(input)
 
-  steer: NonNullable<StructuredAgentSessionAdapter['steer']> = (input) =>
-    this.owner(input.sessionId).steer?.(input) ??
-    Promise.resolve({ state: 'rejected', reason: 'steer_unsupported' })
-
   rewindSupport: NonNullable<StructuredAgentSessionAdapter['rewindSupport']> = (sessionId, agent) =>
     this.capabilityOwner(sessionId, agent)?.rewindSupport?.(sessionId) ?? {
       supported: false,
@@ -143,7 +140,8 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
     this.liveOwnerOrNull(sessionId)?.readCommands?.(sessionId)
 
   atRestCommands: StructuredAgentSessionAtRestCommands = {
-    read: (record) => this.adapters[record.provider].atRestCommands?.read(record),
+    read: (record) =>
+      this.adapterForAgent(agentSessionRecordAgent(record))?.atRestCommands?.read(record),
     onChange: (listener) => {
       const stops = Object.values(this.adapters).flatMap((adapter) =>
         adapter.atRestCommands ? [adapter.atRestCommands.onChange(listener)] : []
@@ -164,6 +162,9 @@ export class StructuredAgentSessionAdapterRouter implements StructuredAgentSessi
     this.liveOwnerOrNull(sessionId)?.awaitStarted?.(sessionId) ?? Promise.resolve()
   readContext = (sessionId: string) =>
     this.liveOwnerOrNull(sessionId)?.readContext?.(sessionId) ?? null
+
+  readSubagents = (sessionId: string) =>
+    this.liveOwnerOrNull(sessionId)?.readSubagents?.(sessionId) ?? []
 
   readConfiguration = (sessionId: string) =>
     this.liveOwnerOrNull(sessionId)?.readConfiguration?.(sessionId) ?? null

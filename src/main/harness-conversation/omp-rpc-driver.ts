@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import type { HarnessConversationDriver, HarnessConversationDriverSink } from './driver'
 import type { SessionOptionValue } from '../../shared/native-chat-session-options'
 import { OmpRpcConnection, OmpRpcError, type OmpRpcFrame } from './omp-rpc-connection'
@@ -14,6 +15,7 @@ import {
 import { OmpRpcInteractions } from './omp-rpc-interactions'
 import { OmpRpcTurnQueue } from './omp-rpc-turn-queue'
 import { completeOmpResponse, ompAssistantMessage, type OmpTextStreams } from './omp-rpc-message'
+import { OmpRpcSubagents } from './omp-rpc-subagents'
 
 type OmpRpcDriverOptions = {
   cwd: string
@@ -35,6 +37,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
   private currentModel = ''
   private currentEffort = 'medium'
   private interrupted = false
+  private readonly subagents = new OmpRpcSubagents()
 
   constructor(private readonly options: OmpRpcDriverOptions) {
     this.connection = new OmpRpcConnection(
@@ -42,7 +45,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
       options.args,
       options.env,
       options.cwd,
-      (frame) => this.frame(frame),
+      (frame) => this.subagents.consume(frame, options.sink) || this.frame(frame),
       (error) => this.fail(error)
     )
     options.sink.setProcessId?.(this.connection.pid)
@@ -52,9 +55,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
     this.initialized = this.initialize()
   }
 
-  ready(): Promise<void> {
-    return this.initialized
-  }
+  ready = (): Promise<void> => this.initialized
 
   async send(
     text: string,
@@ -63,8 +64,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
   ): Promise<void> {
     await this.initialized
     this.interrupted = false
-    const requestId =
-      (submission?.clientMessageId as ReturnType<typeof randomUUID> | undefined) ?? randomUUID()
+    const requestId = submission?.clientMessageId ?? randomUUID()
     const completion = this.turnQueue.push(requestId)
     let response: OmpRpcFrame
     try {
@@ -77,7 +77,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
       throw error
     }
     submission?.accepted()
-    const data = response.data as { agentInvoked?: unknown } | undefined
+    const data = isRecord(response.data) ? response.data : undefined
     if (data?.agentInvoked === false) {
       this.turnQueue.complete(requestId)
     }
@@ -99,11 +99,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
     this.turnQueue.turns.push(next.turn)
     let providerAccepted = false
     try {
-      await this.connection.request(
-        'steer',
-        ompPrompt(text, imagePaths),
-        clientMessageId as ReturnType<typeof randomUUID>
-      )
+      await this.connection.request('steer', ompPrompt(text, imagePaths), clientMessageId)
       providerAccepted = true
       if (this.turnQueue.turns.includes(originalTurn)) {
         this.turnQueue.remove(next.turn)
@@ -164,8 +160,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
   }
 
   async close(): Promise<void> {
-    const error = new Error('omp_rpc_closed')
-    this.turnQueue.fail(error)
+    this.turnQueue.fail(new Error('omp_rpc_closed'))
     await this.connection.close()
   }
 
@@ -176,14 +171,14 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
       this.connection.request('get_available_commands'),
       this.connection.request('get_available_models')
     ])
-    const state = stateResponse.data as Record<string, unknown> | undefined
+    const state = isRecord(stateResponse.data) ? stateResponse.data : undefined
     if (typeof state?.sessionId === 'string') {
       this.options.sink.setProviderSessionId(state.sessionId)
     }
     if (typeof state?.sessionFile === 'string') {
       this.options.sink.setTranscriptPath(state.sessionFile)
     }
-    const model = state?.model as { provider?: unknown; id?: unknown } | undefined
+    const model = isRecord(state?.model) ? state.model : undefined
     if (typeof model?.provider === 'string' && typeof model.id === 'string') {
       this.currentModel = `${model.provider}/${model.id}`
     }
@@ -194,6 +189,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
     this.commands = parseOmpCommands(commandsResponse.data)
     this.modelChoices = parseOmpModels(modelsResponse.data)
     this.publishConfiguration()
+    await this.subagents.subscribe(this.connection, this.options.sink)
   }
 
   private frame(frame: OmpRpcFrame): void {
@@ -217,7 +213,7 @@ export class OmpRpcConversationDriver implements HarnessConversationDriver {
       return
     }
     if (frame.type === 'message_update') {
-      const event = frame.assistantMessageEvent as { type?: unknown; delta?: unknown } | undefined
+      const event = isRecord(frame.assistantMessageEvent) ? frame.assistantMessageEvent : undefined
       if (typeof event?.delta === 'string') {
         if (event.type === 'text_delta') {
           this.delta('assistant', event.delta)

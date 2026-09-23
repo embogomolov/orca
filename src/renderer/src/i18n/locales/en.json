@@ -18983,6 +18983,7 @@
     "forAgent": "@{{identity}} subagents",
     "active": "Active",
     "done": "Done",
+    "statusUnavailable": "Status unavailable",
     "readOnlyTranscript": "Read-only transcript",
     "transcriptStarting": "Transcript starting…",
     "loading": "Loading…",

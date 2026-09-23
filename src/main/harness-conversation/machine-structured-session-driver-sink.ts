@@ -3,11 +3,17 @@ import { agentJournalItemKey } from '../../shared/agent-session-journal-item-key
 import type { AgentSessionJournalIdentity } from '../../shared/agent-session-journal-types'
 import type { StructuredProviderConfiguration } from '../../shared/structured-agent-provider'
 import type { StructuredAgentSessionEventSink } from '../native-chat/agent-session-wire/structured-agent-session-event-sink'
-import type { HarnessConversationDriverEvent, HarnessConversationDriverSink } from './driver'
+import type {
+  HarnessConversationDriverEvent,
+  HarnessConversationDriverSink,
+  HarnessConversationSubagent
+} from './driver'
 import {
   messageIdentity,
+  machineTurnScope,
   promptIdentity,
-  type MachineStructuredMessage
+  type MachineStructuredMessage,
+  type MachineStructuredSession
 } from './machine-structured-session-values'
 
 type DriverState = {
@@ -17,6 +23,7 @@ type DriverState = {
   context: AgentSessionContextSnapshot | null
   configuration: StructuredProviderConfiguration | null
   transcriptPath: string | null
+  subagents?: HarnessConversationSubagent[]
 }
 
 type LiveSessionState = {
@@ -25,6 +32,7 @@ type LiveSessionState = {
   context: AgentSessionContextSnapshot | null
   configuration: StructuredProviderConfiguration | null
   transcriptPath: string | null
+  subagents?: HarnessConversationSubagent[]
 }
 
 const EMPTY_RESOLUTION = {
@@ -39,7 +47,7 @@ export function createMachineStructuredSessionDriverSink(input: {
   events?: StructuredAgentSessionEventSink
   state: DriverState
   messages: Map<string, MachineStructuredMessage>
-  prompts: Map<string, { kind: 'approval' | 'question'; requestId: string }>
+  prompts: MachineStructuredSession['prompts']
   sessionRef: { current: LiveSessionState | null }
   onEnd: (reason: string) => void
 }): HarnessConversationDriverSink {
@@ -55,7 +63,12 @@ export function createMachineStructuredSessionDriverSink(input: {
       },
       message.body,
       {
-        coalescingKey: `message:${messageId}`
+        coalescingKey: `message:${messageId}`,
+        turnScope: machineTurnScope(
+          input.identity.agent,
+          input.identity.sessionId,
+          message.turn?.turnId
+        )
       }
     )
     input.events.publish({ coalescingKey: 'provider-message-publish' })
@@ -80,7 +93,12 @@ export function createMachineStructuredSessionDriverSink(input: {
         input.sessionRef.current.context = context
       }
     },
-    setSubagents: () => undefined,
+    setSubagents: (subagents) => {
+      input.state.subagents = subagents
+      if (input.sessionRef.current) {
+        input.sessionRef.current.subagents = subagents
+      }
+    },
     setTranscriptPath: (transcriptPath) => {
       input.state.transcriptPath = transcriptPath
       if (input.sessionRef.current) {
@@ -144,13 +162,23 @@ function emitProviderEvent(
     }
     const itemId = agentJournalItemKey(identity)
     input.prompts.set(itemId, { kind: 'approval', requestId: request.id })
-    input.events.appendItem(identity, {
-      kind: 'approval',
-      title: request.title,
-      detail: request.detail ?? null,
-      options: request.options.map(({ id, label }) => ({ id, label })),
-      resolution: EMPTY_RESOLUTION
-    })
+    input.events.appendItem(
+      identity,
+      {
+        kind: 'approval',
+        title: request.title,
+        detail: request.detail ?? null,
+        options: request.options.map(({ id, label }) => ({ id, label })),
+        resolution: EMPTY_RESOLUTION
+      },
+      {
+        turnScope: machineTurnScope(
+          input.identity.agent,
+          input.identity.sessionId,
+          identity.turn?.turnId
+        )
+      }
+    )
     input.events.publish()
     return
   }
@@ -167,21 +195,31 @@ function emitProviderEvent(
   const itemId = agentJournalItemKey(identity)
   const first = request.questions[0]
   input.prompts.set(itemId, { kind: 'question', requestId: request.id })
-  input.events.appendItem(identity, {
-    kind: 'question',
-    question: first?.question ?? 'Input requested',
-    options: (first?.options ?? []).map((option) => ({ id: option.label, label: option.label })),
-    freeTextQuestionId: 'answers',
-    questions: request.questions.map((question) => ({
-      id: question.id,
-      header: question.header,
-      question: question.question,
-      multiSelect: question.multiSelect ?? false,
-      ...(question.secret !== undefined ? { secret: question.secret } : {}),
-      ...(question.allowOther !== false ? { freeTextQuestionId: question.id } : {}),
-      options: (question.options ?? []).map((option) => ({ ...option, id: option.label }))
-    })),
-    resolution: EMPTY_RESOLUTION
-  })
+  input.events.appendItem(
+    identity,
+    {
+      kind: 'question',
+      question: first?.question ?? 'Input requested',
+      options: (first?.options ?? []).map((option) => ({ id: option.label, label: option.label })),
+      freeTextQuestionId: 'answers',
+      questions: request.questions.map((question) => ({
+        id: question.id,
+        header: question.header,
+        question: question.question,
+        multiSelect: question.multiSelect ?? false,
+        ...(question.secret !== undefined ? { secret: question.secret } : {}),
+        ...(question.allowOther !== false ? { freeTextQuestionId: question.id } : {}),
+        options: (question.options ?? []).map((option) => ({ ...option, id: option.label }))
+      })),
+      resolution: EMPTY_RESOLUTION
+    },
+    {
+      turnScope: machineTurnScope(
+        input.identity.agent,
+        input.identity.sessionId,
+        identity.turn?.turnId
+      )
+    }
+  )
   input.events.publish()
 }

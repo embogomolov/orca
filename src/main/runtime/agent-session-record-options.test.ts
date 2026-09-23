@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { isAgentSessionRecord } from '../../shared/agent-session-record'
+import { isPersistedAgentSessionRecord } from '../../shared/agent-session-record'
 import { optionRecord } from '../harness-conversation/machine-structured-session-values'
 import { readNativeSessionOptions } from '../native-chat/agent-session-wire/structured-agent-session-option-restoration'
 import { openTestAgentSessionRecordStore } from './agent-session-record-store-test-harness'
@@ -64,7 +64,6 @@ it.each([
       },
       provider: 'codex',
       accountHome: { variable: 'CODEX_HOME', path: '/accounts/codex' },
-      runtimeKind: 'native',
       expectedFence: null,
       spawnToken: 'spawn-options',
       claimKeyId: 'key-1',
@@ -110,12 +109,17 @@ it.each([
         observedAt: NOW
       },
       now: NOW,
+      transcriptPath: '/custom/provider/session.jsonl',
       ...(options ? { options } : {})
     }
     await expect(store.proveOwner({ ...proof, options: { model: '' } })).rejects.toThrow(
       'agent_session_options_invalid'
     )
     expect(store.getRecord(SESSION)?.lease.claimStatus).toBe('reserved')
+    await expect(store.proveOwner({ ...proof, transcriptPath: 'relative.jsonl' })).rejects.toThrow(
+      'agent_session_operation_invalid'
+    )
+    expect(store.getRecord(SESSION)?.providerTranscript).toBeUndefined()
     await store.proveOwner(proof)
 
     await expect(
@@ -123,9 +127,13 @@ it.each([
     ).rejects.toThrow('agent_session_options_invalid')
 
     const reopened = await openTestAgentSessionRecordStore(directory)
+    expect(reopened.getRecord(SESSION)?.providerTranscript).toEqual({
+      path: '/custom/provider/session.jsonl',
+      handleRoot: 'codex:"thread-options"'
+    })
     expect(reopened.getRecord(SESSION)?.options).toEqual(expected)
     expect(reopened.getRecord(SESSION)?.lease.claimStatus).toBe('live')
-    expect(isAgentSessionRecord(reopened.getRecord(SESSION))).toBe(true)
+    expect(isPersistedAgentSessionRecord(reopened.getRecord(SESSION))).toBe(true)
   }
 )
 

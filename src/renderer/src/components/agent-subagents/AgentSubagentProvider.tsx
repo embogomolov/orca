@@ -41,7 +41,7 @@ export function AgentSubagentProvider({
             sessions: loadedBySource[source.key]?.sessions ?? []
           }
         ])
-      ) as Record<string, AgentSubagentSourceData>,
+      ),
     [loadedBySource, sources]
   )
   const value = useMemo(
@@ -65,7 +65,12 @@ export function AgentSubagentProvider({
   return (
     <AgentSubagentContext.Provider value={value}>
       {sources.map((source) => (
-        <SourceLoader key={source.key} source={source} onChange={update} />
+        <SourceLoader
+          key={source.key}
+          source={source}
+          onChange={update}
+          poll={sheetOpen && (!openTarget?.sourceKey || openTarget.sourceKey === source.key)}
+        />
       ))}
       {children}
       <AgentSubagentSheet
@@ -85,18 +90,21 @@ export function AgentSubagentProvider({
 
 function SourceLoader({
   source,
+  poll,
   onChange
 }: {
   source: AgentSubagentSource
+  poll: boolean
   onChange: (key: string, data: Omit<AgentSubagentSourceData, 'source'>) => void
 }): null {
   const data = useAgentSubagentSessions({
     target: source.target,
     agent: source.agent,
-    parentFilePath: source.transcriptPath,
+    parentFilePath: source.structuredSessionId ? null : source.transcriptPath,
+    parentSessionId: source.sessionId,
     structuredSessionId: source.structuredSessionId,
     liveSubagents: source.liveSubagents,
-    poll: source.working
+    poll: source.working || poll
   })
   useEffect(() => onChange(source.key, data), [data, onChange, source.key])
   return null

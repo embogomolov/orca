@@ -1,4 +1,9 @@
 import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
+import {
+  AgentSessionPromptAnswerRejectedError,
+  AgentSessionPromptUnavailableError,
+  type StructuredAgentSessionAdapter
+} from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import type { AgentSessionExecutionLocation } from '../../shared/agent-session-record'
 import { supportsCodexStructuredLocation } from '../codex/codex-structured-location-support'
 import type {
@@ -12,6 +17,7 @@ import type { MachineStructuredSessionAdapterDeps } from './machine-structured-s
 import type { HarnessConversationDriver } from './driver'
 import {
   lifecycleIdentity,
+  machineTurnScope,
   type MachineStructuredSession,
   providerOptions,
   optionRecord,
@@ -26,10 +32,11 @@ export class MachineStructuredSessionAdapterState {
 
   protected async readyDriver(
     driver: HarnessConversationDriver,
+    state: { configuration: StructuredProviderConfiguration | null },
     options?: Readonly<Record<string, string>>
   ): Promise<void> {
     await driver.ready?.()
-    if (!options) {
+    if (!options || Object.keys(options).length === 0) {
       return
     }
     if (!driver.setOption) {
@@ -40,7 +47,7 @@ export class MachineStructuredSessionAdapterState {
       await driver.setOption('model', model)
     }
     for (const [key, value] of Object.entries(rest)) {
-      await driver.setOption(key, value)
+      await driver.setOption(key, optionValue(state.configuration, key, value))
     }
   }
 
@@ -66,6 +73,8 @@ export class MachineStructuredSessionAdapterState {
 
   historyFilePath = async ({ identity }: { identity: AgentSessionJournalIdentity }) =>
     this.sessions.get(identity.sessionId)?.transcriptPath ?? null
+
+  readSubagents = (sessionId: string) => this.sessions.get(sessionId)?.subagents ?? []
 
   readContext(sessionId: string): AgentSessionContextSnapshot | null {
     return this.sessions.get(sessionId)?.context ?? null
@@ -129,10 +138,17 @@ export class MachineStructuredSessionAdapterState {
 
   protected append(
     session: MachineStructuredSession,
-    identity: AgentJournalItemIdentity,
+    identity: Extract<AgentJournalItemIdentity, { provider: 'legacy' }>,
     body: Parameters<StructuredAgentSessionEventSink['appendItem']>[1]
   ): void {
-    session.events.appendItem(identity, body, { lifecycle: body.kind === 'status' })
+    session.events.appendItem(identity, body, {
+      lifecycle: body.kind === 'status',
+      turnScope: machineTurnScope(
+        session.agent,
+        identity.sessionId,
+        body.kind === 'status' ? null : (identity.turn?.turnId ?? session.activeTurn)
+      )
+    })
     session.events.publish({ lifecycle: body.kind === 'status' })
   }
 
@@ -146,5 +162,53 @@ export class MachineStructuredSessionAdapterState {
 
   protected now(): number {
     return this.deps.now?.() ?? Date.now()
+  }
+
+  async answerPrompt(
+    input: Parameters<StructuredAgentSessionAdapter['answerPrompt']>[0]
+  ): Promise<void> {
+    const session = this.sessions.get(input.sessionId)
+    const prompt = session?.prompts.get(input.itemId)
+    if (
+      !session ||
+      session.requestedClose ||
+      session.fence !== input.fence ||
+      !prompt ||
+      prompt.claimed ||
+      prompt.kind !== input.kind
+    ) {
+      throw new AgentSessionPromptUnavailableError(input.itemId)
+    }
+    if ((prompt.kind === 'approval') !== (input.response.kind === 'option')) {
+      throw new AgentSessionPromptAnswerRejectedError('response does not match provider prompt')
+    }
+    prompt.claimed = true
+    try {
+      await input.commit()
+      if (
+        this.sessions.get(input.sessionId) !== session ||
+        session.requestedClose ||
+        session.fence !== input.fence ||
+        session.prompts.get(input.itemId) !== prompt
+      ) {
+        throw new AgentSessionPromptUnavailableError(input.itemId)
+      }
+      if (input.response.kind === 'option') {
+        session.driver.answerPermission(prompt.requestId, input.response.optionId)
+      } else {
+        session.driver.answerInput(
+          prompt.requestId,
+          Object.fromEntries(
+            input.response.answers.map((answer) => [
+              answer.questionId,
+              [...answer.optionIds, ...(answer.other ? [answer.other] : [])]
+            ])
+          )
+        )
+      }
+      session.prompts.delete(input.itemId)
+    } finally {
+      prompt.claimed = false
+    }
   }
 }

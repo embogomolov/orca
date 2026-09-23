@@ -5,6 +5,7 @@ import type {
 } from '../../shared/native-chat-types'
 import { resolveSessionFilePath, type ResolveSessionFileOptions } from './session-file-resolver'
 import {
+  decodeGrokTranscriptLine,
   nativeChatLineDecoderForAgent,
   type NativeChatLineDecoder
 } from './transcript-line-decoders'
@@ -15,6 +16,7 @@ import {
 } from './transcript-turn-lifecycle'
 import {
   findLastCompleteLineEnd,
+  MAX_NATIVE_CHAT_TRANSCRIPT_RECORD_BYTES,
   readTranscriptByteAt,
   TAIL_CHUNK_BYTES
 } from './transcript-tail-boundary'
@@ -26,8 +28,9 @@ import {
 } from './wsl-transcript-fs-access'
 import { wslTranscriptFsRefusal } from './wsl-transcript-fs-gate'
 import { mergeNativeChatHookActivity, nativeChatHookActivityStore } from './hook-activity-store'
+import { isGrokUpdatesPath, readGrokUpdatesReplay } from './transcript-grok-updates-replay'
 
-export const MAX_NATIVE_CHAT_TRANSCRIPT_RECORD_BYTES = 2 * 1024 * 1024
+export { MAX_NATIVE_CHAT_TRANSCRIPT_RECORD_BYTES }
 
 export { nativeChatLineDecoderForAgent, type NativeChatLineDecoder }
 
@@ -49,6 +52,9 @@ export async function readNativeChatTranscriptTailFile(
   oversizedRecordCount?: number
 }> {
   signal?.throwIfAborted()
+  if (decode === decodeGrokTranscriptLine && isGrokUpdatesPath(filePath)) {
+    return readGrokUpdatesReplay(filePath, limit, endOffset, includeTrailingLine, signal)
+  }
   const end = Math.min(
     (await wslGatedStat(filePath, 'exact', signal)).size,
     endOffset ?? Number.MAX_SAFE_INTEGER

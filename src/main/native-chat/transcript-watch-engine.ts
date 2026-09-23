@@ -28,6 +28,8 @@ import {
 } from './wsl-transcript-watcher-running-guard'
 import { observeWslTranscriptRunningState } from './wsl-transcript-running-observer'
 import { trackActiveNativeChatWatcher } from './transcript-watcher-count'
+import { grokUpdatesReplayDrain } from './transcript-grok-updates-replay'
+import { readTranscriptWatchAppends } from './transcript-watch-appends'
 
 /** Install a live tail, or return null when the resolved file is not readable yet. */
 export async function installTranscriptWatcher(
@@ -40,10 +42,11 @@ export async function installTranscriptWatcher(
   if (!(await transcriptWatcherPathIsInstallable(filePath, signal))) {
     return null
   }
-  const { onAppend, onInitialSnapshot, onOpaqueAppend, onReplace, initialLimit } = args
+  const { onInitialSnapshot, onReplace, initialLimit } = args
   const decodeLifecycle = nativeChatTurnLifecycleDecoderForAgent(args.agent)
 
   const state = createIncrementalTranscriptState()
+  const grokReplay = grokUpdatesReplayDrain(filePath, args, state)
   let watchedVersion: TranscriptFileVersion | null = null
   let watchedBoundary = ''
   let initialDrain = true,
@@ -61,34 +64,16 @@ export async function installTranscriptWatcher(
     }
   }
 
-  async function readAndEmitAppends(): Promise<void> {
-    let lifecycle: NativeChatTurnLifecycle | undefined
-    let emitted = false
-    const startOffset = state.offset
-    const remaining = await readIncrementalTranscriptMessages(
+  const readAndEmitAppends = (): Promise<void> =>
+    readTranscriptWatchAppends({
       filePath,
       state,
       decode,
-      (messages) => {
-        if (!closed) {
-          emitted = true
-          onAppend(messages)
-        }
-      },
-      decodeLifecycle ?? undefined,
-      (nextLifecycle) => {
-        lifecycle = nextLifecycle
-      },
-      gateAbort.signal
-    )
-    if (!closed && (remaining.length > 0 || lifecycle)) {
-      emitted = true
-      onAppend(remaining, lifecycle)
-    }
-    if (!closed && !emitted && state.offset > startOffset) {
-      onOpaqueAppend?.()
-    }
-  }
+      args,
+      decodeLifecycle,
+      signal: gateAbort.signal,
+      isClosed: () => closed
+    })
 
   async function finishSuccessfulDrain(startVersion: TranscriptFileVersion): Promise<void> {
     watchedBoundary = await boundaryFingerprint(filePath, state.offset, gateAbort.signal)
@@ -133,6 +118,12 @@ export async function installTranscriptWatcher(
     }
     // Why: subscriber callbacks may replace the path before the drain can finish.
     watchedVersion ??= current
+
+    if (grokReplay) {
+      await grokReplay(gateAbort.signal)
+      initialDrain = false
+      return finishSuccessfulDrain(current)
+    }
 
     const replacementSnapshot =
       // Why: 0 is a valid window and must not fall back to an unbounded read.

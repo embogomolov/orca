@@ -23,6 +23,7 @@ import { acpUserPrompt } from './acp-user-prompt'
 import { observeGrokResponseBoundary } from './grok-response-boundary'
 import type { AcpDriverOptions } from './acp-driver-options'
 import { spawnProcess } from '../../shared/child-process/run-process'
+import { publishGrokTranscriptPath } from './grok-transcript-path'
 
 export class AcpConversationDriver implements HarnessConversationDriver {
   private readonly child: ReturnType<typeof spawnProcess>
@@ -80,7 +81,8 @@ export class AcpConversationDriver implements HarnessConversationDriver {
     this.connection = new ClientSideConnection(
       () => client,
       ndJsonStream(
-        Writable.toWeb(this.child.stdin) as WritableStream<Uint8Array>,
+        Writable.toWeb(this.child.stdin),
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Piped stdout emits Uint8Array chunks; Node and DOM declare incompatible BYOB reader overloads for the same WHATWG stream.
         Readable.toWeb(this.child.stdout) as ReadableStream<Uint8Array>
       )
     )
@@ -102,8 +104,7 @@ export class AcpConversationDriver implements HarnessConversationDriver {
     if (!this.sessionId) {
       throw new Error('acp_session_unavailable')
     }
-    this.fallbackMessageId =
-      (submission?.clientMessageId as ReturnType<typeof randomUUID> | undefined) ?? randomUUID()
+    this.fallbackMessageId = submission?.clientMessageId ?? randomUUID()
     try {
       const completion = this.connection.prompt({
         sessionId: this.sessionId,
@@ -176,16 +177,11 @@ export class AcpConversationDriver implements HarnessConversationDriver {
         this.modes = { ...this.modes, currentModeId: value }
       }
     } else {
-      const response = await this.connection.setSessionConfigOption(
-        typeof value === 'boolean'
-          ? {
-              sessionId: this.sessionId,
-              configId: optionId,
-              type: 'boolean',
-              value
-            }
-          : { sessionId: this.sessionId, configId: optionId, value }
-      )
+      const response = await this.connection.setSessionConfigOption({
+        sessionId: this.sessionId,
+        configId: optionId,
+        ...(typeof value === 'boolean' ? { type: 'boolean', value } : { value })
+      })
       this.configOptions = response.configOptions
     }
     this.publishConfiguration()
@@ -222,6 +218,7 @@ export class AcpConversationDriver implements HarnessConversationDriver {
       this.modes = result.modes
       this.configOptions = result.configOptions
       this.options.sink.setProviderSessionId(result.sessionId)
+      await publishGrokTranscriptPath(this.options, result.sessionId)
       this.publishConfiguration()
     } finally {
       this.initializing = false
@@ -229,6 +226,10 @@ export class AcpConversationDriver implements HarnessConversationDriver {
   }
 
   private async sessionUpdate(notification: SessionNotification): Promise<void> {
+    // Child sessions share the connection, not the parent's transcript or controls.
+    if (this.sessionId && notification.sessionId !== this.sessionId) {
+      return
+    }
     await this.steers.observeTurn(notification)
     const update = notification.update
     if (
