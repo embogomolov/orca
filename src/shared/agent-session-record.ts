@@ -8,6 +8,7 @@ import {
   type PersistedAgentSessionRecord
 } from './agent-session-legacy-handoff-lease'
 import type { AgentType } from './agent-status-types'
+import { isOptionalAgentSessionTranscript } from './agent-session-provider-transcript'
 /**
  * Durable agent-session record and its single-writer lease.
  *
@@ -137,6 +138,8 @@ export type AgentSessionRecord = {
   /** The name Orca gave this conversation, so a later acquisition need not name it again. */
   conversationName?: string
   launchArgs?: AgentSessionLaunchArgs
+  /** Host-observed transcript location, bound to the proven provider conversation. */
+  providerTranscript?: { path: string; handleRoot: string }
   lease: AgentSessionLease
   createdAt: number
   updatedAt: number
@@ -348,6 +351,7 @@ export function isPersistedAgentSessionRecord(
     (record.conversationName === undefined ||
       isAgentSessionConversationName(record.conversationName)) &&
     (record.launchArgs === undefined || isAgentSessionLaunchArgs(record.launchArgs)) &&
+    isOptionalAgentSessionTranscript(record.providerTranscript) &&
     !Object.hasOwn(record, 'launchEnv') &&
     isPersistedAgentSessionLease(record.lease) &&
     record.lease.sessionId === record.sessionId &&

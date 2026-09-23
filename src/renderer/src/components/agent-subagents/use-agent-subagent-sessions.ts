@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AgentSubagentSnapshot } from '../../../../shared/agent-status-types'
 import type { AiVaultSession, AiVaultSubagentListResult } from '../../../../shared/ai-vault-types'
+import { isNativeChatSupportedAgent } from '../../../../shared/native-chat-agent-support'
 import { callRuntimeRpc, type RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 
 export type AgentSubagentSessionsState = {
@@ -8,10 +9,13 @@ export type AgentSubagentSessionsState = {
   sessions: AiVaultSession[]
 }
 
+const EMPTY_STATE: AgentSubagentSessionsState = { loading: false, sessions: [] }
+
 export function useAgentSubagentSessions({
   target,
   agent,
   parentFilePath,
+  parentSessionId,
   structuredSessionId,
   liveSubagents = [],
   poll = false
@@ -19,41 +23,86 @@ export function useAgentSubagentSessions({
   target: RuntimeClientTarget
   agent: string
   parentFilePath: string | null
+  parentSessionId?: string | null
   structuredSessionId?: string
   liveSubagents?: readonly AgentSubagentSnapshot[]
   poll?: boolean
 }): AgentSubagentSessionsState {
-  const [state, setState] = useState<AgentSubagentSessionsState>({ loading: false, sessions: [] })
   const liveKey = liveSubagents.map((subagent) => `${subagent.id}:${subagent.state}`).join('|')
   const targetKey = target.kind === 'environment' ? `environment:${target.environmentId}` : 'local'
+  const scopeKey = JSON.stringify([
+    targetKey,
+    agent,
+    parentFilePath,
+    parentSessionId,
+    structuredSessionId
+  ])
+  const [loaded, setState] = useState<AgentSubagentSessionsState & { scopeKey: string }>({
+    ...EMPTY_STATE,
+    scopeKey
+  })
+  const state = loaded.scopeKey === scopeKey ? loaded : EMPTY_STATE
   const shouldPoll =
     poll ||
     liveSubagents.length > 0 ||
     state.sessions.some((session) => session.subagent?.status === 'running')
 
   useEffect(() => {
-    if ((!parentFilePath && !structuredSessionId) || !supportsSubagentTranscripts(agent)) {
-      setState({ loading: false, sessions: [] })
+    if (
+      (!parentFilePath && !parentSessionId && !structuredSessionId) ||
+      !isNativeChatSupportedAgent(agent)
+    ) {
+      setState({ ...EMPTY_STATE, scopeKey })
       return
     }
     let cancelled = false
+    let inFlight = false
     let timer: ReturnType<typeof setInterval> | null = null
     const load = async (): Promise<void> => {
-      setState((current) => ({ ...current, loading: current.sessions.length === 0 }))
+      if (cancelled || inFlight) {
+        return
+      }
+      inFlight = true
+      setState((current) =>
+        current.scopeKey === scopeKey
+          ? { ...current, loading: current.sessions.length === 0 }
+          : { scopeKey, loading: true, sessions: [] }
+      )
       try {
-        const result = await callRuntimeRpc<unknown>(
+        let result = await callRuntimeRpc<unknown>(
           target,
           structuredSessionId ? 'agentSession.subagents' : 'aiVault.listSubagentSessions',
-          structuredSessionId ? { sessionId: structuredSessionId } : { agent, parentFilePath },
+          structuredSessionId
+            ? { sessionId: structuredSessionId, ...(parentFilePath ? { parentFilePath } : {}) }
+            : parentFilePath
+              ? { agent, parentFilePath }
+              : { agent, parentSessionId },
           { timeoutMs: 15_000 }
         )
+        // Older hosts ignore the optional nested-parent selector; never display their root list here.
+        if (
+          structuredSessionId &&
+          parentFilePath &&
+          (!result ||
+            typeof result !== 'object' ||
+            (result as { parentFilePath?: unknown }).parentFilePath !== parentFilePath)
+        ) {
+          result = await callRuntimeRpc<unknown>(
+            target,
+            'aiVault.listSubagentSessions',
+            { agent, parentFilePath },
+            { timeoutMs: 15_000 }
+          )
+        }
         if (!cancelled) {
-          setState({ loading: false, sessions: parseSubagentList(result).sessions })
+          setState({ scopeKey, loading: false, sessions: parseSubagentList(result).sessions })
         }
       } catch {
         if (!cancelled) {
           setState((current) => ({ ...current, loading: false }))
         }
+      } finally {
+        inFlight = false
       }
     }
     void load()
@@ -66,13 +115,19 @@ export function useAgentSubagentSessions({
         clearInterval(timer)
       }
     }
-  }, [agent, liveKey, parentFilePath, structuredSessionId, shouldPoll, target, targetKey])
+  }, [
+    agent,
+    liveKey,
+    parentFilePath,
+    parentSessionId,
+    structuredSessionId,
+    shouldPoll,
+    target,
+    targetKey,
+    scopeKey
+  ])
 
   return state
-}
-
-function supportsSubagentTranscripts(agent: string): boolean {
-  return agent === 'claude' || agent === 'openclaude' || agent === 'codex'
 }
 
 function parseSubagentList(value: unknown): AiVaultSubagentListResult {

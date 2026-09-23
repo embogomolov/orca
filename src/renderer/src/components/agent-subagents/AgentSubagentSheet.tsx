@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ArrowLeft, Bot, ChevronRight, LoaderCircle } from 'lucide-react'
-import { AgentStateDot, agentStateLabel, type AgentDotState } from '@/components/AgentStateDot'
+import { AgentStateDot, agentStateLabel } from '@/components/AgentStateDot'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,6 @@ import {
 import { translate } from '@/i18n/i18n'
 import { useSidebarResize } from '@/hooks/useSidebarResize'
 import { useAppStore } from '@/store'
-import type { AgentSubagentSnapshot } from '../../../../shared/agent-status-types'
 import type { AiVaultSession } from '../../../../shared/ai-vault-types'
 import { NativeChatMessageList } from '../native-chat/NativeChatMessageList'
 import { useNativeChatLiveSession } from '../native-chat/use-native-chat-live-session'
@@ -25,6 +24,7 @@ import {
 } from './AgentSubagentContext'
 import { projectSubagentTranscript } from './subagent-transcript-projection'
 import { useAgentSubagentSessions } from './use-agent-subagent-sessions'
+import { splitSubagentRows, type SubagentRow } from './subagent-list-rows'
 import {
   clampRightSidebarPanelWidth,
   computeMaxRightSidebarPanelWidth,
@@ -46,7 +46,18 @@ export function AgentSubagentSheet({
     initialSelection ? [initialSelection] : []
   )
   const storedSelection = stack.at(-1) ?? null
-  const selected = storedSelection ? reconcileSelection(storedSelection, data) : null
+  const siblings = useAgentSubagentSessions({
+    target: storedSelection?.sourceData.source.target ?? LOCAL_TARGET,
+    agent: storedSelection?.sourceData.source.agent ?? '',
+    structuredSessionId:
+      open && storedSelection?.parentFilePath
+        ? storedSelection.sourceData.source.structuredSessionId
+        : undefined,
+    parentFilePath: open ? (storedSelection?.parentFilePath ?? null) : null
+  })
+  const selected = storedSelection
+    ? reconcileSelection(storedSelection, data, siblings.sessions)
+    : null
   const width = useAppStore((state) => state.subagentSheetWidth)
   const setWidth = useAppStore((state) => state.setSubagentSheetWidth)
   const windowWidth = typeof window === 'undefined' ? null : window.innerWidth
@@ -81,7 +92,14 @@ export function AgentSubagentSheet({
             session={selected.session}
             onBack={() => setStack((current) => current.slice(0, -1))}
             onOpenChild={(session) =>
-              setStack((current) => [...current, { sourceData: selected.sourceData, session }])
+              setStack((current) => [
+                ...current,
+                {
+                  sourceData: selected.sourceData,
+                  session,
+                  parentFilePath: selected.session.filePath
+                }
+              ])
             }
           />
         ) : (
@@ -92,13 +110,20 @@ export function AgentSubagentSheet({
   )
 }
 
+const LOCAL_TARGET = { kind: 'local' } as const
+
 function reconcileSelection(
   selection: SubagentSelection,
-  data: AgentSubagentSourceData[]
+  data: AgentSubagentSourceData[],
+  siblings: AiVaultSession[]
 ): SubagentSelection {
   const sourceData = data.find((row) => row.source.key === selection.sourceData.source.key)
-  const session = sourceData?.sessions.find((row) => row.sessionId === selection.session.sessionId)
-  return sourceData && session ? { sourceData, session } : selection
+  const session = (selection.parentFilePath ? siblings : sourceData?.sessions)?.find(
+    (row) => row.sessionId === selection.session.sessionId
+  )
+  return session
+    ? { ...selection, sourceData: sourceData ?? selection.sourceData, session }
+    : selection
 }
 
 function SubagentList({
@@ -108,16 +133,17 @@ function SubagentList({
   sourceDatas: AgentSubagentSourceData[]
   onOpen: (selection: SubagentSelection) => void
 }): React.JSX.Element {
-  const { active, done } = useMemo(
+  const { active, done, unknown } = useMemo(
     () =>
       sourceDatas.reduce(
         (rows, sourceData) => {
-          const split = splitRows(sourceData, sourceDatas.length > 1)
+          const split = splitSubagentRows(sourceData, sourceDatas.length > 1)
           rows.active.push(...split.active)
           rows.done.push(...split.done)
+          rows.unknown.push(...split.unknown)
           return rows
         },
-        { active: [] as SubagentRow[], done: [] as SubagentRow[] }
+        { active: [] as SubagentRow[], done: [] as SubagentRow[], unknown: [] as SubagentRow[] }
       ),
     [sourceDatas]
   )
@@ -152,18 +178,17 @@ function SubagentList({
           loading={false}
           onOpen={onOpen}
         />
+        {unknown.length > 0 ? (
+          <SubagentSection
+            title={translate('agentSubagents.statusUnavailable', 'Status unavailable')}
+            rows={unknown}
+            loading={false}
+            onOpen={onOpen}
+          />
+        ) : null}
       </div>
     </>
   )
-}
-
-type SubagentRow = {
-  id: string
-  title: string
-  subtitle: string | null
-  state: AgentDotState
-  session: AiVaultSession | null
-  sourceData: AgentSubagentSourceData
 }
 
 function SubagentSection({
@@ -244,7 +269,9 @@ function SubagentTranscript({
   const nested = useAgentSubagentSessions({
     target: sourceData.source.target,
     agent: sourceData.source.agent,
-    parentFilePath: session.filePath
+    parentFilePath: session.filePath,
+    structuredSessionId: sourceData.source.structuredSessionId,
+    poll: session.subagent?.status === 'running'
   })
   const transcript = useNativeChatLiveSession({
     paneKey: `subagent:${session.sessionId}`,
@@ -294,7 +321,11 @@ function SubagentTranscript({
           <Badge variant="outline">
             {working
               ? translate('agentSubagents.active', 'Active')
-              : translate('agentSubagents.done', 'Done')}
+              : session.subagent?.status == null
+                ? translate('agentSubagents.statusUnavailable', 'Status unavailable')
+                : session.subagent.status === 'completed'
+                  ? translate('agentSubagents.done', 'Done')
+                  : agentStateLabel(subagentStatusDot(session))}
           </Badge>
         </div>
       </SheetHeader>
@@ -340,71 +371,4 @@ function SubagentTranscript({
       </div>
     </>
   )
-}
-
-function splitRows(
-  data: AgentSubagentSourceData,
-  showIdentity: boolean
-): { active: SubagentRow[]; done: SubagentRow[] } {
-  const sessionsById = new Map(data.sessions.map((session) => [session.sessionId, session]))
-  const active = data.source.liveSubagents.map((subagent) =>
-    liveRow(data, subagent, sessionsById.get(subagent.id) ?? null, showIdentity)
-  )
-  const activeIds = new Set(active.map((row) => row.id))
-  for (const session of data.sessions) {
-    if (session.subagent?.status === 'running' && !activeIds.has(session.sessionId)) {
-      active.push(sessionRow(data, session, 'working', showIdentity))
-      activeIds.add(session.sessionId)
-    }
-  }
-  const done = data.sessions
-    .filter((session) => !activeIds.has(session.sessionId))
-    .map((session) => sessionRow(data, session, subagentStatusDot(session), showIdentity))
-  return { active, done }
-}
-
-function liveRow(
-  sourceData: AgentSubagentSourceData,
-  subagent: AgentSubagentSnapshot,
-  session: AiVaultSession | null,
-  showIdentity: boolean
-): SubagentRow {
-  const state: AgentDotState =
-    subagent.state === 'blocked'
-      ? 'blocked'
-      : subagent.state === 'idle'
-        ? 'waiting'
-        : subagent.state === 'waiting'
-          ? 'waiting'
-          : 'working'
-  return {
-    id: subagent.id,
-    title: session
-      ? subagentDisplayName(session.title, subagent.agentType)
-      : subagentDisplayName(subagent.description, subagent.agentType),
-    subtitle: `${showIdentity && sourceData.source.showIdentity !== false ? `@${sourceData.source.identity} · ` : ''}${agentStateLabel(state)}`,
-    state,
-    session,
-    sourceData
-  }
-}
-
-function sessionRow(
-  sourceData: AgentSubagentSourceData,
-  session: AiVaultSession,
-  state: AgentDotState,
-  showIdentity: boolean
-): SubagentRow {
-  return {
-    id: session.sessionId,
-    title: subagentDisplayName(session.title, session.subagent?.agentType),
-    subtitle: `${showIdentity && sourceData.source.showIdentity !== false ? `@${sourceData.source.identity} · ` : ''}${translate(
-      'agentSubagents.messageCount',
-      '{{count}} messages',
-      { count: session.messageCount }
-    )}`,
-    state,
-    session,
-    sourceData
-  }
 }

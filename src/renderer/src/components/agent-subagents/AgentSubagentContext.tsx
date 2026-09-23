@@ -31,6 +31,7 @@ export type AgentSubagentSourceData = {
 export type SubagentSelection = {
   sourceData: AgentSubagentSourceData
   session: AiVaultSession
+  parentFilePath?: string
 }
 
 export function subagentStatusDot(session: AiVaultSession): AgentDotState {

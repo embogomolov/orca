@@ -26,6 +26,7 @@ import {
 import type { AgentSessionOwnerProbe } from '../../shared/agent-session-lease-adjudication'
 import { classifyObservedAgentSessionSpawnToken } from '../../shared/agent-session-lease-adjudication'
 import type { AgentSessionProviderHandleLink } from '../../shared/agent-session-provider-handle'
+import { withAgentSessionProviderTranscript } from '../../shared/agent-session-provider-transcript'
 import {
   agentSessionScopeKey,
   type AgentSessionExecutionLocation,
@@ -208,6 +209,7 @@ export class AgentSessionRecordStore {
     now: number
     leaseTtlMs?: number
     options?: Readonly<Record<string, string>>
+    transcriptPath?: string | null
   }): Promise<AgentSessionRecord> {
     return this.mutate(args.sessionId, (record) => {
       const proved = proveAgentSessionOwner({
@@ -217,9 +219,10 @@ export class AgentSessionRecordStore {
         now: args.now,
         leaseTtlMs: args.leaseTtlMs ?? AGENT_SESSION_LEASE_TTL_MS
       })
+      const located = withAgentSessionProviderTranscript(proved, args)
       return args.options
-        ? replaceAgentSessionRecordOptions(proved, { ...args, options: args.options })
-        : proved
+        ? replaceAgentSessionRecordOptions(located, { ...args, options: args.options })
+        : located
     })
   }
 

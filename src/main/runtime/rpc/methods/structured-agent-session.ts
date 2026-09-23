@@ -56,6 +56,7 @@ import {
   HistoryParams,
   HandoffStatusParams,
   OptionsParams,
+  SubagentsParams,
   RespondParams,
   RespondToQuestionParams,
   RewindParams,
@@ -262,10 +263,17 @@ export const STRUCTURED_AGENT_SESSION_METHODS = [
   }),
   defineMethod({
     name: 'agentSession.subagents',
-    params: OptionsParams,
+    params: SubagentsParams,
     handler: async (params, ctx) => {
       await ensureHostInstalled(ctx)
-      return requireHost(ctx).listSubagentSessions(params.sessionId)
+      const result = await requireHost(ctx).listSubagentSessions(
+        params.sessionId,
+        params.parentFilePath
+      )
+      return {
+        ...result,
+        ...(params.parentFilePath ? { parentFilePath: params.parentFilePath } : {})
+      }
     }
   }),
   defineStreamingMethod({

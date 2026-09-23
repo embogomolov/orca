@@ -88,7 +88,9 @@ export function legacyAgentSessionQuestionAnswers(
   body: Pick<AgentJournalQuestionItem, 'question' | 'options' | 'questions' | 'freeTextQuestionId'>,
   optionId: string
 ): AgentSessionQuestionAnswer[] | null {
-  const grouped = body.questions ? decodeAgentSessionQuestionAnswers(optionId) : null
+  const grouped = body.questions
+    ? decodeAgentSessionQuestionAnswers(optionId, body.questions)
+    : null
   if (grouped) {
     return grouped
   }

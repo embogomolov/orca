@@ -131,7 +131,11 @@ export async function resolveSessionFilePath(
   // A guest/UNC hook path is authoritative even when the provider did not
   // attest a distro. Never let its session id resolve to a host or other guest
   // transcript after that exact path misses.
-  if (hookPath && needsWslHostResolution(hookPath)) {
+  if (
+    hookPath &&
+    (needsWslHostResolution(hookPath) ||
+      (transcriptAgent === 'grok' && basename(hookPath) === 'updates.jsonl'))
+  ) {
     if (unavailable) {
       throw unavailable
     }

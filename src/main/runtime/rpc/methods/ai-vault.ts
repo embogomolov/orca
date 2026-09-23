@@ -25,6 +25,7 @@ import {
 } from '../../../../shared/rpc-contract/ai-vault-params'
 export { AiVaultListSessionsParams, AiVaultPrepareSessionResumeParams, AiVaultSessionTitlesParams }
 import { listAiVaultSubagentSessions } from '../../../ipc/ai-vault-subagent-list'
+import { resolveSessionFilePath } from '../../../native-chat/session-file-resolver'
 
 export const AI_VAULT_METHODS = [
   defineMethod({
@@ -101,11 +102,17 @@ export const AI_VAULT_METHODS = [
     params: AiVaultListSubagentSessionsParams,
     // Why: clients speak AgentType, the vault lister speaks AiVaultAgent —
     // OpenClaude reads the same transcript layout as Claude.
-    handler: (params) =>
-      listAiVaultSubagentSessions({
-        agent: params.agent === 'openclaude' ? 'claude' : params.agent,
-        parentFilePath: params.parentFilePath
-      })
+    handler: async (params) => {
+      const parentFilePath =
+        params.parentFilePath ??
+        (await resolveSessionFilePath(params.agent, params.parentSessionId!))
+      return parentFilePath
+        ? listAiVaultSubagentSessions({
+            agent: params.agent === 'openclaude' ? 'claude' : params.agent,
+            parentFilePath
+          })
+        : { sessions: [], issues: [] }
+    }
   }),
   defineMethod({
     name: 'aiVault.prepareSessionResume',

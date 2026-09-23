@@ -841,8 +841,19 @@ describe('parameter validation', () => {
     expect(
       await call('agentSession.subagents', { sessionId: SESSION }, STRUCTURED_CLIENT)
     ).toMatchObject({ ok: true, result: { sessions: [], issues: [] } })
-    expect(hostCalls.listSubagentSessions).toHaveBeenCalledWith(SESSION)
+    expect(hostCalls.listSubagentSessions).toHaveBeenCalledWith(SESSION, undefined)
     await rejects('agentSession.subagents', { sessionId: '' })
+  })
+
+  it('acknowledges the owning-host nested parent selector for mixed-version clients', async () => {
+    expect(
+      await call(
+        'agentSession.subagents',
+        { sessionId: SESSION, parentFilePath: '/host/child.jsonl' },
+        STRUCTURED_CLIENT
+      )
+    ).toMatchObject({ ok: true, result: { parentFilePath: '/host/child.jsonl' } })
+    expect(hostCalls.listSubagentSessions).toHaveBeenCalledWith(SESSION, '/host/child.jsonl')
   })
 })
 
