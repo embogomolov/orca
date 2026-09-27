@@ -55,6 +55,7 @@ describe('clipboard read-image IPC', () => {
     handlers.clear()
     vi.clearAllMocks()
     setTrustedClipboardRendererWebContentsId(17)
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: The image handlers never access Store; the only store-consuming file-copy handler is mocked above.
     registerClipboardHandlers({} as never)
   })
 
@@ -73,11 +74,16 @@ describe('clipboard read-image IPC', () => {
       toPNG: () => png
     })
 
-    const result = (await handlers.get('clipboard:readImage')?.(clipboardEvent(17))) as {
-      content: ArrayBuffer
-      mimeType: string
+    const result = await handlers.get('clipboard:readImage')?.(clipboardEvent(17))
+    if (
+      !result ||
+      typeof result !== 'object' ||
+      !('content' in result) ||
+      !(result.content instanceof ArrayBuffer)
+    ) {
+      throw new Error('Expected clipboard image bytes')
     }
-    expect(result.mimeType).toBe('image/png')
+    expect(result).toMatchObject({ mimeType: 'image/png' })
     expect(Buffer.from(result.content)).toEqual(png)
   })
 })

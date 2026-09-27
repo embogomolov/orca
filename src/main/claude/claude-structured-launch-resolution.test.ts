@@ -112,9 +112,13 @@ describe('claude structured launch resolution', () => {
       const saved = record({
         providerHandleChain: [
           {
+            linkId: 'current',
+            origin: 'created',
+            mintedAtFence: 1,
+            observedAt: 1,
             handle: { provider: 'claude', sessionId: 'provider-current', leafUuid: null }
           }
-        ] as AgentSessionRecord['providerHandleChain']
+        ]
       })
       const launch = await resolverFor(
         saved,
@@ -473,7 +477,7 @@ describe('claude structured launch resolution', () => {
       })
     ).rejects.toThrow(/local host/)
     await expect(
-      resolverFor(record({ provider: 'codex' } as Partial<AgentSessionRecord>))({
+      resolverFor(record({ provider: 'codex' }))({
         identity: IDENTITY
       })
     ).rejects.toThrow(/codex session/)

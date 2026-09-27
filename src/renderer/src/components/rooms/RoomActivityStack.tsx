@@ -111,7 +111,7 @@ export function RoomActivityStack({
         <CollapsibleContent
           data-room-activity-others
           inert={!open || undefined}
-          className="chat-activity-disclosure-content"
+          animated
           onAnimationEnd={(event) => {
             if (event.target === event.currentTarget && !open && closing) {
               finishClose()
@@ -268,7 +268,7 @@ function useActivityStackDismiss(
       const root = rootRef.current
       return Boolean(
         root &&
-        !root.contains(event.target as Node) &&
+        !(event.target instanceof Node && root.contains(event.target)) &&
         isOutsideActivityStackSafeArea(
           { x: event.clientX, y: event.clientY },
           root.getBoundingClientRect()

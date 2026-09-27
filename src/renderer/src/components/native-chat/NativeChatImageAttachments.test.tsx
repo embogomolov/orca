@@ -94,7 +94,7 @@ describe('NativeChatImageAttachments', () => {
     )
 
     const thumbnail = screen.getByRole('button', { name: 'missing.png' })
-    expect((thumbnail as HTMLButtonElement).disabled).toBe(true)
+    expect(thumbnail.hasAttribute('disabled')).toBe(true)
     fireEvent.click(thumbnail)
     await waitFor(() => expect(screen.queryByTestId('viewer')).toBeNull())
   })

@@ -67,12 +67,8 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
       sequence: 0,
       recentOutputMark: null
     }
-    if (
-      ctx.preAdoptedStablePane &&
-      'outputBoundary' in ctx.preAdoptedStablePane &&
-      ctx.preAdoptedStablePane.outputBoundary
-    ) {
-      outputBoundary = ctx.preAdoptedStablePane.outputBoundary as PtyOutputBoundary
+    if (ctx.preAdoptedStablePane?.outputBoundary) {
+      outputBoundary = ctx.preAdoptedStablePane.outputBoundary
     }
     const assertClientStillConnected = (): void => {
       if (args.signal?.aborted) {
@@ -170,8 +166,7 @@ export async function executeRuntimePtySpawn(ctx: RuntimePtySpawnState): Promise
       ctx.result = stablePaneSpawn.result
       ctx.stablePaneOwner = stablePaneSpawn.owner
       if ('outputBoundary' in stablePaneSpawn) {
-        outputBoundary =
-          (stablePaneSpawn.outputBoundary as PtyOutputBoundary | undefined) ?? outputBoundary
+        outputBoundary = stablePaneSpawn.outputBoundary ?? outputBoundary
       }
       if (
         ctx.stablePaneOwner &&

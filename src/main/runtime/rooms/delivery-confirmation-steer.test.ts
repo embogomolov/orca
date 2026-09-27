@@ -1,7 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { RoomDatabase } from './database'
 import { roomHarnessAdapterTestRecord } from './room-harness-adapter-test-record'
-import type { RoomAttachmentManager } from './attachments'
 import { RoomDeliveryWorker } from './delivery-worker'
 
 it('preserves another delivery confirmation deadline while steering', async () => {
@@ -47,7 +46,7 @@ it('preserves another delivery confirmation deadline while steering', async () =
   const worker = new RoomDeliveryWorker(
     db,
     adapters,
-    { size: async () => 0 } as unknown as RoomAttachmentManager,
+    { size: async () => 0 },
     () => {},
     async (id) => db.participants.get(id),
     1_000

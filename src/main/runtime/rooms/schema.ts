@@ -197,7 +197,7 @@ export function initializeRoomSchema(db: SyncDatabase.Database): void {
 }
 
 function ensureRoomMessageQueueEditSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(room_messages)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(room_messages)').all()
   if (!columns.some((column) => column.name === 'queue_edit_token')) {
     db.exec('ALTER TABLE room_messages ADD COLUMN queue_edit_token TEXT')
   }
@@ -205,7 +205,7 @@ function ensureRoomMessageQueueEditSchema(db: SyncDatabase.Database): void {
 }
 
 function ensureRoomMessageMentionOrderSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(room_message_mentions)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(room_message_mentions)').all()
   if (!columns.some((column) => column.name === 'position')) {
     db.exec('ALTER TABLE room_message_mentions ADD COLUMN position INTEGER NOT NULL DEFAULT 0')
   }
@@ -229,14 +229,14 @@ function ensureRoomDeletionSchema(db: SyncDatabase.Database): void {
 }
 
 function ensureRoomDeliveryTurnSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(room_deliveries)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(room_deliveries)').all()
   if (!columns.some((column) => column.name === 'provider_turn_id')) {
     db.exec('ALTER TABLE room_deliveries ADD COLUMN provider_turn_id TEXT')
   }
 }
 
 function ensureRoomDeliveryReliabilitySchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(room_deliveries)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(room_deliveries)').all()
   if (!columns.some((column) => column.name === 'phase')) {
     db.exec(
       "ALTER TABLE room_deliveries ADD COLUMN phase TEXT CHECK(phase IN ('waking', 'submitting', 'awaiting-turn'))"
@@ -250,7 +250,7 @@ function ensureRoomDeliveryReliabilitySchema(db: SyncDatabase.Database): void {
 }
 
 function ensureRoomDeliveryQueueSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(room_deliveries)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(room_deliveries)').all()
   if (!columns.some((column) => column.name === 'intent')) {
     db.exec(
       "ALTER TABLE room_deliveries ADD COLUMN intent TEXT NOT NULL DEFAULT 'next' CHECK(intent IN ('next', 'steer'))"
@@ -268,14 +268,14 @@ function ensureRoomDeliveryQueueSchema(db: SyncDatabase.Database): void {
 }
 
 function ensureRoomParticipantIncarnationSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(room_participants)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(room_participants)').all()
   if (!columns.some((column) => column.name === 'process_incarnation')) {
     db.exec('ALTER TABLE room_participants ADD COLUMN process_incarnation TEXT')
   }
 }
 
 function ensureRoomParticipantTerminalSurfaceSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(room_participants)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(room_participants)').all()
   if (!columns.some((column) => column.name === 'terminal_surface_visible')) {
     db.exec(
       'ALTER TABLE room_participants ADD COLUMN terminal_surface_visible INTEGER NOT NULL DEFAULT 0 CHECK(terminal_surface_visible IN (0, 1))'
@@ -290,7 +290,7 @@ function hasTable(db: SyncDatabase.Database, table: string): boolean {
 }
 
 function ensureRoomWorktreeSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(rooms)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(rooms)').all()
   if (!columns.some((column) => column.name === 'worktree_id')) {
     db.exec('ALTER TABLE rooms ADD COLUMN worktree_id TEXT')
   }

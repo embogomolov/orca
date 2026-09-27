@@ -581,15 +581,14 @@ describe('web settings preload API', () => {
     installWebPreloadApi()
 
     const settings = await globals.window.api.settings.get()
-    const stored = JSON.parse(globals.storage.getItem('orca.web.settings.v1') ?? '{}') as {
-      experimentalNewWorktreeCardStyle?: boolean
-      experimentalRoomLiveSteering?: boolean
-    }
+    const stored: unknown = JSON.parse(globals.storage.getItem('orca.web.settings.v1') ?? '{}')
 
     expect(settings.experimentalNewWorktreeCardStyle).toBe(true)
     expect(settings.experimentalRoomLiveSteering).toBe(true)
-    expect(stored.experimentalNewWorktreeCardStyle).toBe(true)
-    expect(stored.experimentalRoomLiveSteering).toBe(true)
+    expect(stored).toMatchObject({
+      experimentalNewWorktreeCardStyle: true,
+      experimentalRoomLiveSteering: true
+    })
     expect(runtimeCalls).toEqual([{ method: 'settings.get', params: undefined }])
   })
 

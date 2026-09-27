@@ -1,8 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomAgentActivity } from '../../../shared/rooms'
 
-type ActivityRow = { activity_json: string }
-
 export function ensureRoomActivitySchema(db: SyncDatabase.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS room_agent_activity (
@@ -24,10 +22,11 @@ export class RoomActivityStore {
          WHERE participant_id IN (SELECT id FROM room_participants WHERE room_id = ?)
          ORDER BY updated_at`
       )
-      .all(roomId) as ActivityRow[]
+      .all(roomId)
     return rows.flatMap((row) => {
       try {
-        return [JSON.parse(row.activity_json) as RoomAgentActivity]
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: This private table is written only by upsert with a typed RoomAgentActivity.
+        return [JSON.parse(String(row.activity_json)) as RoomAgentActivity]
       } catch {
         return []
       }
@@ -37,12 +36,13 @@ export class RoomActivityStore {
   get(participantId: string): RoomAgentActivity | null {
     const row = this.db
       .prepare('SELECT activity_json FROM room_agent_activity WHERE participant_id = ?')
-      .get(participantId) as ActivityRow | undefined
+      .get(participantId)
     if (!row) {
       return null
     }
     try {
-      return JSON.parse(row.activity_json) as RoomAgentActivity
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: This private table is written only by upsert with a typed RoomAgentActivity.
+      return JSON.parse(String(row.activity_json)) as RoomAgentActivity
     } catch {
       return null
     }

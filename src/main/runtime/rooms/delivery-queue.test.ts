@@ -1,6 +1,7 @@
+import { unusedRoomAttachments } from './attachments.test-fixture'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoomDatabase } from './database'
-import type { RoomAttachmentManager } from './attachments'
+
 import { claimRoomBroadcastForTest } from './delivery-test-claim'
 import { RoomMessageController } from './message-controller'
 import { updateRoomParticipant } from './participant-participation'
@@ -712,7 +713,7 @@ describe('room delivery queues', () => {
     database.messages.deliveries.retarget(created.message.id, [codex.id, claude.id])
     const controller = new RoomMessageController(
       database,
-      {} as RoomAttachmentManager,
+      unusedRoomAttachments(),
       () => undefined,
       () => undefined
     )
@@ -754,7 +755,7 @@ describe('room delivery queues', () => {
     const emit = vi.fn()
     const controller = new RoomMessageController(
       database,
-      {} as RoomAttachmentManager,
+      unusedRoomAttachments(),
       emit,
       () => undefined
     )

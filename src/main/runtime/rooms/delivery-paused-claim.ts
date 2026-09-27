@@ -1,9 +1,9 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery, RoomDeliveryAttempt } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 
 const getDelivery = (db: SyncDatabase.Database, id: string): RoomDelivery =>
-  deliveryFromRow(db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(id) as RoomRow)
+  deliveryFromRow(db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(id))
 
 export function deferPausedRoomDelivery(
   db: SyncDatabase.Database,
@@ -15,7 +15,7 @@ export function deferPausedRoomDelivery(
       `SELECT COALESCE(MIN(queue_position), 0) - 1 AS position
        FROM room_deliveries WHERE participant_id = ? AND id <> ?`
     )
-    .get(delivery.participantId, delivery.id) as RoomRow
+    .get(delivery.participantId, delivery.id)!
   const history = [...(delivery.attemptHistory ?? [])]
   if (delivery.phase) {
     const attempt: RoomDeliveryAttempt = {

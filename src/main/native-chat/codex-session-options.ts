@@ -1,4 +1,5 @@
 import type { AgentType } from '../../shared/agent-status-types'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 
 export type CodexSessionOptions = {
   model?: string
@@ -8,7 +9,7 @@ export type CodexSessionOptions = {
 }
 
 function object(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+  return isRecord(value) ? value : null
 }
 
 export function parseAgentSessionOptionsRecord(

@@ -99,7 +99,7 @@ export async function canStartEmptyClaudeSession(
         await lstat(join(projects, entry.name, `${providerSessionId}.jsonl`))
         return false
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
           throw error
         }
       }

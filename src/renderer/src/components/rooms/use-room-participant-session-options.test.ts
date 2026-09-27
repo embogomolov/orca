@@ -1,3 +1,4 @@
+import { roomParticipantFixture } from '../../../../shared/rooms.test-fixture'
 // @vitest-environment happy-dom
 
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -15,13 +16,13 @@ import { useRoomParticipantSessionOptions } from './use-room-participant-session
 const target = { kind: 'local' } as const
 
 function participant(terminalHandle: string | null): RoomParticipant {
-  return {
+  return roomParticipantFixture({
     id: 'participant',
     agent: 'codex',
     worktreeId: null,
     terminalHandle,
     context: { model: 'gpt-5.6-sol', effort: 'high', fastMode: false }
-  } as RoomParticipant
+  })
 }
 
 describe('useRoomParticipantSessionOptions', () => {
@@ -48,11 +49,11 @@ describe('useRoomParticipantSessionOptions', () => {
           : { page: { items: [], fence: 4 } }
       )
     })
-    const machine = {
+    const machine: RoomParticipant = {
       ...participant(null),
       agent: 'claude',
       providerSession: { key: 'session_id', id: 'session-1', transport: 'machine' }
-    } as RoomParticipant
+    }
     const { result } = renderHook(() => useRoomParticipantSessionOptions(machine, remote))
     await waitFor(() => expect(result.current.surface).not.toBeNull())
     await act(() => result.current.surface!.setOption('fastMode', true))
@@ -75,9 +76,13 @@ describe('useRoomParticipantSessionOptions', () => {
   })
 
   it('preserves the option surface when a restored participant gets a new handle', () => {
-    const { result, rerender } = renderHook(
-      ({ terminalHandle }) => useRoomParticipantSessionOptions(participant(terminalHandle), target),
-      { initialProps: { terminalHandle: 'old-handle' as string | null } }
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useRoomParticipantSessionOptions>,
+      { terminalHandle: string | null }
+    >(
+      ({ terminalHandle }: { terminalHandle: string | null }) =>
+        useRoomParticipantSessionOptions(participant(terminalHandle), target),
+      { initialProps: { terminalHandle: 'old-handle' } }
     )
     const original = result.current.surface
 
@@ -115,10 +120,10 @@ describe('useRoomParticipantSessionOptions', () => {
           : { page: { items: [], fence: 4 } }
       )
     })
-    const machineParticipant = {
+    const machineParticipant: RoomParticipant = {
       ...participant(null),
       providerSession: { key: 'session_id', id: 'session-1', transport: 'machine' }
-    } as RoomParticipant
+    }
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { result } = renderHook(() =>
       useRoomParticipantSessionOptions(machineParticipant, target)

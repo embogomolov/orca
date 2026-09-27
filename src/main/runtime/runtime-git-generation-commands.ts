@@ -13,6 +13,7 @@ import {
   generateCommitMessageFromContext,
   generatePullRequestFieldsFromContext,
   resolveCommitMessageSettings,
+  type DiscoverCommitMessageModelsResult,
   type GenerateCommitMessageResult,
   type GeneratePullRequestFieldsResult
 } from '../text-generation/commit-message-text-generation'
@@ -32,7 +33,6 @@ import {
   type RuntimeCommitMessageSettingsOverride
 } from './runtime-git-generation-context'
 import { discoverRuntimeCommitMessageModels } from './runtime-git-model-discovery'
-import type { DiscoverCommitMessageModelsResult } from '../text-generation/commit-message-text-generation'
 
 export class RuntimeGitGenerationCommands {
   constructor(private readonly host: RuntimeGitCommandHost) {}

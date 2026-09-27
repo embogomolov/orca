@@ -7,7 +7,6 @@ import type {
   RoomSettledActivity
 } from '../../../shared/rooms'
 import type { RoomMessageStore } from './messages'
-import type { RoomRow } from './rows'
 
 export class RoomProviderMessageStore {
   constructor(
@@ -22,7 +21,7 @@ export class RoomProviderMessageStore {
   ): void {
     const current = this.db
       .prepare('SELECT provider_session_id FROM room_provider_streams WHERE participant_id = ?')
-      .get(participantId) as RoomRow | undefined
+      .get(participantId)
     const now = Date.now()
     this.db.exec('SAVEPOINT room_provider_snapshot')
     try {

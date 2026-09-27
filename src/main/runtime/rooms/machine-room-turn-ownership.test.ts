@@ -12,9 +12,9 @@ import {
 } from '../../native-chat/agent-session-journal/journal-reducer'
 import {
   buildJournalItemRow,
+  journalDispatchRowBuilder,
   buildJournalSubmissionRow
 } from '../../native-chat/agent-session-journal/journal-row-builders'
-import { journalDispatchRowBuilder } from '../../native-chat/agent-session-journal/journal-row-builders'
 import { parseJournalRow } from '../../native-chat/agent-session-journal/journal-row-schema'
 import { roomStructuredLifecycle } from './machine-harness-session'
 

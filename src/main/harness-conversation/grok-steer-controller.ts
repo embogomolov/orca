@@ -1,4 +1,5 @@
 import type { SessionNotification } from '@agentclientprotocol/sdk'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import { RequestError } from '@agentclientprotocol/sdk'
 import type { HarnessConversationDriver } from './driver'
 import { providerImageData } from './provider-image-input'
@@ -87,14 +88,12 @@ export class GrokSteerController {
   }
 
   async observeTurn(notification: SessionNotification): Promise<void> {
-    const raw = notification as unknown as {
-      _meta?: { promptId?: unknown }
-      update?: { sessionUpdate?: unknown; prompt_id?: unknown; stop_reason?: unknown }
-    }
-    const update = raw.update
+    const update: Record<string, unknown> | undefined = isRecord(notification.update)
+      ? notification.update
+      : undefined
     const promptId =
-      typeof raw._meta?.promptId === 'string'
-        ? raw._meta.promptId
+      typeof notification._meta?.promptId === 'string'
+        ? notification._meta.promptId
         : typeof update?.prompt_id === 'string'
           ? update.prompt_id
           : null

@@ -1,3 +1,5 @@
+import { roomDataFixture } from './room-data.test-fixture'
+import { roomDeliveryFixture, roomParticipantFixture } from '../../../../shared/rooms.test-fixture'
 // @vitest-environment happy-dom
 import { useState } from 'react'
 import {
@@ -10,7 +12,7 @@ import {
   waitFor
 } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { RoomDelivery, RoomParticipant } from '../../../../shared/rooms'
+import type { RoomDelivery } from '../../../../shared/rooms'
 import type { RuntimeClientTarget } from '@/runtime/runtime-rpc-client'
 import type { QueuedMessageCardProps } from '../native-chat/QueuedMessageCard'
 import type { RoomData } from './use-room-data'
@@ -34,7 +36,7 @@ vi.mock('./RoomQueuedMessageCard', () => ({
 
 const LOCAL = { kind: 'local' } as const
 const REMOTE = { kind: 'environment', environmentId: 'remote-1' } as const
-const delivery = {
+const delivery = roomDeliveryFixture({
   id: 'd1',
   messageId: 'm1',
   participantId: 'p1',
@@ -42,8 +44,8 @@ const delivery = {
   attempts: 0,
   intent: 'next',
   error: null
-} as RoomDelivery
-const participant = {
+})
+const participant = roomParticipantFixture({
   id: 'p1',
   roomId: 'r1',
   identity: 'codex',
@@ -51,26 +53,26 @@ const participant = {
   participation: 'active',
   state: 'busy',
   providerSession: { transport: 'machine' }
-} as RoomParticipant
+})
 const feedback = 'Steering to the agent…'
 
 function dataFor(
   deliveries: Record<string, RoomDelivery>,
   requests: ReturnType<typeof useRoomSteerRequests>
 ): RoomData {
-  return {
+  return roomDataFixture({
     ...requests,
     roomId: 'r1',
     target: LOCAL,
     deliveries,
     snapshot: {
       participants: [participant],
-      workState: 'running',
+      workState: 'active',
       deliveryQueueMutationVersion: 1,
       deliveryQueueVersion: 1
     },
     messages: [{ id: 'm1', roomId: 'r1', actorKind: 'user', body: 'continue', attachments: [] }]
-  } as unknown as RoomData
+  })
 }
 
 function Room({ current = delivery }: { current?: RoomDelivery }) {
@@ -111,7 +113,7 @@ it('retains pending feedback across overlay remount and an RPC reply preceding d
   fireEvent.click(screen.getByText('Toggle queue'))
   fireEvent.click(screen.getByText('Toggle queue'))
   expect(screen.getByText(feedback)).toBeTruthy()
-  expect((screen.getByText('Steer') as HTMLButtonElement).disabled).toBe(true)
+  expect(screen.getByText('Steer').hasAttribute('disabled')).toBe(true)
   await act(async () => {
     rpc.resolve()
     await rpc.promise
@@ -138,17 +140,20 @@ it('clears failed requests and permits an explicit retry after reopening', async
   })
   expect(mocks.report).toHaveBeenCalledOnce()
   expect(screen.queryByText(feedback)).toBeNull()
-  expect((screen.getByText('Steer') as HTMLButtonElement).disabled).toBe(false)
+  expect(screen.getByText('Steer').hasAttribute('disabled')).toBe(false)
 })
 
 it('deduplicates before React renders and isolates late replies by room and execution target', async () => {
   const old = deferred(),
     next = deferred()
   mocks.rpc.mockReturnValueOnce(old.promise).mockReturnValueOnce(next.promise)
-  const hook = renderHook(
+  const hook = renderHook<
+    ReturnType<typeof useRoomSteerRequests>,
+    { roomId: string; target: RuntimeClientTarget }
+  >(
     ({ roomId, target }: { roomId: string; target: RuntimeClientTarget }) =>
       useRoomSteerRequests(target, roomId, { d1: delivery }),
-    { initialProps: { roomId: 'r1', target: LOCAL as RuntimeClientTarget } }
+    { initialProps: { roomId: 'r1', target: LOCAL } }
   )
   let first!: Promise<void>, duplicate!: Promise<void>
   act(() => {

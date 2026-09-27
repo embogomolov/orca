@@ -12,8 +12,8 @@ import { roomParticipantHarnessBinding } from './participant-harness-binding'
 export async function deliverRoomDelivery(input: {
   db: RoomDatabase
   adapters: Record<string, RoomHarnessAdapter>
-  attachments: RoomAttachmentManager
-  confirmations: RoomDeliveryConfirmations
+  attachments: Pick<RoomAttachmentManager, 'size'>
+  confirmations: Pick<RoomDeliveryConfirmations, 'prepare' | 'arm' | 'discard'>
   emit: (roomId: string, event: RoomEvent) => void
   ensureParticipantReady: (participantId: string) => Promise<RoomParticipant>
   delivery: RoomDelivery

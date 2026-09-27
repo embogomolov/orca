@@ -256,15 +256,9 @@ describe('useNativeChatSessionOptions model reporting', () => {
       ).toEqual(['opus', 'haiku'])
     )
     expect(modelDescriptor(result.current.snapshot).currentValue).toBe('opus')
-    expect(
-      (
-        result.current.snapshot.find(({ id }) => id === 'contextWindow')?.kind as
-          | {
-              currentValue?: string
-            }
-          | undefined
-      )?.currentValue
-    ).toBe('1m')
+    expect(result.current.snapshot.find(({ id }) => id === 'contextWindow')?.kind).toMatchObject({
+      currentValue: '1m'
+    })
   })
 
   it('does not re-resolve a late snapshot from the previous pty', async () => {

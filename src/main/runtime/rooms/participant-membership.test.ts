@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest'
 import { ROOM_CORE_METHODS } from '../rpc/methods/rooms-core'
 import type { RoomHarnessRuntime } from './harness-adapter'
 import { RoomService } from './service'
+import { OrcaRuntimeService } from '../orca-runtime'
 import type { RoomEvent } from '../../../shared/rooms'
 import { claimRoomBroadcastForTest } from './delivery-test-claim'
 
@@ -354,18 +355,12 @@ it('omits sessions already owned by a room from Existing', async () => {
     (candidate) => candidate.name === 'rooms.participants.existing'
   )
 
-  const result = await (
-    method as unknown as {
-      handler: (params: unknown, context: unknown) => Promise<{ participants: { id: string }[] }>
-    }
-  ).handler(
+  const rpcRuntime = new OrcaRuntimeService()
+  vi.spyOn(rpcRuntime, 'getRoomService').mockReturnValue(service)
+  rpcRuntime.listRoomExistingAgents = harness.listRoomExistingAgents
+  const result = await method!.handler(
     { worktreeId: 'worktree-1', agent: 'codex' },
-    {
-      runtime: {
-        getRoomService: () => service,
-        listRoomExistingAgents: harness.listRoomExistingAgents
-      }
-    }
+    { runtime: rpcRuntime }
   )
 
   expect(result.participants).toMatchObject([{ id: 'free' }])

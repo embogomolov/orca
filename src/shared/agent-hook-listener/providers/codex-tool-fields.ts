@@ -5,8 +5,8 @@ import {
   readString,
   toolUpdate
 } from '../tool-input-preview'
-import { deriveInteractivePrompt } from '../interactive-tool'
-import { extractToolResponseText } from '../interactive-tool'
+import { deriveInteractivePrompt, extractToolResponseText } from '../interactive-tool'
+import { isRecord } from '../../agent-status-child-work-value-guards'
 import type { AgentHookToolActivity } from '../../agent-hook-relay'
 
 export function extractCodexToolActivity(
@@ -22,10 +22,7 @@ export function extractCodexToolActivity(
   }
   const response =
     hookPayload.tool_response ?? hookPayload.tool_output ?? hookPayload.output ?? hookPayload.result
-  const responseRecord =
-    typeof response === 'object' && response !== null
-      ? (response as Record<string, unknown>)
-      : undefined
+  const responseRecord = isRecord(response) ? response : undefined
   const output =
     extractToolResponseText(response) ??
     (response === undefined ? undefined : JSON.stringify(response))

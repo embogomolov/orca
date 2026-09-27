@@ -61,7 +61,11 @@ export async function listOmpSubagentTranscriptPaths(
     try {
       entries = await wslGatedReaddir(directory, 'scan')
     } catch (error) {
-      if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+      ) {
         continue
       }
       throw error

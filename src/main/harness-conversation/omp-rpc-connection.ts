@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import { spawnProcess } from '../../shared/child-process/run-process'
 import { harnessProcessInvocation } from './harness-process-invocation'
 import { killCodexAppServerProcessTree } from '../codex/codex-app-server-process-tree-kill'
@@ -55,7 +56,7 @@ export class OmpRpcConnection {
   request(
     type: string,
     params: Record<string, unknown> = {},
-    id = randomUUID()
+    id: string = randomUUID()
   ): Promise<OmpRpcFrame> {
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject })
@@ -87,7 +88,14 @@ export class OmpRpcConnection {
       this.buffer = this.buffer.slice(newline + 1)
       if (line) {
         try {
-          this.handle(JSON.parse(line) as OmpRpcFrame)
+          const frame: unknown = JSON.parse(line)
+          if (
+            isRecord(frame) &&
+            (frame.type === undefined || typeof frame.type === 'string') &&
+            (frame.id === undefined || typeof frame.id === 'string')
+          ) {
+            this.handle({ ...frame, type: frame.type, id: frame.id })
+          }
         } catch {}
       }
       newline = this.buffer.indexOf('\n')

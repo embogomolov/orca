@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SDKAssistantMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { HarnessConversationDriverSink } from './driver'
 import { emitClaudeAssistant, emitClaudeFinal, emitClaudeStreamDelta } from './claude-message'
 
@@ -19,11 +18,12 @@ describe('emitClaudeAssistant', () => {
     emitClaudeAssistant(
       sink,
       {
+        uuid: '00000000-0000-4000-8000-000000000000',
         message: {
           id: 'provider-message',
           content: [{ type: 'thinking', thinking: 'Checking', signature: '' }]
         }
-      } as SDKAssistantMessage,
+      },
       'claude:provider-message',
       new Map()
     )
@@ -69,8 +69,12 @@ describe('emitClaudeAssistant', () => {
     emitClaudeAssistant(
       sink,
       {
-        message: { id: 'provider-message', content: [{ type: 'text', text: 'Candidate' }] }
-      } as SDKAssistantMessage,
+        uuid: '00000000-0000-4000-8000-000000000000',
+        message: {
+          id: 'provider-message',
+          content: [{ type: 'text', text: 'Candidate', citations: null }]
+        }
+      },
       'claude:provider-message',
       texts
     )

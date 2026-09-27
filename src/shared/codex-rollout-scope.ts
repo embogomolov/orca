@@ -1,3 +1,5 @@
+import { isRecord } from './agent-status-child-work-value-guards'
+
 export type CodexRolloutScope = {
   sessionId?: string
   historyStartOrdinal?: number
@@ -8,8 +10,8 @@ export function acceptCodexRolloutRecord(
   scope: CodexRolloutScope,
   record: Record<string, unknown>
 ): boolean {
-  if (record.type === 'session_meta' && record.payload && typeof record.payload === 'object') {
-    const payload = record.payload as Record<string, unknown>
+  if (record.type === 'session_meta' && isRecord(record.payload)) {
+    const payload = record.payload
     if (typeof payload.id === 'string') {
       if (scope.sessionId && scope.sessionId !== payload.id) {
         return false

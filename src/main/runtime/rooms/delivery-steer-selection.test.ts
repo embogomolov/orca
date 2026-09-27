@@ -1,3 +1,4 @@
+import { roomHarnessAdapterTestFixture } from './room-harness-adapter-test-record'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RoomHarnessAgent } from '../../../shared/rooms'
 import { RoomDatabase } from './database'
@@ -48,14 +49,14 @@ describe('room Steer selection', () => {
     })
 
   const adapter = (getStatus: () => Promise<'idle' | 'working'>): RoomHarnessAdapter =>
-    ({
+    roomHarnessAdapterTestFixture({
       steer: vi.fn(),
       status: vi.fn(async () => ({
         handle: 'machine',
         isRunningAgent: true,
         status: await getStatus()
       }))
-    }) as unknown as RoomHarnessAdapter
+    })
 
   it('keeps markerless directed Steer scoped to its exact delivery', async () => {
     const { database, snapshot } = setup()

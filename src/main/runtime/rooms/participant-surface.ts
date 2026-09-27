@@ -6,7 +6,7 @@ import type { RoomParticipantController } from './participant-controller'
 export class RoomParticipantSurface {
   constructor(
     private readonly db: RoomDatabase,
-    private readonly participants: RoomParticipantController,
+    private readonly participants: Pick<RoomParticipantController, 'ensureReady'>,
     private readonly focusTerminal: RoomHarnessRuntime['focusTerminal'],
     private readonly hideRendererStatus: RoomHarnessRuntime['hideRoomAgentStatusFromRenderer'],
     private readonly publishAgentSession: RoomHarnessRuntime['publishRoomAgentProviderSession'],

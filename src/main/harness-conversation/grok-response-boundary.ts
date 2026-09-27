@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import type { HarnessConversationDriverSink } from './driver'
 import { completeAcpReasoning, completeAcpResponse, type AcpTextState } from './acp-message'
 
@@ -19,7 +20,7 @@ export function observeGrokResponseBoundary(
   if (!GROK_RESPONSE_METHODS.includes(method) || (sessionId && params.sessionId !== sessionId)) {
     return fallbackMessageId
   }
-  const update = params.update as Record<string, unknown> | undefined
+  const update = isRecord(params.update) ? params.update : undefined
   if (update?.sessionUpdate === 'response_started') {
     return typeof update.message_id === 'string' ? update.message_id : randomUUID()
   }

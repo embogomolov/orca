@@ -15,7 +15,7 @@ export type FinishRoomQueueEditInput = {
 export class RoomQueueEditController {
   constructor(
     private readonly db: RoomDatabase,
-    private readonly attachments: RoomAttachmentManager,
+    private readonly attachments: Pick<RoomAttachmentManager, 'consumeUploads' | 'remove'>,
     private readonly emit: (roomId: string, event: RoomEvent) => void,
     private readonly wakeDeliveries: () => void,
     private readonly assertWritable: (roomId: string) => void,

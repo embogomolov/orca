@@ -1,18 +1,21 @@
+import { roomParticipantFixture } from '../../../../shared/rooms.test-fixture'
 // @vitest-environment happy-dom
 
 import { renderHook, waitFor } from '@testing-library/react'
 import { useCallback } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { RoomParticipant } from '../../../../shared/rooms'
-import type { RoomQueueState } from './room-queue-state'
+
 import { useRoomQueueSquarePresence } from './use-room-queue-square-presence'
 
 vi.mock('@/hooks/usePrefersReducedMotion', () => ({
   usePrefersReducedMotion: () => false
 }))
 
-const participants = [{ id: 'alpha' }, { id: 'beta' }] as RoomParticipant[]
-const state = { participants } as RoomQueueState
+const participants = [
+  roomParticipantFixture({ id: 'alpha' }),
+  roomParticipantFixture({ id: 'beta' })
+]
+const state = { participants }
 
 describe('useRoomQueueSquarePresence', () => {
   it('keeps newly visible squares in participant order', async () => {

@@ -3,8 +3,7 @@ import { RoomDatabase } from './database'
 import type { RoomHarnessRuntime } from './harness-adapter'
 import { RoomService } from './service'
 import { RoomWorkController } from './work-controller'
-import type { RoomDeliveryWorker } from './delivery-worker'
-import type { RoomTranscriptBridge } from './transcript-bridge'
+
 import { claimRoomBroadcastForTest } from './delivery-test-claim'
 
 describe('room work control', () => {
@@ -171,8 +170,20 @@ describe('room work control', () => {
     const wake = vi.fn()
     const controller = new RoomWorkController(
       database,
-      { wake } as unknown as RoomDeliveryWorker,
-      {} as RoomTranscriptBridge,
+      {
+        wake,
+        requestRoomFence: () => {
+          throw new Error('Unexpected stop')
+        }
+      },
+      {
+        finalizeStoppedDeliveries: () => {
+          throw new Error('Unexpected stop')
+        },
+        clearStoppedDeliveries: () => {
+          throw new Error('Unexpected stop')
+        }
+      },
       {},
       emit
     )

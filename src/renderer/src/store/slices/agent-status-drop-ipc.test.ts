@@ -10,19 +10,13 @@ import { createTestStore } from './store-test-helpers'
 // so the on-disk last-status file evicts dismissed paneKeys. Without this, a
 // dismissed row would re-appear after Orca restart from the hydrated cache.
 
-const originalWindow = (globalThis as { window?: unknown }).window
-
 beforeEach(() => {
   vi.useFakeTimers()
 })
 
 afterEach(() => {
   vi.useRealTimers()
-  if (originalWindow === undefined) {
-    delete (globalThis as { window?: unknown }).window
-  } else {
-    ;(globalThis as { window?: unknown }).window = originalWindow
-  }
+  vi.unstubAllGlobals()
 })
 
 function stubWindowApi(): {
@@ -33,9 +27,9 @@ function stubWindowApi(): {
   const drop = vi.fn()
   const dropByTabPrefix = vi.fn()
   const kill = vi.fn()
-  ;(globalThis as { window?: unknown }).window = {
+  vi.stubGlobal('window', {
     api: { agentStatus: { drop, dropByTabPrefix }, pty: { kill } }
-  }
+  })
   return { drop, dropByTabPrefix, kill }
 }
 
@@ -160,7 +154,18 @@ describe('dropAgentStatusByTabPrefix -> IPC fan-out', () => {
     const store = createTestStore()
     store.setState({
       tabsByWorktree: {
-        'wt-1': [{ id: 'room-tab', worktreeId: 'wt-1', title: 'Room agent' } as TerminalTab]
+        'wt-1': [
+          {
+            id: 'room-tab',
+            worktreeId: 'wt-1',
+            title: 'Room agent',
+            ptyId: null,
+            customTitle: null,
+            color: null,
+            sortOrder: 0,
+            createdAt: 1
+          }
+        ]
       },
       ptyIdsByTabId: { 'room-tab': ['pty-room'] }
     })

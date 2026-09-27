@@ -75,8 +75,11 @@ describe('RoomArchiveTransferStore', () => {
       export: async () => {
         await gate
         return Buffer.from('archive')
+      },
+      import: async (): Promise<never> => {
+        throw new Error('Unexpected archive import')
       }
-    } as unknown as RoomArchive
+    }
     const transfers = new RoomArchiveTransferStore(archive)
     const first = transfers.startExport('room-1', 'one.zip')
     const second = transfers.startExport('room-2', 'two.zip')

@@ -1,4 +1,5 @@
 import SyncDatabase from '../../sqlite/sync-database'
+import { z } from 'zod'
 import type { RoomSnapshot } from '../../../shared/rooms'
 import { initializeRoomSchema } from './schema'
 import { RoomCoreStore } from './core-store'
@@ -17,6 +18,15 @@ export type RoomDeletionManifest = {
   pendingUploadIds: string[]
   drops: { connectionId: string; remotePath: string }[]
 }
+
+const deletionManifestSchema = z
+  .object({
+    roomId: z.string(),
+    attachmentPaths: z.array(z.string()),
+    pendingUploadIds: z.array(z.string()),
+    drops: z.array(z.object({ connectionId: z.string(), remotePath: z.string() }).passthrough())
+  })
+  .passthrough()
 
 export class RoomDatabase {
   private readonly db: SyncDatabase.Database
@@ -96,14 +106,13 @@ export class RoomDatabase {
   }
 
   listAttachmentDrops(roomId: string): RoomDeletionManifest['drops'] {
-    return (
-      this.db
-        .prepare('SELECT connection_id, remote_path FROM room_attachment_drops WHERE room_id = ?')
-        .all(roomId) as Record<string, unknown>[]
-    ).map((row) => ({
-      connectionId: String(row.connection_id),
-      remotePath: String(row.remote_path)
-    }))
+    return this.db
+      .prepare('SELECT connection_id, remote_path FROM room_attachment_drops WHERE room_id = ?')
+      .all(roomId)
+      .map((row) => ({
+        connectionId: String(row.connection_id),
+        remotePath: String(row.remote_path)
+      }))
   }
 
   deleteRoom(manifest: RoomDeletionManifest): void {
@@ -119,11 +128,10 @@ export class RoomDatabase {
   }
 
   listRoomDeletionCleanup(): RoomDeletionManifest[] {
-    return (
-      this.db.prepare('SELECT manifest_json FROM room_deletion_cleanup').all() as {
-        manifest_json: string
-      }[]
-    ).map((row) => JSON.parse(row.manifest_json) as RoomDeletionManifest)
+    return this.db
+      .prepare('SELECT manifest_json FROM room_deletion_cleanup')
+      .all()
+      .map((row) => deletionManifestSchema.parse(JSON.parse(String(row.manifest_json))))
   }
 
   finishRoomDeletionCleanup(roomId: string): void {

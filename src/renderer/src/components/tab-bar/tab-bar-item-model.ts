@@ -213,7 +213,7 @@ export function buildOrderedTabItems({
         id,
         unifiedTabId: roomTab.id,
         isPinned: roomTab.isPinned === true,
-        data: roomTab as Tab & { contentType: 'room' }
+        data: { ...roomTab, contentType: roomTab.contentType }
       })
     }
   }

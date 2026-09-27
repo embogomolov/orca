@@ -1,5 +1,5 @@
+import { roomHarnessAdapterTestFixture } from './room-harness-adapter-test-record'
 import { describe, expect, it, vi } from 'vitest'
-import type { RoomAttachmentManager } from './attachments'
 import { RoomDatabase } from './database'
 import { RoomDeliveryWorker } from './delivery-worker'
 import {
@@ -60,7 +60,7 @@ describe('room delivery claim races', () => {
     const worker = new RoomDeliveryWorker(
       db,
       createRoomHarnessAdapters(runtime),
-      { size: async () => 0 } as unknown as RoomAttachmentManager,
+      { size: async () => 0 },
       () => {},
       async (id) => db.participants.get(id)
     )
@@ -188,12 +188,12 @@ function broadcastReadinessRace(): {
   const firstReady = deferred()
   const releaseSecond = deferred()
   const adapter = (status: () => Promise<void>): RoomHarnessAdapter =>
-    ({
+    roomHarnessAdapterTestFixture({
       status: async () => {
         await status()
         return { handle: 'terminal', isRunningAgent: true, status: 'idle' }
       }
-    }) as unknown as RoomHarnessAdapter
+    })
   const claiming = claimReadyRoomBroadcast(
     db,
     {

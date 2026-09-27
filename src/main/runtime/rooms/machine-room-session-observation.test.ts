@@ -1,4 +1,6 @@
+import { hostTestStub } from '../../native-chat/agent-session-wire/structured-agent-session-host-test-harness'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AgentSessionSubscribeEvent } from '../../../shared/agent-session-wire'
 import { EMPTY_ROOM_CONTEXT } from '../../../shared/rooms'
 import {
   EMPTY_STRUCTURED_AGENT_SESSION,
@@ -23,7 +25,7 @@ afterEach(() => setStructuredAgentSessionHost(null))
 
 describe('machine room session observation', () => {
   it('does not report a restored journal as a live provider process', () => {
-    setStructuredAgentSessionHost({ hasProviderChild: vi.fn(() => false) } as never)
+    setStructuredAgentSessionHost(hostTestStub({ hasProviderChild: vi.fn(() => false) }))
 
     expect(readMachineRoomStatus(binding)).toEqual({
       handle: 'session-1',
@@ -116,7 +118,7 @@ describe('machine room session observation', () => {
   it('uses the structured provider context when it is available', async () => {
     const context = { ...EMPTY_ROOM_CONTEXT, model: 'gpt-5.6-sol' }
     const history = vi.fn()
-    setStructuredAgentSessionHost({ readContext: vi.fn(() => context), history } as never)
+    setStructuredAgentSessionHost(hostTestStub({ readContext: vi.fn(() => context), history }))
 
     await expect(readMachineRoomContext('codex', binding, EMPTY_ROOM_CONTEXT)).resolves.toBe(
       context
@@ -178,15 +180,17 @@ describe('machine room session observation', () => {
   })
 
   it('does not re-emit a terminal lifecycle when only the journal cursor advances', async () => {
-    let emit: ((event: never) => void) | undefined
-    setStructuredAgentSessionHost({
-      hold: vi.fn(async () => undefined),
-      release: vi.fn(),
-      subscribe: vi.fn((input: { emit: (event: never) => void }) => {
-        emit = input.emit
-        return vi.fn()
+    let emit: ((event: AgentSessionSubscribeEvent) => void) | undefined
+    setStructuredAgentSessionHost(
+      hostTestStub({
+        hold: vi.fn(async () => undefined),
+        release: vi.fn(),
+        subscribe: vi.fn((input) => {
+          emit = input.emit
+          return vi.fn()
+        })
       })
-    } as never)
+    )
     const onEvent = vi.fn()
     await subscribeMachineRoomSession(binding, {
       onSnapshot: vi.fn(),
@@ -203,7 +207,7 @@ describe('machine room session observation', () => {
       sessionId: 'session-1',
       fence: 1,
       page: page(items, 3)
-    } as never)
+    })
     emit?.({
       type: 'batch',
       sessionId: 'session-1',
@@ -213,7 +217,7 @@ describe('machine room session observation', () => {
         removedItemIds: [],
         submissions: []
       }
-    } as never)
+    })
 
     expect(onEvent).toHaveBeenCalledTimes(1)
     expect(onEvent).toHaveBeenCalledWith(

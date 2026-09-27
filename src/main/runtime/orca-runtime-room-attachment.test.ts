@@ -12,6 +12,33 @@ import {
   unregisterSshFilesystemProvider
 } from '../providers/ssh-filesystem-dispatch'
 import { OrcaRuntimeService } from './orca-runtime'
+import type { IFilesystemProvider } from '../providers/types'
+
+function filesystemFixture(overrides: Partial<IFilesystemProvider>): IFilesystemProvider {
+  const unexpected = (): never => {
+    throw new Error('Unexpected filesystem call')
+  }
+  return {
+    readDir: unexpected,
+    readFile: unexpected,
+    writeFile: unexpected,
+    writeFileBase64: unexpected,
+    writeFileBase64Chunk: unexpected,
+    stat: unexpected,
+    deletePath: unexpected,
+    createFile: unexpected,
+    createDir: unexpected,
+    createDirNoClobber: unexpected,
+    rename: unexpected,
+    renameNoClobber: unexpected,
+    copy: unexpected,
+    realpath: unexpected,
+    search: unexpected,
+    listFiles: unexpected,
+    watch: unexpected,
+    ...overrides
+  }
+}
 
 type StageRuntimeInternals = {
   ptysById: Map<
@@ -30,7 +57,7 @@ function runtimeForHost(input: {
   connectionId: string | null
   wslDistro: string | null
 }): OrcaRuntimeService {
-  const runtime = Object.create(OrcaRuntimeService.prototype) as OrcaRuntimeService
+  const runtime = new OrcaRuntimeService()
   Object.assign(runtime, {
     ptysById: new Map([
       [
@@ -67,19 +94,22 @@ describe('room attachment delivery path', () => {
       const uploadFile = vi.fn(async (_source: string, path: string) => {
         files.add(path)
       })
-      registerSshFilesystemProvider('ssh-1', {
-        createDir: async () => {},
-        stat: async (path: string) => {
-          if (!files.has(path)) {
-            throw enoent()
-          }
-          return { type: 'file', size: 1, mtime: 1 }
-        },
-        writeFile: async (path: string) => {
-          files.add(path)
-        },
-        openFileUploadSession: async () => ({ uploadFile, close: () => {} })
-      } as never)
+      registerSshFilesystemProvider(
+        'ssh-1',
+        filesystemFixture({
+          createDir: async () => {},
+          stat: async (path: string) => {
+            if (!files.has(path)) {
+              throw enoent()
+            }
+            return { type: 'file', size: 1, mtime: 1 }
+          },
+          writeFile: async (path: string) => {
+            files.add(path)
+          },
+          openFileUploadSession: async () => ({ uploadFile, close: () => {} })
+        })
+      )
       try {
         const ssh = runtimeForHost({ connectionId: 'ssh-1', wslDistro: null })
         const expected = posix.join('/remote/worktree', '.orca', 'drops', 'attachment_42.pdf')
@@ -113,7 +143,7 @@ describe('room attachment delivery path', () => {
 
   it('deletes only persisted SSH drop paths and tolerates missing files', async () => {
     const deletePath = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(enoent())
-    registerSshFilesystemProvider('ssh-1', { deletePath } as never)
+    registerSshFilesystemProvider('ssh-1', filesystemFixture({ deletePath }))
     try {
       const runtime = runtimeForHost({ connectionId: null, wslDistro: null })
       await runtime.cleanupDeletedRoomResources({

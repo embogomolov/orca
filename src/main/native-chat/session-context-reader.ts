@@ -1,4 +1,5 @@
 import { basename, dirname, join } from 'node:path'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import { open, stat } from 'node:fs/promises'
 import type { AgentProviderSessionMetadata } from '../../shared/agent-session-resume'
 import type { AgentType } from '../../shared/agent-status-types'
@@ -29,7 +30,7 @@ function finiteNonNegative(value: unknown): number | null {
 }
 
 function object(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+  return isRecord(value) ? value : null
 }
 
 export function parseAgentSessionContextRecord(

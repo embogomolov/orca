@@ -43,7 +43,7 @@ export class ClaudeConversationActivity {
   }
 
   observe(message: SDKMessage): void {
-    this.observeContext(message as unknown as Record<string, unknown>)
+    this.observeContext(message)
     if (message.type === 'system' && message.subtype === 'task_started') {
       this.updateTaskStarted(message)
     } else if (message.type === 'system' && message.subtype === 'task_progress') {
@@ -55,7 +55,11 @@ export class ClaudeConversationActivity {
     }
   }
 
-  observeContext(frame: Record<string, unknown>): void {
+  observeContext(value: unknown): void {
+    const frame = claudeRecord(value)
+    if (!frame) {
+      return
+    }
     if (frame.type === 'system' && frame.subtype === 'init') {
       this.currentModel = claudeText(frame.model) ?? this.currentModel
       this.fastMode =

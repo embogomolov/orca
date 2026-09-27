@@ -1,4 +1,5 @@
-import type { NativeChatApi, NativeChatAppendedMessages } from '../../../../preload/api-types'
+import type { NativeChatApi } from '../../../../preload/api-types'
+import { isRecord } from '../../../../shared/agent-status-child-work-value-guards'
 import { isWebClientLocation } from '@/lib/web-client-location'
 import {
   callRuntimeRpc,
@@ -137,14 +138,20 @@ function createRuntimeNativeChatTransport(environmentId: string): NativeChatSess
                   }
                   return
                 }
-                const frame = response.result as {
-                  type?: string
-                  messages?: NativeChatAppendedMessages
-                  hasMore?: boolean
-                  error?: string
-                  lifecycle?: unknown
-                  pending?: boolean
-                  context?: unknown
+                if (!isRecord(response.result)) {
+                  return
+                }
+                const rawFrame = response.result
+                const parsed = parseRuntimeNativeChatReadSessionResult(rawFrame)
+                const frame = {
+                  ...rawFrame,
+                  type: rawFrame.type,
+                  lifecycle: rawFrame.lifecycle,
+                  pending: rawFrame.pending,
+                  context: rawFrame.context,
+                  messages: 'messages' in parsed ? parsed.messages : undefined,
+                  hasMore: typeof rawFrame.hasMore === 'boolean' ? rawFrame.hasMore : undefined,
+                  error: typeof rawFrame.error === 'string' ? rawFrame.error : undefined
                 }
                 const lifecycle = parseRuntimeNativeChatTurnLifecycle(frame?.lifecycle)
                 // No transcript behind this window yet — forwarded so the view can

@@ -34,7 +34,7 @@ describe('OrcaRuntimeService', () => {
         minimaxEndpoint: 'cn',
         terminalQuickCommands
       })
-    } as never)
+    })
 
     expect(runtime.getClientSettings()).toMatchObject({
       worktreeVisibilityDefaults: { external: 'hide' },

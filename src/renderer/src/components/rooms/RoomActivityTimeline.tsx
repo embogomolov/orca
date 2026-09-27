@@ -65,7 +65,7 @@ export function RoomSettledActivityTimeline({
             ) : null}
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="chat-activity-disclosure-content">
+        <CollapsibleContent animated>
           <RoomActivityDetails messages={activity.messages} />
         </CollapsibleContent>
       </div>
@@ -138,7 +138,7 @@ function RoomActivityToolGroup({ tools }: { tools: RoomActivityToolStep[] }): Re
             />
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="chat-activity-disclosure-content">
+        <CollapsibleContent animated>
           <div className="mt-1.5 space-y-1.5 pl-5">
             {tools.flatMap((tool) => {
               const diffs = fileDiffsFromToolCall(tool.call.name, tool.call.input)
@@ -163,7 +163,9 @@ function RoomActivityToolGroup({ tools }: { tools: RoomActivityToolStep[] }): Re
             className="max-h-[85vh] min-w-0 sm:max-w-4xl"
           >
             <DialogHeader>
-              <DialogTitle className="truncate">{selectedDiff?.path}</DialogTitle>
+              <DialogTitle>
+                <span className="block truncate">{selectedDiff?.path}</span>
+              </DialogTitle>
               <DialogDescription>
                 {translate(
                   'rooms.activity.changesCaptured',
@@ -242,7 +244,7 @@ function ActivityToolRow({ tool }: { tool: RoomActivityToolStep }): React.JSX.El
             ) : null}
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="chat-activity-disclosure-content">
+        <CollapsibleContent animated>
           <ToolDetails input={input} result={tool.result} />
         </CollapsibleContent>
       </div>

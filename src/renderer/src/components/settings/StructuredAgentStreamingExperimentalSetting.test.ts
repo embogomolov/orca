@@ -37,18 +37,15 @@ describe('StructuredAgentStreamingExperimentalSetting', () => {
   })
 })
 
-type FoundElement = ReactElement<{ label?: ReactNode; checked?: boolean }>
+type FoundElement = ReactElement<{ label?: ReactNode; checked?: boolean; children?: ReactNode }>
 
 function findElements(node: ReactNode, typeName: string): FoundElement[] {
   if (Array.isArray(node)) {
     return node.flatMap((child) => findElements(child, typeName))
   }
-  if (!isValidElement(node)) {
+  if (!isValidElement<FoundElement['props']>(node)) {
     return []
   }
   const name = typeof node.type === 'function' ? node.type.name : node.type
-  return [
-    ...(name === typeName ? [node as FoundElement] : []),
-    ...findElements((node.props as { children?: ReactNode }).children, typeName)
-  ]
+  return [...(name === typeName ? [node] : []), ...findElements(node.props.children, typeName)]
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
 import type { StructuredProviderConfiguration } from '../../shared/structured-agent-provider'
 import type { NativeChatMessage } from '../../shared/native-chat-types'
@@ -18,19 +19,19 @@ export function ompPrompt(text: string, imagePaths?: readonly string[]): Record<
 }
 
 export function parseOmpCommands(data: unknown): OmpCommand[] {
-  const commands = (data as { commands?: unknown } | undefined)?.commands
+  const commands = isRecord(data) ? data.commands : undefined
   if (!Array.isArray(commands)) {
     return []
   }
   return commands.flatMap((command) => {
-    if (!command || typeof command !== 'object') {
+    if (!isRecord(command)) {
       return []
     }
-    const value = command as Record<string, unknown>
+    const value = command
     if (typeof value.name !== 'string') {
       return []
     }
-    const input = value.input as Record<string, unknown> | undefined
+    const input = isRecord(value.input) ? value.input : undefined
     return [
       {
         name: value.name,
@@ -42,15 +43,15 @@ export function parseOmpCommands(data: unknown): OmpCommand[] {
 }
 
 export function parseOmpModels(data: unknown): { label: string; value: string }[] {
-  const models = (data as { models?: unknown } | undefined)?.models
+  const models = isRecord(data) ? data.models : undefined
   if (!Array.isArray(models)) {
     return []
   }
   return models.flatMap((model) => {
-    if (!model || typeof model !== 'object') {
+    if (!isRecord(model)) {
       return []
     }
-    const value = model as Record<string, unknown>
+    const value = model
     return typeof value.provider === 'string' && typeof value.id === 'string'
       ? [
           {
@@ -67,11 +68,11 @@ export function ompContext(
   model: string,
   effort: string
 ): AgentSessionContextSnapshot | null {
-  const usage = (data as { contextUsage?: unknown } | undefined)?.contextUsage
-  if (!usage || typeof usage !== 'object') {
+  const usage = isRecord(data) ? data.contextUsage : undefined
+  if (!isRecord(usage)) {
     return null
   }
-  const { tokens, contextWindow } = usage as Record<string, unknown>
+  const { tokens, contextWindow } = usage
   if (
     typeof tokens !== 'number' ||
     !Number.isFinite(tokens) ||

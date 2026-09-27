@@ -1,37 +1,49 @@
+import {
+  roomDeliveryFixture,
+  roomActivityFixture,
+  roomMessageFixture,
+  roomParticipantFixture
+} from '../../../shared/rooms.test-fixture'
 import { expect, it, vi } from 'vitest'
-import type { RoomDelivery } from '../../../shared/rooms'
-import type { RoomDatabase } from './database'
+
+import { RoomDatabase } from './database'
 import { finalizeStoppedRoomTranscripts } from './transcript-stop-settlement'
-import type { RoomTranscriptTurnState } from './transcript-turn-state'
+import { RoomTranscriptTurnState } from './transcript-turn-state'
 
 it('clears matching stopped activity when the live delivery binding was lost', () => {
-  const removeActivity = vi.fn()
-  const participant = { id: 'participant-1', roomId: 'room-1', providerSession: null }
-  const delivery = {
+  const participant = roomParticipantFixture({
+    id: 'participant-1',
+    roomId: 'room-1',
+    providerSession: null
+  })
+  const delivery = roomDeliveryFixture({
     id: 'delivery-1',
     participantId: participant.id,
     messageId: 'message-1'
-  } as RoomDelivery
-  const db = {
-    activities: {
-      get: () => ({ state: 'working', anchorSequence: 7 })
-    },
-    messages: {
-      get: () => ({ sequence: 7 }),
-      deliveries: { get: () => delivery }
-    },
-    participants: { get: () => participant }
-  } as unknown as RoomDatabase
-
-  finalizeStoppedRoomTranscripts({
-    db,
-    deliveries: [delivery],
-    activeDeliveries: new Map([[participant.id, null]]),
-    turnState: { removeActivity } as unknown as RoomTranscriptTurnState,
-    emit: vi.fn(),
-    onSettled: vi.fn(),
-    timestamp: 100
   })
+  const db = new RoomDatabase(':memory:')
+  vi.spyOn(db.activities, 'get').mockReturnValue(
+    roomActivityFixture({ state: 'working', anchorSequence: 7 })
+  )
+  vi.spyOn(db.messages, 'get').mockReturnValue(roomMessageFixture({ sequence: 7 }))
+  vi.spyOn(db.messages.deliveries, 'get').mockReturnValue(delivery)
+  vi.spyOn(db.participants, 'get').mockReturnValue(participant)
+  const turnState = new RoomTranscriptTurnState(db, vi.fn())
+  const removeActivity = vi.spyOn(turnState, 'removeActivity').mockImplementation(() => {})
 
-  expect(removeActivity).toHaveBeenCalledWith(participant.id)
+  try {
+    finalizeStoppedRoomTranscripts({
+      db,
+      deliveries: [delivery],
+      activeDeliveries: new Map([[participant.id, null]]),
+      turnState,
+      emit: vi.fn(),
+      onSettled: vi.fn(),
+      timestamp: 100
+    })
+
+    expect(removeActivity).toHaveBeenCalledWith(participant.id)
+  } finally {
+    db.close()
+  }
 })

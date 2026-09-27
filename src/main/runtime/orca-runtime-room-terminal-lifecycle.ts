@@ -12,8 +12,10 @@ import type { RoomEvent, RoomParticipant } from '../../shared/rooms'
 import { parsePaneKey } from '../../shared/stable-pane-id'
 import type { TuiAgent } from '../../shared/tui-agent'
 import { OrcaRuntimeWithRoomAttachments } from './orca-runtime-room-attachments'
-import { runtimeWorktreeIdsEqual } from './runtime-worktree-path-identity'
-import { resolveTerminalSessionWorktreeId } from './runtime-worktree-path-identity'
+import {
+  runtimeWorktreeIdsEqual,
+  resolveTerminalSessionWorktreeId
+} from './runtime-worktree-path-identity'
 import { terminalLayoutContainsLeaf } from './headless-terminal-split-layout'
 import { waitForWorktreeStartupDraft } from './runtime-worktree-startup-readiness'
 

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoomDatabase } from './database'
-import type { RoomAttachmentManager } from './attachments'
 import { RoomDeliveryWorker } from './delivery-worker'
 import { roomHarnessAdapterTestRecord } from './room-harness-adapter-test-record'
 
@@ -111,7 +110,7 @@ function setup(enabled: boolean, reject = false) {
   const worker = new RoomDeliveryWorker(
     db,
     roomHarnessAdapterTestRecord({ status, steer }),
-    { size: async () => 0 } as unknown as RoomAttachmentManager,
+    { size: async () => 0 },
     () => {},
     async (id) => db.participants.get(id),
     undefined,

@@ -5,7 +5,7 @@ export const DEFAULT_ENABLED_STRUCTURED_MACHINE_AGENTS = ['codex'] as const
 export type StructuredMachineAgent = (typeof STRUCTURED_MACHINE_AGENTS)[number]
 
 export function isStructuredMachineAgent(agent: string): agent is StructuredMachineAgent {
-  return (STRUCTURED_MACHINE_AGENTS as readonly string[]).includes(agent)
+  return STRUCTURED_MACHINE_AGENTS.some((candidate) => candidate === agent)
 }
 
 export function normalizeEnabledStructuredMachineAgents(value: unknown): StructuredMachineAgent[] {
@@ -22,7 +22,8 @@ export function isStructuredMachineAgentEnabled(
 ): agent is StructuredMachineAgent {
   return (
     typeof agent === 'string' &&
-    (normalizeEnabledStructuredMachineAgents(enabled) as readonly string[]).includes(agent)
+    isStructuredMachineAgent(agent) &&
+    normalizeEnabledStructuredMachineAgents(enabled).includes(agent)
   )
 }
 

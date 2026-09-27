@@ -8,8 +8,11 @@ import type { RoomTranscriptBridge } from './transcript-bridge'
 export class RoomWorkController {
   constructor(
     private readonly db: RoomDatabase,
-    private readonly deliveries: RoomDeliveryWorker,
-    private readonly transcript: RoomTranscriptBridge,
+    private readonly deliveries: Pick<RoomDeliveryWorker, 'requestRoomFence' | 'wake'>,
+    private readonly transcript: Pick<
+      RoomTranscriptBridge,
+      'finalizeStoppedDeliveries' | 'clearStoppedDeliveries'
+    >,
     private readonly adapters: Record<string, RoomHarnessAdapter>,
     private readonly emit: (roomId: string, event: RoomEvent) => void
   ) {}

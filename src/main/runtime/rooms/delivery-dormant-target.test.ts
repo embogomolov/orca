@@ -1,5 +1,6 @@
+import { unusedRoomAttachments } from './attachments.test-fixture'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { RoomAttachmentManager } from './attachments'
+
 import { claimRoomBroadcastForTest } from './delivery-test-claim'
 import { RoomDatabase } from './database'
 import { RoomMessageController } from './message-controller'
@@ -36,7 +37,7 @@ describe('dormant room delivery targets', () => {
       ).toThrow('room_delivery_queue_stale')
       expect(db.messages.deliveries.get(dormant.id).error).toBe('room_participant_paused')
       const emit = vi.fn()
-      const controller = new RoomMessageController(db, {} as RoomAttachmentManager, emit, vi.fn())
+      const controller = new RoomMessageController(db, unusedRoomAttachments(), emit, vi.fn())
       controller.reorder(setup.target.id, [dormant.id, anchor.id], undefined, dormant.messageId)
 
       expect(db.messages.deliveries.get(dormant.id)).toMatchObject({
@@ -74,7 +75,7 @@ describe('dormant room delivery targets', () => {
     participation(db, setup.target.id, 'active')
     participation(db, other.id, 'active')
     const emit = vi.fn()
-    const controller = new RoomMessageController(db, {} as RoomAttachmentManager, emit, vi.fn())
+    const controller = new RoomMessageController(db, unusedRoomAttachments(), emit, vi.fn())
 
     expect(controller.removeTarget(created.message.id, 'user', setup.target.id)).toBe(false)
     expect(db.messages.deliveries.listForMessage(created.message.id)).toEqual(

@@ -42,7 +42,14 @@ vi.mock('./omp-rpc-driver', () => ({
 
 import { createHarnessConversationDriverFactory } from './driver-factory'
 
-const sink = {} as HarnessConversationDriverSink
+const sink: HarnessConversationDriverSink = {
+  emit: vi.fn(),
+  setProviderSessionId: vi.fn(),
+  setConfiguration: vi.fn(),
+  setContext: vi.fn(),
+  setSubagents: vi.fn(),
+  setTranscriptPath: vi.fn()
+}
 
 function input(agent: 'claude' | 'openclaude' | 'grok' | 'omp') {
   return {

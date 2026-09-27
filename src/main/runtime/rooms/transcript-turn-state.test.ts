@@ -1,8 +1,13 @@
+import {
+  roomParticipantFixture,
+  roomDeliveryFixture,
+  roomMessageFixture
+} from '../../../shared/rooms.test-fixture'
 import { describe, expect, it, vi } from 'vitest'
 import { AgentJournalRenderItemSchema } from '../../../shared/agent-session-journal-schemas'
 import type { AgentJournalRenderItem } from '../../../shared/agent-session-journal-types'
 import type { NativeChatMessage } from '../../../shared/native-chat-types'
-import type { RoomDelivery, RoomParticipant } from '../../../shared/rooms'
+
 import { projectStructuredItemsToNativeChat } from '../../../shared/structured-agent-session-projection'
 import { boundStreamItem } from '../../codex/codex-structured-item-stream-bounds'
 import {
@@ -29,11 +34,14 @@ it.each(['commentary', 'final_answer', undefined])(
   (phase) => {
     const text = 'Waiting. <orca-room-recipients>["codex2"]</orca-room-recipients>'
     const item: CodexThreadItem = { type: 'agentMessage', id: 'reply', text, phase }
-    const bounded = boundStreamItem({ ...item, padding: 'x'.repeat(70_000) }) as CodexThreadItem
+    const bounded = boundStreamItem({ ...item, padding: 'x'.repeat(70_000) })
+    if (typeof bounded.type !== 'string' || typeof bounded.id !== 'string') {
+      throw new Error('Bounded item lost its identity')
+    }
     const bodies = [
       codexJournalItem(item).body,
       codexStreamingJournalItem(item, text).body,
-      codexStreamingJournalItem(bounded, text).body
+      codexStreamingJournalItem({ ...bounded, type: bounded.type, id: bounded.id }, text).body
     ]
     for (const body of bodies) {
       const saved: AgentJournalRenderItem = {
@@ -43,58 +51,67 @@ it.each(['commentary', 'final_answer', undefined])(
         observedAt: 100,
         body: body!
       }
-      const replayed = JSON.parse(JSON.stringify(saved)) as AgentJournalRenderItem
+      const replayed = AgentJournalRenderItemSchema.parse(JSON.parse(JSON.stringify(saved)))
       expect(AgentJournalRenderItemSchema.safeParse(replayed).success).toBe(true)
-      const messages = projectStructuredItemsToNativeChat([replayed])
+      expect(replayed).toEqual(saved)
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Schema-validated JSON round-trip equals the typed saved item; the wire schema also admits future enum values.
+      const messages = projectStructuredItemsToNativeChat([replayed as AgentJournalRenderItem])
       expect(messages[0]?.assistantPhase).toBe(phase === 'final_answer' ? 'final' : phase)
-      const createReply = vi.fn(() => ({ id: 'published' }))
-      const participant = {
+      const participant = roomParticipantFixture({
         id: 'participant',
         roomId: 'room',
         identity: 'codex',
         actorKind: 'agent'
-      } as RoomParticipant
-      const db = {
-        transaction: <T>(action: () => T) => action(),
-        participants: { list: () => [participant, { identity: 'codex2', actorKind: 'agent' }] },
-        messages: { get: () => ({ sequence: 1 }) },
-        providerMessages: { createReply, ignore: vi.fn() }
-      } as unknown as RoomDatabase
-      const state = new RoomTranscriptTurnState(db, vi.fn())
-      const delivery = {
-        id: 'delivery',
-        messageId: 'user',
-        deliveredAt: 50,
-        state: 'delivered',
-        error: null
-      } as RoomDelivery
-      state.rememberStart(participant, delivery, {
-        type: 'activity',
-        source: 'transcript',
-        turnId: 'turn',
-        timestamp: 50,
-        messages: []
       })
-      state.remember(participant.id, messages, true)
-      state.publishInterrupted(
+      const db = new RoomDatabase(':memory:')
+      vi.spyOn(db.participants, 'list').mockReturnValue([
         participant,
-        delivery,
-        'session',
-        { type: 'interrupted', source: 'transcript', turnId: 'turn', timestamp: 200, messages },
-        vi.fn()
-      )
-      expect(createReply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: phase === 'commentary' ? '' : 'Waiting.',
-          mentions: [],
-          enqueueDeliveries: false,
-          activity: expect.objectContaining({
-            state: 'interrupted',
-            messages: phase === 'commentary' ? messages : [],
-            completedAt: 200
-          })
+        roomParticipantFixture({ identity: 'codex2', actorKind: 'agent' })
+      ])
+      vi.spyOn(db.messages, 'get').mockReturnValue(roomMessageFixture({ sequence: 1 }))
+      const createReply = vi
+        .spyOn(db.providerMessages, 'createReply')
+        .mockReturnValue(roomMessageFixture({ id: 'published' }))
+      vi.spyOn(db.providerMessages, 'ignore').mockImplementation(() => {})
+      try {
+        const state = new RoomTranscriptTurnState(db, vi.fn())
+        const delivery = roomDeliveryFixture({
+          id: 'delivery',
+          messageId: 'user',
+          deliveredAt: 50,
+          state: 'delivered',
+          error: null
         })
-      )
+        state.rememberStart(participant, delivery, {
+          type: 'activity',
+          source: 'transcript',
+          turnId: 'turn',
+          timestamp: 50,
+          messages: []
+        })
+        state.remember(participant.id, messages, true)
+        state.publishInterrupted(
+          participant,
+          delivery,
+          'session',
+          { type: 'interrupted', source: 'transcript', turnId: 'turn', timestamp: 200, messages },
+          vi.fn()
+        )
+        expect(createReply).toHaveBeenCalledWith(
+          expect.objectContaining({
+            body: phase === 'commentary' ? '' : 'Waiting.',
+            mentions: [],
+            enqueueDeliveries: false,
+            activity: expect.objectContaining({
+              state: 'interrupted',
+              messages: phase === 'commentary' ? messages : [],
+              completedAt: 200
+            })
+          })
+        )
+      } finally {
+        db.close()
+      }
     }
   }
 )

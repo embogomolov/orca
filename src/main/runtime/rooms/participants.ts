@@ -36,13 +36,12 @@ export class RoomParticipantStore {
   }
 
   list(roomId: string): RoomParticipant[] {
-    return (
-      this.db
-        .prepare(
-          "SELECT * FROM room_participants WHERE room_id = ? ORDER BY actor_kind = 'user' DESC, created_at"
-        )
-        .all(roomId) as RoomRow[]
-    ).map(this.fromRow)
+    return this.db
+      .prepare(
+        "SELECT * FROM room_participants WHERE room_id = ? ORDER BY actor_kind = 'user' DESC, created_at"
+      )
+      .all(roomId)
+      .map(this.fromRow)
   }
 
   add(input: {
@@ -189,9 +188,7 @@ export class RoomParticipantStore {
   }
 
   get(id: string): RoomParticipant {
-    const row = this.db.prepare('SELECT * FROM room_participants WHERE id = ?').get(id) as
-      | RoomRow
-      | undefined
+    const row = this.db.prepare('SELECT * FROM room_participants WHERE id = ?').get(id)
     if (!row) {
       throw new Error('room_participant_not_found')
     }
@@ -201,7 +198,7 @@ export class RoomParticipantStore {
   find(roomId: string, identity: string): RoomParticipant | null {
     const row = this.db
       .prepare('SELECT * FROM room_participants WHERE room_id = ? AND identity = ? COLLATE NOCASE')
-      .get(roomId, identity) as RoomRow | undefined
+      .get(roomId, identity)
     return row ? this.fromRow(row) : null
   }
 
@@ -227,10 +224,9 @@ export class RoomParticipantStore {
 
   /** Hibernation uses communication timestamps only; bookkeeping updates are not activity. */
   listIdleAgents(idleBefore: number): RoomParticipant[] {
-    return (
-      this.db
-        .prepare(
-          `SELECT p.* FROM room_participants p
+    return this.db
+      .prepare(
+        `SELECT p.* FROM room_participants p
          WHERE p.actor_kind = 'agent' AND p.state = 'online'
            AND p.terminal_handle IS NOT NULL
            AND p.terminal_surface_visible = 0
@@ -248,20 +244,19 @@ export class RoomParticipantStore {
                (d.state = 'suppressed' AND d.error = 'room_stopping')
              )
            )`
-        )
-        .all(idleBefore) as RoomRow[]
-    ).map(this.fromRow)
+      )
+      .all(idleBefore)
+      .map(this.fromRow)
   }
 
   listBound(roomId: string): RoomParticipant[] {
-    return (
-      this.db
-        .prepare(
-          `SELECT * FROM room_participants WHERE room_id = ? AND actor_kind = 'agent'
+    return this.db
+      .prepare(
+        `SELECT * FROM room_participants WHERE room_id = ? AND actor_kind = 'agent'
          AND terminal_handle IS NOT NULL ORDER BY created_at`
-        )
-        .all(roomId) as RoomRow[]
-    ).map(this.fromRow)
+      )
+      .all(roomId)
+      .map(this.fromRow)
   }
 
   private renameReferences(participant: RoomParticipant, identity: string): void {

@@ -32,12 +32,13 @@ export class OrcaRuntimeWithRoomSessionDiscovery extends OrcaRuntimeWithResolveW
         const latest = [...(this.getAgentProviderSessionRowsForPaneFn?.(paneKey) ?? [])].sort(
           (left, right) => right.receivedAt - left.receivedAt
         )[0]
-        const agent = pty?.launchAgent ?? pty?.foregroundAgent ?? latest?.agentType
+        const candidateAgent = pty?.launchAgent ?? pty?.foregroundAgent ?? latest?.agentType
+        const agent = ROOM_HARNESS_AGENTS.find((value) => value === candidateAgent)
         if (!agent || !supported.has(agent)) {
           return null
         }
         return {
-          agent: agent as RoomRunningAgent['agent'],
+          agent,
           worktreeId,
           terminalHandle: terminal.handle,
           paneKey,

@@ -94,7 +94,7 @@ export function RoomActivityCard({
         >
           <div className="min-h-0 overflow-hidden">
             {expandable ? (
-              <CollapsibleContent className="chat-activity-disclosure-content">
+              <CollapsibleContent animated>
                 <RoomActivityDetails
                   messages={activity.messages}
                   fallback={{ kind: activity.kind, detail: activity.detail }}

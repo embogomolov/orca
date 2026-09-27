@@ -1,6 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 import {
   claimRoomBroadcastDeliveries,
   isBroadcastMessage,
@@ -26,31 +26,29 @@ export {
 }
 
 const listForMessage = (db: SyncDatabase.Database, messageId: string): RoomDelivery[] =>
-  (
-    db
-      .prepare('SELECT * FROM room_deliveries WHERE message_id = ? ORDER BY participant_id')
-      .all(messageId) as RoomRow[]
-  ).map(deliveryFromRow)
+  db
+    .prepare('SELECT * FROM room_deliveries WHERE message_id = ? ORDER BY participant_id')
+    .all(messageId)
+    .map(deliveryFromRow)
 
 const getDelivery = (db: SyncDatabase.Database, id: string): RoomDelivery =>
-  deliveryFromRow(db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(id) as RoomRow)
+  deliveryFromRow(db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(id))
 
 const listRoomParticipantQueue = (
   db: SyncDatabase.Database,
   participantId: string
 ): RoomDelivery[] =>
-  (
-    db
-      .prepare(
-        `SELECT d.* FROM room_deliveries d JOIN room_messages m ON m.id = d.message_id
+  db
+    .prepare(
+      `SELECT d.* FROM room_deliveries d JOIN room_messages m ON m.id = d.message_id
          WHERE d.participant_id = ? AND (
            d.state = 'pending' OR
            (d.state = 'suppressed' AND d.error = 'room_stopped' AND d.attempts = 0 AND d.intent = 'next')
          ) AND m.actor_kind = 'user' AND m.queue_edit_token IS NULL
          ORDER BY d.queue_position, m.sequence`
-      )
-      .all(participantId) as RoomRow[]
-  ).map(deliveryFromRow)
+    )
+    .all(participantId)
+    .map(deliveryFromRow)
 
 export function returnRoomSteerToNext(
   db: SyncDatabase.Database,
@@ -65,14 +63,12 @@ export function returnRoomSteerToNext(
   }
   const position = moveToHead
     ? Number(
-        (
-          db
-            .prepare(
-              `SELECT COALESCE(MIN(queue_position), 0) - 1 AS position
+        db
+          .prepare(
+            `SELECT COALESCE(MIN(queue_position), 0) - 1 AS position
                FROM room_deliveries WHERE participant_id = ? AND id <> ?`
-            )
-            .get(delivery.participantId, id) as RoomRow
-        ).position
+          )
+          .get(delivery.participantId, id)!.position
       )
     : delivery.queuePosition!
   db.prepare(
@@ -108,7 +104,7 @@ export function retryRoomDelivery(
          LEFT JOIN room_participants participant ON participant.id = delivery.participant_id
          WHERE delivery.id = ?`
       )
-      .get(id) as RoomRow | undefined
+      .get(id)
     if (!row) {
       throw new Error('room_delivery_not_found')
     }
@@ -126,16 +122,15 @@ export function suppressRoomParticipantQueuedDeliveries(
   db: SyncDatabase.Database,
   participantId: string
 ): RoomDelivery[] {
-  const queued = (
-    db
-      .prepare(
-        `SELECT * FROM room_deliveries WHERE participant_id = ? AND attempts = 0
+  const queued = db
+    .prepare(
+      `SELECT * FROM room_deliveries WHERE participant_id = ? AND attempts = 0
          AND intent = 'next' AND (
            state = 'pending' OR (state = 'suppressed' AND error = 'room_stopped')
          )`
-      )
-      .all(participantId) as RoomRow[]
-  ).map(deliveryFromRow)
+    )
+    .all(participantId)
+    .map(deliveryFromRow)
   const suppress = db.prepare(
     `UPDATE room_deliveries SET state = 'suppressed', error = 'room_participant_paused',
      next_attempt_at = ?, phase = NULL WHERE id = ? AND attempts = 0 AND intent = 'next'

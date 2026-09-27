@@ -235,7 +235,8 @@ export function RoomMessageFeed({ data }: { data: RoomData }): React.JSX.Element
       {!atBottom && unreadCount > 0 ? (
         <Button
           size="sm"
-          className="sticky bottom-3 left-1/2 z-10 -translate-x-1/2 shadow-md"
+          elevated
+          className="sticky bottom-3 left-1/2 z-10 -translate-x-1/2"
           onClick={() => {
             virtualizer.scrollToIndex(feedItems.length - 1, { align: 'end' })
             atBottomRef.current = true

@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NativeChatMessage } from '../../../shared/native-chat-types'
 import type { SubscribeNativeChatTranscriptArgs } from '../../native-chat/transcript-watch'
 
-const mocks = vi.hoisted(() => ({ subscribe: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  subscribe:
+    vi.fn<
+      (
+        args: SubscribeNativeChatTranscriptArgs
+      ) => Promise<{ watching: boolean; unsubscribe: () => void }>
+    >()
+}))
 
 vi.mock('../../native-chat/transcript-watch', () => ({
   subscribeNativeChatTranscript: mocks.subscribe
@@ -28,7 +35,7 @@ describe('subscribeRoomHarnessTranscript', () => {
       },
       { onSnapshot: vi.fn(), onEvent, onOpaqueAppend: vi.fn() }
     )
-    const subscription = mocks.subscribe.mock.calls[0]![0] as SubscribeNativeChatTranscriptArgs
+    const subscription = mocks.subscribe.mock.calls[0]![0]
     const root: NativeChatMessage = {
       id: 'prompt-1',
       role: 'user',
@@ -62,7 +69,7 @@ describe('subscribeRoomHarnessTranscript', () => {
       },
       { onSnapshot: vi.fn(), onEvent, onOpaqueAppend: vi.fn() }
     )
-    const subscription = mocks.subscribe.mock.calls[0]![0] as SubscribeNativeChatTranscriptArgs
+    const subscription = mocks.subscribe.mock.calls[0]![0]
     const messages: NativeChatMessage[] = [
       {
         id: 'prompt-1',
@@ -110,7 +117,7 @@ describe('subscribeRoomHarnessTranscript', () => {
       },
       { onSnapshot: vi.fn(), onEvent, onOpaqueAppend: vi.fn() }
     )
-    const subscription = mocks.subscribe.mock.calls[0]![0] as SubscribeNativeChatTranscriptArgs
+    const subscription = mocks.subscribe.mock.calls[0]![0]
     const messages: NativeChatMessage[] = [
       {
         id: 'old-prompt',

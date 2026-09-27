@@ -126,14 +126,14 @@ export function RoomSelectorDialog({
             )}
           </DialogDescription>
         </DialogHeader>
-        <Command className="min-h-0 flex-1 border border-border bg-background">
+        <Command bordered className="min-h-0 flex-1">
           <CommandInput
             autoFocus
             value={query}
             onValueChange={setQuery}
             placeholder={translate('rooms.selector.search', 'Search rooms…')}
           />
-          <CommandList className="min-h-0 max-h-none flex-1 p-1 [&_[cmdk-list-sizer]]:space-y-2">
+          <CommandList variant="cards" className="min-h-0 max-h-none flex-1">
             {loading ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 {translate('rooms.common.loading', 'Loading…')}
@@ -155,12 +155,9 @@ export function RoomSelectorDialog({
                       value={room.id}
                       keywords={[room.name, room.description]}
                       onSelect={() => openRoom(room)}
-                      className={cn(
-                        'items-start gap-3 rounded-lg border p-3 text-left transition-colors',
-                        selected
-                          ? 'border-primary/50 bg-accent'
-                          : 'border-border hover:border-foreground/30 hover:bg-accent/40'
-                      )}
+                      variant="card"
+                      current={selected}
+                      className="items-start text-left"
                     >
                       <Check className={cn('mt-0.5 size-4 shrink-0', !selected && 'invisible')} />
                       <div className="min-w-0 flex-1">

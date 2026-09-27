@@ -81,7 +81,8 @@ export class AcpConversationDriver implements HarnessConversationDriver {
     this.connection = new ClientSideConnection(
       () => client,
       ndJsonStream(
-        Writable.toWeb(this.child.stdin) as WritableStream<Uint8Array>,
+        Writable.toWeb(this.child.stdin),
+        // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Piped stdout emits Uint8Array chunks; Node and DOM declare incompatible BYOB reader overloads for the same WHATWG stream.
         Readable.toWeb(this.child.stdout) as ReadableStream<Uint8Array>
       )
     )
@@ -103,8 +104,7 @@ export class AcpConversationDriver implements HarnessConversationDriver {
     if (!this.sessionId) {
       throw new Error('acp_session_unavailable')
     }
-    this.fallbackMessageId =
-      (submission?.clientMessageId as ReturnType<typeof randomUUID> | undefined) ?? randomUUID()
+    this.fallbackMessageId = submission?.clientMessageId ?? randomUUID()
     try {
       const completion = this.connection.prompt({
         sessionId: this.sessionId,

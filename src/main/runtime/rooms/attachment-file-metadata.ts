@@ -8,19 +8,17 @@ export function safeRoomAttachmentName(value: string): string {
 export function roomAttachmentMimeType(fileName: string): string {
   const extension = extname(fileName).toLowerCase()
   return (
-    (
-      {
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.webp': 'image/webp',
-        '.svg': 'image/svg+xml',
-        '.pdf': 'application/pdf',
-        '.json': 'application/json',
-        '.md': 'text/markdown',
-        '.txt': 'text/plain'
-      } as Record<string, string>
-    )[extension] ?? 'application/octet-stream'
+    {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.pdf': 'application/pdf',
+      '.json': 'application/json',
+      '.md': 'text/markdown',
+      '.txt': 'text/plain'
+    }[extension] ?? 'application/octet-stream'
   )
 }

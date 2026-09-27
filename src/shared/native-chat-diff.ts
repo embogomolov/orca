@@ -1,3 +1,5 @@
+import { isRecord } from './agent-status-child-work-value-guards'
+
 export type NativeChatDiffLineKind = 'add' | 'del' | 'context' | 'meta'
 
 export type NativeChatDiffLine = {
@@ -266,15 +268,15 @@ function fileDiff(path: string, lines: NativeChatDiffLine[]): NativeChatFileDiff
 }
 
 function inputRecord(input: unknown): Record<string, unknown> | null {
-  if (input && typeof input === 'object') {
-    return input as Record<string, unknown>
+  if (isRecord(input)) {
+    return input
   }
   if (typeof input !== 'string') {
     return null
   }
   try {
     const parsed = JSON.parse(input)
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+    return isRecord(parsed) ? parsed : null
   } catch {
     return null
   }

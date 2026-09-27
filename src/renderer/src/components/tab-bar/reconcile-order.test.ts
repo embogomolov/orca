@@ -42,13 +42,18 @@ describe('reconcileTabOrder', () => {
   })
 
   it('projects and activates a room through the unified tab strip', () => {
-    const room = {
+    const room: Tab = {
       id: 'room-tab',
       groupId: 'group-1',
       contentType: 'room',
       entityId: 'room-1',
-      label: 'Room'
-    } as Tab
+      label: 'Room',
+      worktreeId: 'worktree',
+      customLabel: null,
+      color: null,
+      sortOrder: 0,
+      createdAt: 1
+    }
     const items = buildOrderedTabItems({
       terminalIds: [],
       editorFileIds: [],

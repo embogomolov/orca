@@ -11,7 +11,7 @@ import { StructuredAgentSessionHost } from '../../native-chat/agent-session-wire
 import { setStructuredAgentSessionHost } from '../../native-chat/agent-session-wire/structured-agent-session-registry'
 import { hostTestAttachParams } from '../../native-chat/agent-session-wire/structured-agent-session-host-test-data'
 import { MachineRoomHarnessAdapter } from './machine-harness-adapter'
-import type { RoomHarnessRuntime } from './harness-adapter-types'
+import { roomHarnessRuntimeFixture } from './room-harness-runtime.test-fixture'
 import { structuredRoomCaller, structuredRoomMutationEnvelope } from './machine-harness-session'
 
 const command = resolveCodexCommand()
@@ -57,7 +57,7 @@ realCodexTest(
       claimKeyId: 'test-key'
     })
     setStructuredAgentSessionHost(host)
-    const runtime = {
+    const runtime = roomHarnessRuntimeFixture({
       ensureStructuredAgentSessionHost: async () => undefined,
       resolveStructuredAgentSessionCreateIntent: async (input) =>
         hostTestAttachParams(null, {
@@ -71,7 +71,7 @@ realCodexTest(
             workspaceKind: 'folder'
           }
         })
-    } as RoomHarnessRuntime
+    })
     const rooms = new MachineRoomHarnessAdapter('codex', runtime)
     try {
       const original = await rooms.launch('workspace-1')

@@ -31,7 +31,7 @@ export async function generateRuntimeCommitMessage(
         : {}),
       ...(overrides?.sourceControlAi ? { sourceControlAi: overrides.sourceControlAi } : {}),
       ...(overrides?.agentCmdOverrides ? { agentCmdOverrides: overrides.agentCmdOverrides } : {})
-    }) as Promise<RuntimeGenerateCommitMessageResult>
+    })
   }
   const compatibilityError = await antigravityGenerationCompatibilityError(
     target.environmentId,
@@ -70,7 +70,7 @@ export async function discoverRuntimeCommitMessageModels(
       worktreePath: resolveLocalWorktreePath(context),
       connectionId: context.connectionId,
       ...(options?.includeSessionDefaults ? { includeSessionDefaults: true } : {})
-    }) as Promise<RuntimeDiscoverCommitMessageModelsResult>
+    })
   }
   return callRuntimeRpc<RuntimeDiscoverCommitMessageModelsResult>(
     target,
@@ -125,7 +125,7 @@ export async function generateRuntimePullRequestFields(
         : {}),
       ...(overrides?.sourceControlAi ? { sourceControlAi: overrides.sourceControlAi } : {}),
       ...(overrides?.agentCmdOverrides ? { agentCmdOverrides: overrides.agentCmdOverrides } : {})
-    }) as Promise<RuntimeGeneratePullRequestFieldsResult>
+    })
   }
   const compatibilityError = await antigravityGenerationCompatibilityError(
     target.environmentId,

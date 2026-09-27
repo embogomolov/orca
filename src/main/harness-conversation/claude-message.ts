@@ -1,4 +1,5 @@
 import type { SDKAssistantMessage, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import type { StructuredProviderInput } from '../../shared/structured-agent-provider'
 import type { NativeChatBlock, NativeChatMessage } from '../../shared/native-chat-types'
 import type { HarnessConversationDriverSink } from './driver'
@@ -21,7 +22,9 @@ export function claudeTextMessage(
 
 export function emitClaudeAssistant(
   sink: HarnessConversationDriverSink,
-  message: SDKAssistantMessage,
+  message: Pick<SDKAssistantMessage, 'uuid'> & {
+    message: Pick<SDKAssistantMessage['message'], 'id' | 'content'>
+  },
   streamingId: string | null,
   streamedText: Map<string, string>
 ): string | null {
@@ -100,12 +103,12 @@ export function emitClaudeToolResults(
 
 export function emitClaudeStreamDelta(
   sink: HarnessConversationDriverSink,
-  event: Record<string, unknown>,
+  event: unknown,
   fallbackId: string,
   streamingId: string | null,
   streamedText: Map<string, string>
 ): void {
-  const delta = event.delta as { type?: unknown; text?: unknown; thinking?: unknown } | undefined
+  const delta = isRecord(event) && isRecord(event.delta) ? event.delta : undefined
   const role = delta?.type === 'thinking_delta' ? 'reasoning' : 'assistant'
   const text = role === 'reasoning' ? delta?.thinking : delta?.text
   if (typeof text !== 'string') {
@@ -151,10 +154,10 @@ export function parseClaudeQuestions(value: unknown): StructuredProviderInput['q
     return []
   }
   return value.flatMap((entry) => {
-    if (!entry || typeof entry !== 'object') {
+    if (!isRecord(entry)) {
       return []
     }
-    const question = entry as Record<string, unknown>
+    const question = entry
     if (typeof question.question !== 'string') {
       return []
     }
@@ -172,10 +175,10 @@ export function parseClaudeQuestions(value: unknown): StructuredProviderInput['q
 }
 
 function parseOption(value: unknown): { label: string; description?: string }[] {
-  if (!value || typeof value !== 'object') {
+  if (!isRecord(value)) {
     return []
   }
-  const option = value as Record<string, unknown>
+  const option = value
   return typeof option.label === 'string'
     ? [
         {

@@ -1,43 +1,40 @@
 import { randomUUID } from 'node:crypto'
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 import { listMutableRoomBroadcastIds, normalizeNewRoomBroadcasts } from './delivery-broadcast-order'
 import { roomDeliveryDispatchStopped } from './delivery-work-control'
 import { assertRoomMessageDeliveryMutable, isRoomDeliveryMutable } from './delivery-mutability'
 import { activeRoomReadinessMatches, type RoomReadyTarget } from './delivery-readiness-evidence'
 
 const listForMessage = (db: SyncDatabase.Database, messageId: string): RoomDelivery[] =>
-  (
-    db
-      .prepare('SELECT * FROM room_deliveries WHERE message_id = ? ORDER BY participant_id')
-      .all(messageId) as RoomRow[]
-  ).map(deliveryFromRow)
+  db
+    .prepare('SELECT * FROM room_deliveries WHERE message_id = ? ORDER BY participant_id')
+    .all(messageId)
+    .map(deliveryFromRow)
 
 const activeParticipantIds = (db: SyncDatabase.Database, roomId: string): string[] =>
-  (
-    db
-      .prepare(
-        `SELECT id FROM room_participants WHERE room_id = ? AND actor_kind = 'agent' AND participation = 'active' ORDER BY id`
-      )
-      .all(roomId) as RoomRow[]
-  ).map((row) => String(row.id))
+  db
+    .prepare(
+      `SELECT id FROM room_participants WHERE room_id = ? AND actor_kind = 'agent' AND participation = 'active' ORDER BY id`
+    )
+    .all(roomId)
+    .map((row) => String(row.id))
 
 const isBroadcastMessage = (db: SyncDatabase.Database, messageId: string): boolean => {
   const message = db
     .prepare('SELECT room_id, actor_kind FROM room_messages WHERE id = ?')
-    .get(messageId) as RoomRow | undefined
+    .get(messageId)
   if (!message || message.actor_kind !== 'user') {
     return false
   }
   const active = activeParticipantIds(db, String(message.room_id))
-  const targets = (
-    db
-      .prepare(
-        `SELECT DISTINCT d.participant_id FROM room_deliveries d JOIN room_participants p ON p.id = d.participant_id WHERE d.message_id = ? AND p.participation = 'active' AND NOT (d.state = 'suppressed' AND d.error IN ('room_delivery_retargeted', 'room_participant_paused'))`
-      )
-      .all(messageId) as RoomRow[]
-  ).map((row) => String(row.participant_id))
+  const targets = db
+    .prepare(
+      `SELECT DISTINCT d.participant_id FROM room_deliveries d JOIN room_participants p ON p.id = d.participant_id WHERE d.message_id = ? AND p.participation = 'active' AND NOT (d.state = 'suppressed' AND d.error IN ('room_delivery_retargeted', 'room_participant_paused'))`
+    )
+    .all(messageId)
+    .map((row) => String(row.participant_id))
   return (
     active.length > 0 &&
     active.length === targets.length &&
@@ -49,9 +46,7 @@ const isInitialBroadcastDispatch = (db: SyncDatabase.Database, messageId: string
   if (!isBroadcastMessage(db, messageId)) {
     return false
   }
-  const message = db.prepare('SELECT room_id FROM room_messages WHERE id = ?').get(messageId) as
-    | RoomRow
-    | undefined
+  const message = db.prepare('SELECT room_id FROM room_messages WHERE id = ?').get(messageId)
   if (!message) {
     return false
   }
@@ -80,8 +75,9 @@ export function claimRoomBroadcastDeliveries(
     }
     const message = db
       .prepare('SELECT room_id, sequence, queue_edit_token FROM room_messages WHERE id = ?')
-      .get(messageId) as RoomRow
+      .get(messageId)
     if (
+      !message ||
       message.queue_edit_token !== null ||
       roomDeliveryDispatchStopped(db, String(message.room_id))
     ) {
@@ -116,7 +112,7 @@ export function claimRoomBroadcastDeliveries(
         delivery.queuePosition ?? 0,
         message.sequence
       ] as const
-      if (blocked.get(...(parameters as [string, string, number, number, number]))) {
+      if (blocked.get(...parameters)) {
         return (db.exec('ROLLBACK'), null)
       }
     }
@@ -148,7 +144,7 @@ export function retargetRoomMessageDeliveries(
 ): RoomDelivery[] {
   const message = db
     .prepare('SELECT room_id FROM room_messages WHERE id = ? AND actor_kind = ?')
-    .get(messageId, 'user') as RoomRow | undefined
+    .get(messageId, 'user')
   if (!message) {
     throw new Error('room_message_forbidden')
   }
@@ -157,7 +153,7 @@ export function retargetRoomMessageDeliveries(
     .prepare(
       `SELECT id FROM room_participants WHERE room_id = ? AND actor_kind = 'agent' AND participation = 'active'`
     )
-    .all(String(message.room_id)) as RoomRow[]
+    .all(String(message.room_id))
   if (
     targets.size !== participantIds.length ||
     [...targets].some((id) => !available.some((row) => String(row.id) === id))
@@ -184,7 +180,7 @@ export function retargetRoomMessageDeliveries(
     const keepPaused = enabled && paused
     const position =
       enabled && delivery.state !== 'pending' && !paused
-        ? Number((next.get(delivery.participantId) as RoomRow).position)
+        ? Number(next.get(delivery.participantId)!.position)
         : (delivery.queuePosition ?? 0)
     update.run(
       enabled ? (keepPaused ? 'suppressed' : 'pending') : 'suppressed',
@@ -201,7 +197,7 @@ export function retargetRoomMessageDeliveries(
     if (current.some((delivery) => delivery.participantId === participantId)) {
       continue
     }
-    const row = next.get(participantId) as RoomRow
+    const row = next.get(participantId)!
     insert.run(
       randomUUID(),
       messageId,

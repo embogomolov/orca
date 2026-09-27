@@ -85,5 +85,6 @@ function handleRoomResponse(
     onError(response.error)
     return
   }
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: This subscription is exclusively rooms.subscribe, whose handler emits RoomEvent; the RPC envelope erases its generic result.
   onEvent(response.result as RoomEvent)
 }

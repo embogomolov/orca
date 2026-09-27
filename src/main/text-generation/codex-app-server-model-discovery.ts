@@ -1,4 +1,5 @@
 import type { CommitMessageModelCapability } from '../../shared/commit-message-agent-spec'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import { planAgentBinary } from '../../shared/commit-message-plan'
 import { resolveCliCommand } from '../codex-cli/command'
 import { runCodexAppServerSession } from '../codex/codex-app-server-session'
@@ -15,28 +16,19 @@ export function parseCodexAppServerModelDiscovery(
   modelList: unknown,
   configRead: unknown
 ): { models: CommitMessageModelCapability[]; defaultModelId: string } | null {
-  const listRecord =
-    typeof modelList === 'object' && modelList !== null
-      ? (modelList as Record<string, unknown>)
-      : null
+  const listRecord = isRecord(modelList) ? modelList : null
   const rows = Array.isArray(listRecord?.data) ? listRecord.data : []
-  const configRoot =
-    typeof configRead === 'object' && configRead !== null
-      ? (configRead as Record<string, unknown>)
-      : null
-  const config =
-    typeof configRoot?.config === 'object' && configRoot.config !== null
-      ? (configRoot.config as Record<string, unknown>)
-      : null
+  const configRoot = isRecord(configRead) ? configRead : null
+  const config = isRecord(configRoot?.config) ? configRoot.config : null
   const configuredModel = typeof config?.model === 'string' ? config.model.trim() : ''
   const configuredEffort =
     typeof config?.model_reasoning_effort === 'string' ? config.model_reasoning_effort.trim() : ''
   let providerDefault = ''
   const models = rows.flatMap((row): CommitMessageModelCapability[] => {
-    if (typeof row !== 'object' || row === null) {
+    if (!isRecord(row)) {
       return []
     }
-    const record = row as Record<string, unknown>
+    const record = row
     const id = typeof record.id === 'string' ? record.id.trim() : ''
     if (!id || record.hidden === true) {
       return []
@@ -46,10 +38,10 @@ export function parseCodexAppServerModelDiscovery(
     }
     const efforts = Array.isArray(record.supportedReasoningEfforts)
       ? record.supportedReasoningEfforts.flatMap((value): { id: string; label: string }[] => {
-          if (typeof value !== 'object' || value === null) {
+          if (!isRecord(value)) {
             return []
           }
-          const effort = (value as Record<string, unknown>).reasoningEffort
+          const effort = value.reasoningEffort
           if (typeof effort !== 'string' || !effort.trim()) {
             return []
           }
@@ -119,7 +111,11 @@ export function startCodexAppServerModelDiscovery(input: {
           command: invocation.spawnCmd,
           args: invocation.spawnArgs,
           cliPath: resolvedBinary,
-          env: spawnEnv as Record<string, string>,
+          env: Object.fromEntries(
+            Object.entries(spawnEnv).flatMap(([key, value]) =>
+              value === undefined ? [] : [[key, value]]
+            )
+          ),
           timeoutMs: SOURCE_CONTROL_GENERATION_TIMEOUT_MS
         },
         async (rpc) => {

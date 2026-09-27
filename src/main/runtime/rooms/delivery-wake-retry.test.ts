@@ -1,8 +1,8 @@
+import { roomHarnessAdapterTestFixture } from './room-harness-adapter-test-record'
 import { expect, it } from 'vitest'
 import { RoomDatabase } from './database'
 import { claimReadyRoomDelivery, probeRoomDeliveryReadiness } from './delivery-machine-readiness'
 import { deliverRoomDelivery } from './delivery-execution'
-import type { RoomHarnessAdapter } from './harness-adapter'
 
 it.each(['machine', 'terminal'])(
   'counts failed %s wake attempts instead of stranding pending delivery',
@@ -44,9 +44,9 @@ it.each(['machine', 'terminal'])(
       let isRunningAgent = true
       let status: 'working' | 'permission' | null = 'working'
       const adapters = {
-        codex: {
+        codex: roomHarnessAdapterTestFixture({
           status: async () => ({ handle: 'session', isRunningAgent, status })
-        } as unknown as RoomHarnessAdapter
+        })
       }
       for (const blocked of ['working', 'permission', null] as const) {
         status = blocked
@@ -70,8 +70,20 @@ it.each(['machine', 'terminal'])(
           db,
           adapters,
           delivery: claimed!,
-          attachments: {} as never,
-          confirmations: { discard: () => undefined } as never,
+          attachments: {
+            size: async () => {
+              throw new Error('Unexpected attachment read')
+            }
+          },
+          confirmations: {
+            discard: () => undefined,
+            prepare: () => {
+              throw new Error('Unexpected delivery preparation')
+            },
+            arm: () => {
+              throw new Error('Unexpected delivery confirmation')
+            }
+          },
           emit: () => undefined,
           ensureParticipantReady: async () => {
             throw new Error('conversation_not_found')

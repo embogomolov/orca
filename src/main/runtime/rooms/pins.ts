@@ -1,16 +1,15 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomPin, RoomPinStatus } from '../../../shared/rooms'
-import { pinFromRow, type RoomRow } from './rows'
+import { pinFromRow } from './rows'
 
 export class RoomPinStore {
   constructor(private readonly db: SyncDatabase.Database) {}
 
   list(roomId: string): RoomPin[] {
-    return (
-      this.db
-        .prepare('SELECT * FROM room_pins WHERE room_id = ? ORDER BY status, created_at DESC')
-        .all(roomId) as RoomRow[]
-    ).map(pinFromRow)
+    return this.db
+      .prepare('SELECT * FROM room_pins WHERE room_id = ? ORDER BY status, created_at DESC')
+      .all(roomId)
+      .map(pinFromRow)
   }
 
   set(input: {
@@ -37,7 +36,7 @@ export class RoomPinStore {
       .run(input.roomId, input.messageId, input.status, input.createdBy, now, now)
     const row = this.db
       .prepare('SELECT * FROM room_pins WHERE room_id = ? AND message_id = ?')
-      .get(input.roomId, input.messageId) as RoomRow
+      .get(input.roomId, input.messageId)!
     return pinFromRow(row)
   }
 

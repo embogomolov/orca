@@ -29,9 +29,10 @@ import { ImagePreviewDialog } from './ImagePreviewDialog'
 class TestResizeObserver {
   constructor(private readonly callback: ResizeObserverCallback) {}
   observe(): void {
-    this.callback([], this as unknown as ResizeObserver)
+    this.callback([], this)
   }
   disconnect(): void {}
+  unobserve(): void {}
 }
 
 describe('ImagePreviewDialog', () => {
@@ -39,15 +40,15 @@ describe('ImagePreviewDialog', () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver)
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600)
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-      function (this: HTMLElement) {
-        const width =
-          this instanceof HTMLImageElement ? Number.parseFloat(this.style.width) || 1000 : 800
-        const height =
-          this instanceof HTMLImageElement ? Number.parseFloat(this.style.height) || 500 : 600
-        return new DOMRect(0, 0, width, height)
-      }
-    )
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      const width =
+        this instanceof HTMLImageElement ? Number.parseFloat(this.style.width) || 1000 : 800
+      const height =
+        this instanceof HTMLImageElement ? Number.parseFloat(this.style.height) || 500 : 600
+      return new DOMRect(0, 0, width, height)
+    })
     vi.spyOn(HTMLImageElement.prototype, 'naturalWidth', 'get').mockReturnValue(1000)
     vi.spyOn(HTMLImageElement.prototype, 'naturalHeight', 'get').mockReturnValue(500)
   })
@@ -87,7 +88,7 @@ describe('ImagePreviewDialog', () => {
       fireEvent.click(zoomIn)
     }
     expect(image.style.width).toBe('5000px')
-    expect((zoomIn as HTMLButtonElement).disabled).toBe(true)
+    expect(zoomIn.hasAttribute('disabled')).toBe(true)
 
     fireEvent.click(screen.getByRole('button', { name: 'Zoom to fit' }))
     expect(image.style.width).toBe('800px')

@@ -151,7 +151,7 @@ export function registerClipboardHandlers(store: Store): void {
     if (!png) {
       return null
     }
-    const content = png.buffer.slice(png.byteOffset, png.byteOffset + png.byteLength) as ArrayBuffer
+    const content = Uint8Array.from(png).buffer
     return { content, mimeType: 'image/png' as const }
   })
   // Why: terminals need to detect clipboard images to support tools like Claude
@@ -265,11 +265,11 @@ function normalizeClipboardWriteFileRequest(args: unknown): ClipboardWriteFileRe
   if (!args || typeof args !== 'object' || Array.isArray(args)) {
     return null
   }
-  const filePath = (args as { filePath?: unknown }).filePath
+  const filePath = 'filePath' in args ? args.filePath : undefined
   if (typeof filePath !== 'string') {
     return null
   }
-  const connectionId = (args as { connectionId?: unknown }).connectionId
+  const connectionId = 'connectionId' in args ? args.connectionId : undefined
   if (typeof connectionId === 'string' && connectionId.trim() !== '') {
     return { filePath, connectionId }
   }

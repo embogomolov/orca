@@ -135,7 +135,7 @@ export function DescriptorMenuRows(props: {
     return (
       <>
         {selected === undefined ? (
-          <DropdownMenuLabel className="font-normal text-muted-foreground">
+          <DropdownMenuLabel variant="description">
             {translate(
               'components.native-chat.composer.valueUnknown',
               'Current value unknown — pick On or Off'

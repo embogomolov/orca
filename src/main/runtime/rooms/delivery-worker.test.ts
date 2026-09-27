@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import type { RuntimeTerminalAgentStatus } from '../../../shared/runtime-types'
 import { RoomDatabase } from './database'
 import { createRoomHarnessAdapters, type RoomHarnessRuntime } from './harness-adapter'
-import type { RoomAttachmentManager } from './attachments'
 import { RoomDeliveryWorker } from './delivery-worker'
 import { deliveryFailureState } from './delivery-selection'
 import { roomDeliveryAttemptsFromTurn } from './delivery-prompt'
@@ -32,20 +31,7 @@ describe('room delivery turn correlation', () => {
 })
 
 describe('room delivery confirmation deadline', () => {
-  function worker(
-    deadlineMs: number,
-    withAttachments = false,
-    directed = true
-  ): {
-    db: RoomDatabase
-    worker: RoomDeliveryWorker
-    send: ReturnType<typeof vi.fn>
-    status: ReturnType<typeof vi.fn>
-    stage: ReturnType<typeof vi.fn>
-    deliveryId: string
-    participantId: string
-    dispose: () => void
-  } {
+  function worker(deadlineMs: number, withAttachments = false, directed = true) {
     const send = vi.fn(
       async (
         handle: string,
@@ -141,7 +127,7 @@ describe('room delivery confirmation deadline', () => {
     const deliveryWorker = new RoomDeliveryWorker(
       db,
       createRoomHarnessAdapters(runtime),
-      { size: async () => 4 } as unknown as RoomAttachmentManager,
+      { size: async () => 4 },
       () => {},
       async (participantId) => db.participants.get(participantId),
       deadlineMs
@@ -167,7 +153,7 @@ describe('room delivery confirmation deadline', () => {
       harness.worker.start()
       await vi.waitFor(() => expect(harness.send).toHaveBeenCalledTimes(1))
 
-      const prompt = harness.send.mock.calls[0][1] as string
+      const prompt = harness.send.mock.calls[0][1]
       expect(prompt).not.toContain('Read the older report.')
       expect(prompt).not.toContain('room-context-ref')
       expect(prompt).toContain('/staged/current-image-current.png')
@@ -192,7 +178,7 @@ describe('room delivery confirmation deadline', () => {
     try {
       harness.worker.start()
       await vi.waitFor(() => expect(harness.send).toHaveBeenCalledOnce())
-      const prompt = harness.send.mock.calls[0][1] as string
+      const prompt = harness.send.mock.calls[0][1]
       expect(prompt).toContain('response="optional"')
       expect(prompt).toContain('otherwise return exactly <orca-room-silent />')
     } finally {
@@ -244,7 +230,7 @@ describe('room delivery confirmation deadline', () => {
         expect(harness.send).toHaveBeenCalledTimes(1)
         expect(harness.db.messages.deliveries.get(harness.deliveryId).state).toBe('delivering')
       })
-      const firstPrompt = harness.send.mock.calls[0][1] as string
+      const firstPrompt = harness.send.mock.calls[0][1]
       const firstStage = harness.stage.mock.calls.map(([, , attachment]) => ({
         id: attachment.id,
         fileName: attachment.fileName
@@ -267,7 +253,7 @@ describe('room delivery confirmation deadline', () => {
           fileName: attachment.fileName
         }))
       expect(secondStage).toEqual(firstStage)
-      const secondPrompt = harness.send.mock.calls[1][1] as string
+      const secondPrompt = harness.send.mock.calls[1][1]
       const confirmed = harness.worker.confirmTurn(harness.participantId, {
         id: 'turn-1',
         text: `${firstPrompt}\n${secondPrompt}`
@@ -346,7 +332,7 @@ describe('room delivery confirmation deadline', () => {
       })
       expect(harness.send).toHaveBeenCalledTimes(1)
 
-      const prompt = harness.send.mock.calls[0][1] as string
+      const prompt = harness.send.mock.calls[0][1]
       const confirmed = harness.worker.confirmTurn(harness.participantId, {
         id: 'late-turn',
         text: prompt
@@ -399,7 +385,7 @@ describe('room machine steer', () => {
     const worker = new RoomDeliveryWorker(
       db,
       adapters,
-      { size: async () => 0 } as unknown as RoomAttachmentManager,
+      { size: async () => 0 },
       () => {},
       async (id) => db.participants.get(id)
     )
@@ -475,7 +461,7 @@ describe('room machine steer', () => {
     const worker = new RoomDeliveryWorker(
       db,
       adapters,
-      { size: async () => 0 } as unknown as RoomAttachmentManager,
+      { size: async () => 0 },
       () => {},
       async (id) => db.participants.get(id)
     )
@@ -550,7 +536,7 @@ describe('room machine steer', () => {
     const deliveryWorker = new RoomDeliveryWorker(
       db,
       adapters,
-      { size: async () => 0 } as unknown as RoomAttachmentManager,
+      { size: async () => 0 },
       () => {},
       async () => {
         throw new Error('room_agent_not_ready')
@@ -590,13 +576,7 @@ describe('room machine steer', () => {
       cwd: '/repo',
       providerSessionId: 'session-1',
       messages: [],
-      queuedMessages: [] as {
-        id: string
-        text: string
-        imagePaths: string[]
-        createdAt: number
-        state: 'pending'
-      }[],
+      queuedMessages: [],
       queueRevision: 0,
       status: 'working' as const,
       updatedAt: 1
@@ -629,7 +609,7 @@ describe('room machine steer', () => {
     const worker = new RoomDeliveryWorker(
       db,
       adapters,
-      { size: async () => 0 } as unknown as RoomAttachmentManager,
+      { size: async () => 0 },
       () => {},
       async (id) => db.participants.get(id)
     )
@@ -696,7 +676,7 @@ describe('room broadcast retries', () => {
     const worker = new RoomDeliveryWorker(
       db,
       createRoomHarnessAdapters(runtime),
-      { size: async () => 0 } as unknown as RoomAttachmentManager,
+      { size: async () => 0 },
       () => {},
       async (id) => db.participants.get(id)
     )
@@ -764,7 +744,7 @@ describe('room broadcast retries', () => {
     const worker = new RoomDeliveryWorker(
       db,
       createRoomHarnessAdapters(runtime),
-      { size: async () => 0 } as unknown as RoomAttachmentManager,
+      { size: async () => 0 },
       () => {},
       async (id) => db.participants.get(id)
     )

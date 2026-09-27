@@ -31,7 +31,7 @@ export class RoomArchiveTransferStore {
   private generation = 0
   private readonly roomGenerations = new Map<string, number>()
 
-  constructor(private readonly archive: RoomArchive) {}
+  constructor(private readonly archive: Pick<RoomArchive, 'export' | 'import'>) {}
 
   async startExport(
     roomId: string,
@@ -196,10 +196,9 @@ export class RoomArchiveTransferStore {
     }
   }
 
-  private get<TKind extends ArchiveTransfer['kind']>(
-    transferId: string,
-    kind: TKind
-  ): Extract<ArchiveTransfer, { kind: TKind }> {
+  private get(transferId: string, kind: 'export'): ExportTransfer
+  private get(transferId: string, kind: 'import'): ImportTransfer
+  private get(transferId: string, kind: ArchiveTransfer['kind']): ArchiveTransfer {
     const transfer = this.transfers.get(transferId)
     if (!transfer || transfer.kind !== kind) {
       throw new Error('room_archive_transfer_not_found')
@@ -208,6 +207,6 @@ export class RoomArchiveTransferStore {
       this.transfers.delete(transferId)
       throw new Error('room_archive_transfer_expired')
     }
-    return transfer as Extract<ArchiveTransfer, { kind: TKind }>
+    return transfer
   }
 }

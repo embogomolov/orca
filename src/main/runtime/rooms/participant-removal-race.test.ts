@@ -4,7 +4,6 @@ import type { RoomEvent } from '../../../shared/rooms'
 import type { RuntimeTerminalClose } from '../../../shared/runtime-types'
 import { RoomDatabase } from './database'
 import { createRoomHarnessAdapters, type RoomHarnessRuntime } from './harness-adapter'
-import type { RoomAttachmentManager } from './attachments'
 import { RoomDeliveryWorker } from './delivery-worker'
 import { RoomService } from './service'
 
@@ -149,7 +148,7 @@ it('settles an in-flight delivery removed by participant cascade', async () => {
   const worker = new RoomDeliveryWorker(
     db,
     createRoomHarnessAdapters(harness),
-    { size: async () => 4 } as unknown as RoomAttachmentManager,
+    { size: async () => 4 },
     (_roomId, event) => events.push(event),
     async (id) => db.participants.get(id)
   )

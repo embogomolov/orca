@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { HarnessConversationDriverSink } from './driver'
 
 const queryMock = vi.hoisted(() => vi.fn())
@@ -79,7 +80,7 @@ describe('ClaudeConversationDriver', () => {
     async (agent) => {
       const incoming: unknown[] = []
       const waiters: ((value: IteratorResult<unknown>) => void)[] = []
-      let prompt!: AsyncIterable<unknown>
+      let prompt!: AsyncIterable<SDKUserMessage>
       const push = (value: unknown): void => {
         const waiter = waiters.shift()
         if (waiter) {
@@ -122,9 +123,13 @@ describe('ClaudeConversationDriver', () => {
       await prompts.next()
       const accept = vi.fn(async () => undefined)
       const steering = driver.steer('change course', undefined, crypto.randomUUID(), accept)
-      const steered = (await prompts.next()).value as { uuid: string; priority?: string }
+      const next = await prompts.next()
+      if (next.done) {
+        throw new Error('Missing steer message')
+      }
+      const steered = next.value
 
-      expect(steered.priority).toBe('next')
+      expect(steered).toMatchObject({ priority: 'next' })
       push({
         type: 'user',
         uuid: steered.uuid,

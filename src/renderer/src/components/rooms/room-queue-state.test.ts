@@ -1,3 +1,4 @@
+import { roomDataFixture } from './room-data.test-fixture'
 import { describe, expect, it } from 'vitest'
 import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 import type {
@@ -125,11 +126,11 @@ const roomData = (
   deliveries: RoomDelivery[],
   withQueueVersion = true
 ): RoomData =>
-  ({
+  roomDataFixture({
     snapshot: snapshot(participants, withQueueVersion),
     messages,
     deliveries: Object.fromEntries(deliveries.map((item) => [item.id, item]))
-  }) as RoomData
+  })
 
 describe('computeRoomQueueState', () => {
   it('returns null without the delivery queue snapshot field', () => {

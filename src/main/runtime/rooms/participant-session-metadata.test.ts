@@ -1,8 +1,11 @@
+import { hostTestStub } from '../../native-chat/agent-session-wire/structured-agent-session-host-test-harness'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoomService } from './service'
-import type { RoomHarnessRuntime } from './harness-adapter'
+import { roomHarnessRuntimeFixture } from './room-harness-runtime.test-fixture'
+import { OrcaRuntimeService } from '../orca-runtime'
 import { setStructuredAgentSessionHost } from '../../native-chat/agent-session-wire/structured-agent-session-registry'
 import { ROOM_CORE_METHODS } from '../rpc/methods/rooms-core'
+import { agentSessionRecordFixture } from '../../../shared/agent-session-record.test-fixture'
 
 afterEach(() => setStructuredAgentSessionHost(null))
 
@@ -12,15 +15,16 @@ describe('room durable session metadata', () => {
     const hold = vi.fn()
     const readOptions = vi.fn()
     const ensure = vi.fn(async () => {
-      setStructuredAgentSessionHost({
-        deps: { store: { getRecord: () => ({ options }) } },
-        hold,
-        readOptions
-      } as never)
+      const host = hostTestStub({ hold, readOptions })
+      vi.spyOn(host.deps.store, 'getRecord').mockImplementation(() => ({
+        ...agentSessionRecordFixture(),
+        options
+      }))
+      setStructuredAgentSessionHost(host)
     })
     const service = new RoomService(
       ':memory:',
-      { ensureStructuredAgentSessionHost: ensure } as unknown as RoomHarnessRuntime,
+      roomHarnessRuntimeFixture({ ensureStructuredAgentSessionHost: ensure }),
       {}
     )
     try {
@@ -34,17 +38,12 @@ describe('room durable session metadata', () => {
       })
       service.db.participants.update(agent.id, { state: 'sleeping' })
       vi.spyOn(service, 'activateRoom').mockImplementation(() => new Promise(() => {}))
-      const method = ROOM_CORE_METHODS.find(
-        (entry) => entry.name === 'rooms.snapshot'
-      )! as unknown as {
-        handler: (
-          params: unknown,
-          context: unknown
-        ) => Promise<{ snapshot: ReturnType<RoomService['snapshot']> }>
-      }
+      const method = ROOM_CORE_METHODS.find((entry) => entry.name === 'rooms.snapshot')!
+      const rpcRuntime = new OrcaRuntimeService()
+      vi.spyOn(rpcRuntime, 'getRoomService').mockReturnValue(service)
       const { snapshot } = await method.handler(
         { roomId: room.id, readerKey: 'user' },
-        { runtime: { getRoomService: () => service } }
+        { runtime: rpcRuntime }
       )
       expect(snapshot.participants.find((entry) => entry.id === agent.id)).toMatchObject({
         state: 'sleeping',
@@ -78,10 +77,13 @@ describe('room durable session metadata', () => {
   })
 
   it('keeps usage and terminal participants unchanged', () => {
-    setStructuredAgentSessionHost({
-      deps: { store: { getRecord: () => ({ options: { model: 'gpt-6-astra', effort: 'high' } }) } }
-    } as never)
-    const service = new RoomService(':memory:', {} as RoomHarnessRuntime, {})
+    const host = hostTestStub({})
+    vi.spyOn(host.deps.store, 'getRecord').mockReturnValue({
+      ...agentSessionRecordFixture(),
+      options: { model: 'gpt-6-astra', effort: 'high' }
+    })
+    setStructuredAgentSessionHost(host)
+    const service = new RoomService(':memory:', roomHarnessRuntimeFixture(), {})
     try {
       const { room } = service.createRoom({ projectId: 'project', name: 'test' })
       const p = service.db.participants.add({

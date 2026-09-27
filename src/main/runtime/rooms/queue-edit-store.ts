@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomAttachment } from '../../../shared/rooms'
 import { assertRoomMessageDeliveryMutable } from './delivery-mutability'
-import type { RoomRow } from './rows'
 
 export class RoomQueueEditStore {
   constructor(private readonly db: SyncDatabase.Database) {}
@@ -37,7 +36,7 @@ export class RoomQueueEditStore {
     assertRoomMessageDeliveryMutable(this.db, input.messageId, input.editToken)
     const current = this.db
       .prepare('SELECT id, local_path FROM room_attachments WHERE message_id = ?')
-      .all(input.messageId) as RoomRow[]
+      .all(input.messageId)
     const retained = new Set(input.retainedAttachmentIds)
     if (
       retained.size !== input.retainedAttachmentIds.length ||

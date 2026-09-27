@@ -1,5 +1,4 @@
 import { expect, it, vi } from 'vitest'
-import type { RoomAttachmentManager } from './attachments'
 import { RoomDatabase } from './database'
 import { createRoomHarnessAdapters, type RoomHarnessRuntime } from './harness-adapter'
 import { RoomDeliveryWorker } from './delivery-worker'
@@ -49,7 +48,7 @@ it.each([{ broadcast: false }, { broadcast: true }])(
     const worker = new RoomDeliveryWorker(
       db,
       createRoomHarnessAdapters(runtime),
-      { size: async () => 0 } as unknown as RoomAttachmentManager,
+      { size: async () => 0 },
       () => {},
       async (id) => db.participants.get(id)
     )

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type SyncDatabase from '../../sqlite/sync-database'
 import { EMPTY_ROOM_CONTEXT, type Room, type RoomRole } from '../../../shared/rooms'
-import { roleFromRow, roomFromRow, type RoomRow } from './rows'
+import { roleFromRow, roomFromRow } from './rows'
 import { ROOM_ROLE_PRESETS } from './role-presets'
 
 export class RoomCoreStore {
@@ -65,18 +65,17 @@ export class RoomCoreStore {
   }
 
   list(projectId: string): Room[] {
-    return (
-      this.db
-        .prepare(
-          `SELECT * FROM rooms WHERE project_id = ?
+    return this.db
+      .prepare(
+        `SELECT * FROM rooms WHERE project_id = ?
          ORDER BY updated_at DESC, created_at DESC`
-        )
-        .all(projectId) as RoomRow[]
-    ).map(roomFromRow)
+      )
+      .all(projectId)
+      .map(roomFromRow)
   }
 
   get(id: string): Room {
-    const row = this.db.prepare('SELECT * FROM rooms WHERE id = ?').get(id) as RoomRow | undefined
+    const row = this.db.prepare('SELECT * FROM rooms WHERE id = ?').get(id)
     if (!row) {
       throw new Error('room_not_found')
     }
@@ -117,11 +116,10 @@ export class RoomCoreStore {
   }
 
   listRoles(roomId: string): RoomRole[] {
-    return (
-      this.db
-        .prepare('SELECT * FROM room_roles WHERE room_id = ? ORDER BY is_preset DESC, name')
-        .all(roomId) as RoomRow[]
-    ).map(roleFromRow)
+    return this.db
+      .prepare('SELECT * FROM room_roles WHERE room_id = ? ORDER BY is_preset DESC, name')
+      .all(roomId)
+      .map(roleFromRow)
   }
 
   saveRole(input: { id?: string; roomId: string; name: string; prompt: string }): RoomRole {
@@ -151,9 +149,7 @@ export class RoomCoreStore {
   }
 
   getRole(id: string): RoomRole {
-    const row = this.db.prepare('SELECT * FROM room_roles WHERE id = ?').get(id) as
-      | RoomRow
-      | undefined
+    const row = this.db.prepare('SELECT * FROM room_roles WHERE id = ?').get(id)
     if (!row) {
       throw new Error('room_role_not_found')
     }

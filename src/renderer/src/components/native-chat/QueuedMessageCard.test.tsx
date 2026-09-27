@@ -1,3 +1,5 @@
+import { roomDataFixture } from '../rooms/room-data.test-fixture'
+import { roomMessageFixture, roomParticipantFixture } from '../../../../shared/rooms.test-fixture'
 /* @vitest-environment happy-dom */
 
 import { DndContext } from '@dnd-kit/core'
@@ -14,8 +16,6 @@ import {
   RoomQueueSquareOverlay,
   RoomQueueSquareTargets
 } from '../rooms/RoomQueueSquare'
-import type { RoomData } from '../rooms/use-room-data'
-import type { RoomParticipant } from '../../../../shared/rooms'
 
 const mocks = vi.hoisted(() => ({
   readRoomAttachmentPreview: vi.fn(),
@@ -84,9 +84,11 @@ describe('QueuedMessageCard', () => {
       <DndContext>
         <RoomQueueSquareGrid phase={reveal === 'hidden' ? 'exiting' : 'visible'} raised={false}>
           <RoomQueueSquare
-            participant={
-              { id: 'agent', identity: 'agent', displayName: 'Agent' } as RoomParticipant
-            }
+            participant={roomParticipantFixture({
+              id: 'agent',
+              identity: 'agent',
+              displayName: 'Agent'
+            })}
             count={0}
             expanded={false}
             targeted={false}
@@ -103,14 +105,17 @@ describe('QueuedMessageCard', () => {
     )
     const { container, rerender } = render(square('hidden'))
 
-    const grid = container.firstElementChild as HTMLElement
-    const card = grid.firstElementChild as HTMLElement
+    const grid = container.firstElementChild
+    const card = grid?.firstElementChild
+    if (!(card instanceof HTMLElement)) {
+      throw new Error('Missing queue card')
+    }
     expect(card.style.height).toBe('0px')
     expect(card.style.position).toBe('')
 
     rerender(square('preview'))
     await waitFor(() => expect(card.style.height).toBe('27px'))
-    const clip = card.querySelector('[data-room-queue-square-clip]') as HTMLElement
+    const clip = card.querySelector<HTMLElement>('[data-room-queue-square-clip]')!
     const button = screen.getByRole('button', { name: /Queue of/ })
     expect(card.classList.contains('overflow-hidden')).toBe(false)
     expect(card.classList.contains('rounded-lg')).toBe(false)
@@ -125,9 +130,9 @@ describe('QueuedMessageCard', () => {
 
   it('previews an empty target area and expands every square together', async () => {
     const participants = [
-      { id: 'queued', identity: 'queued', displayName: 'Queued' },
-      { id: 'empty', identity: 'empty', displayName: 'Empty' }
-    ] as RoomParticipant[]
+      roomParticipantFixture({ id: 'queued', identity: 'queued', displayName: 'Queued' }),
+      roomParticipantFixture({ id: 'empty', identity: 'empty', displayName: 'Empty' })
+    ]
     const squareElements = new Map<string, HTMLElement>()
     const fullSquareElements = new Map<string, HTMLButtonElement>()
     const targets = (entered: boolean, hasQueuedMessage: boolean) => (
@@ -179,11 +184,11 @@ describe('QueuedMessageCard', () => {
   })
 
   it('expands an idle preview before opening an individual queue', async () => {
-    const participant = {
+    const participant = roomParticipantFixture({
       id: 'queued',
       identity: 'queued',
       displayName: 'Queued'
-    } as RoomParticipant
+    })
     const onOpen = vi.fn()
     const targets = () => (
       <DndContext>
@@ -250,15 +255,21 @@ describe('QueuedMessageCard', () => {
     })
     render(
       <RoomQueuedMessageCard
-        data={{ target: { kind: 'local' } } as RoomData}
-        message={
-          {
-            roomId: 'room',
-            attachments: [
-              { id: 'image-1', fileName: 'image.png', mimeType: 'image/png', byteSize: 5 }
-            ]
-          } as never
-        }
+        data={roomDataFixture({ target: { kind: 'local' } })}
+        message={roomMessageFixture({
+          roomId: 'room',
+          attachments: [
+            {
+              id: 'image-1',
+              messageId: 'room-message',
+              fileName: 'image.png',
+              mimeType: 'image/png',
+              byteSize: 5,
+              localPath: '/image.png',
+              createdAt: 1
+            }
+          ]
+        })}
         item={{ id: 'room-message', text: 'with image' }}
       />
     )
@@ -282,7 +293,11 @@ describe('QueuedMessageCard', () => {
     render(
       <DndContext>
         <RoomQueueSquareOverlay
-          participant={{ id: 'agent', identity: 'agent', displayName: 'Agent' } as RoomParticipant}
+          participant={roomParticipantFixture({
+            id: 'agent',
+            identity: 'agent',
+            displayName: 'Agent'
+          })}
           items={[{ id: 'queued', text: 'queued' }]}
           rows={(item) => <QueuedMessageCard item={item} onEdit={vi.fn()} />}
           closing={false}

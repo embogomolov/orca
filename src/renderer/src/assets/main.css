@@ -1912,15 +1912,15 @@ html.native-shell .app-layout {
   animation: collapsible-up 180ms ease-out;
 }
 
-.chat-activity-disclosure-content {
+[data-slot='collapsible-content'][data-animated='true'] {
   overflow: hidden;
 }
 
-.chat-activity-disclosure-content[data-state='open'] {
+[data-slot='collapsible-content'][data-animated='true'][data-state='open'] {
   animation: collapsible-down 200ms ease;
 }
 
-.chat-activity-disclosure-content[data-state='closed'] {
+[data-slot='collapsible-content'][data-animated='true'][data-state='closed'] {
   animation: collapsible-up 200ms ease;
 }
 
@@ -1944,7 +1944,7 @@ html.native-shell .app-layout {
 @media (prefers-reduced-motion: reduce) {
   .collapsible-height-content[data-state='open'],
   .collapsible-height-content[data-state='closed'],
-  .chat-activity-disclosure-content[data-state],
+  [data-slot='collapsible-content'][data-animated='true'][data-state],
   .room-activity-stack-sheet {
     animation: none;
     transition: none;

@@ -191,8 +191,14 @@ class RoutedRoomHarnessAdapter implements RoomHarnessAdapter {
     return this.forBinding(binding).subscribe(binding, callbacks)
   }
 
-  private forBinding(binding: RoomHarnessBinding): RoomHarnessAdapter {
-    return (binding.transport === 'machine' ? this.machine : this.terminal) as RoomHarnessAdapter
+  private forBinding(
+    binding: RoomHarnessBinding
+  ): Omit<RoomHarnessAdapter, 'statusEvent' | 'launch'> {
+    const adapter = binding.transport === 'machine' ? this.machine : this.terminal
+    if (!adapter) {
+      throw new Error('room_harness_unavailable')
+    }
+    return adapter
   }
 
   private shouldUseMachine(options?: RoomHarnessLaunchOptions): boolean {

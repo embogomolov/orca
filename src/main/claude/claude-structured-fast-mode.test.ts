@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import {
   acquired,
   adapterFor,
@@ -25,7 +26,10 @@ describe('Claude structured Fast mode', () => {
         list_models: () => models,
         get_settings: () => ({ effective: { fastMode: enabled } }),
         apply_flag_settings: (params) => {
-          enabled = (params!.settings as { fastMode: boolean }).fastMode
+          if (!isRecord(params?.settings) || typeof params.settings.fastMode !== 'boolean') {
+            throw new Error('Expected a Fast mode setting')
+          }
+          enabled = params.settings.fastMode
         }
       }
     })

@@ -115,7 +115,7 @@ export function RoomMessageAttachments({
   message,
   align = 'start'
 }: {
-  data: RoomData
+  data: Pick<RoomData, 'target'>
   message: RoomMessage
   align?: 'start' | 'end'
 }): React.JSX.Element | null {
@@ -179,7 +179,7 @@ function RoomMessageAttachmentCard({
   onPreview,
   onPreviewReady
 }: {
-  data: RoomData
+  data: Pick<RoomData, 'target'>
   message: RoomMessage
   attachment: RoomAttachment
   onPreview: () => void
@@ -348,7 +348,7 @@ function formatBytes(bytes: number): string {
 }
 
 async function saveAttachment(
-  data: RoomData,
+  data: Pick<RoomData, 'target'>,
   message: RoomMessage,
   attachment: RoomAttachment
 ): Promise<void> {

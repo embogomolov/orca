@@ -1,3 +1,4 @@
+import { roomMessageFixture, roomSnapshotFixture } from '../../../../shared/rooms.test-fixture'
 // @vitest-environment happy-dom
 
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -98,11 +99,11 @@ describe('useRoomData history pagination', () => {
 })
 
 function message(id: string, sequence: number): RoomMessage {
-  return { id, roomId: 'room-1', sequence } as RoomMessage
+  return roomMessageFixture({ id, roomId: 'room-1', sequence })
 }
 
 function snapshot(roomId: string): RoomSnapshot {
-  return {
+  return roomSnapshotFixture({
     room: { id: roomId },
     roles: [],
     participants: [],
@@ -110,7 +111,7 @@ function snapshot(roomId: string): RoomSnapshot {
     pins: [],
     unread: { unreadCount: 0 },
     deliveryQueueVersion: 1
-  } as unknown as RoomSnapshot
+  })
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {

@@ -3,16 +3,21 @@ import { PassThrough } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HarnessConversationDriverSink } from './driver'
 
-const mocks = vi.hoisted(() => ({
-  client: null as null | {
-    requestPermission: (request: unknown) => Promise<unknown>
-    sessionUpdate: (notification: unknown) => Promise<void>
-    extNotification: (method: string, params: Record<string, unknown>) => void
-  },
-  cancel: vi.fn(),
-  request: vi.fn(),
-  spawn: vi.fn()
-}))
+const mocks = vi.hoisted(() => {
+  const state: {
+    client: null | {
+      requestPermission: (request: unknown) => Promise<unknown>
+      sessionUpdate: (notification: unknown) => Promise<void>
+      extNotification: (method: string, params: Record<string, unknown>) => void
+    }
+  } = { client: null }
+  return {
+    ...state,
+    cancel: vi.fn(),
+    request: vi.fn(),
+    spawn: vi.fn()
+  }
+})
 
 vi.mock('../../shared/child-process/run-process', () => ({ spawnProcess: mocks.spawn }))
 vi.mock('./acp-session-start', () => ({
@@ -59,13 +64,13 @@ beforeEach(() => {
   mocks.client = null
   mocks.request.mockResolvedValue({ status: 'queued' })
   mocks.spawn.mockImplementation(() => {
-    const child = new EventEmitter() as EventEmitter & Record<string, unknown>
-    child.stdin = new PassThrough()
-    child.stdout = new PassThrough()
-    child.stderr = new PassThrough()
-    child.exitCode = null
-    child.kill = vi.fn()
-    return child
+    return Object.assign(new EventEmitter(), {
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      exitCode: null,
+      kill: vi.fn()
+    })
   })
 })
 

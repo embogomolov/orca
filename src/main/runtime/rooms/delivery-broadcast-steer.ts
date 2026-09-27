@@ -1,16 +1,16 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery, RoomParticipant, RoomProviderSession } from '../../../shared/rooms'
-import { deliveryFromRow, parseRoomJson, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
+import { parseRoomJson, roomProviderSessionSchema } from './row-json'
 import { isBroadcastMessage } from './delivery-broadcast-operations'
 import { roomDeliveryDispatchStopped } from './delivery-work-control'
 import { isRoomDeliveryMutable } from './delivery-mutability'
 
 const listForMessage = (db: SyncDatabase.Database, messageId: string): RoomDelivery[] =>
-  (
-    db
-      .prepare('SELECT * FROM room_deliveries WHERE message_id = ? ORDER BY participant_id')
-      .all(messageId) as RoomRow[]
-  ).map(deliveryFromRow)
+  db
+    .prepare('SELECT * FROM room_deliveries WHERE message_id = ? ORDER BY participant_id')
+    .all(messageId)
+    .map(deliveryFromRow)
 
 export function claimRoomBroadcastSteer(
   db: SyncDatabase.Database,
@@ -25,8 +25,9 @@ export function claimRoomBroadcastSteer(
     }
     const message = db
       .prepare('SELECT room_id, queue_edit_token FROM room_messages WHERE id = ?')
-      .get(messageId) as RoomRow
+      .get(messageId)
     if (
+      !message ||
       message.queue_edit_token !== null ||
       roomDeliveryDispatchStopped(db, String(message.room_id))
     ) {
@@ -38,7 +39,7 @@ export function claimRoomBroadcastSteer(
          FROM room_participants WHERE room_id = ? AND actor_kind = 'agent'
          AND participation = 'active' ORDER BY id`
       )
-      .all(String(message.room_id)) as RoomRow[]
+      .all(String(message.room_id))
     const active = activeRows.map((row) => String(row.id))
     if (
       expectedTargets.length !== activeRows.length ||
@@ -46,7 +47,7 @@ export function claimRoomBroadcastSteer(
       expectedTargets.some((target) => {
         const row = activeRows.find((candidate) => String(candidate.id) === target.participantId)
         const session = row
-          ? parseRoomJson<RoomProviderSession | null>(row.provider_session_json, null)
+          ? parseRoomJson(row.provider_session_json, roomProviderSessionSchema, null)
           : null
         return (
           !row ||

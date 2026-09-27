@@ -24,7 +24,7 @@ export class RoomDeliveryWorker {
   constructor(
     private readonly db: RoomDatabase,
     private readonly adapters: Record<string, RoomHarnessAdapter>,
-    private readonly attachments: RoomAttachmentManager,
+    private readonly attachments: Pick<RoomAttachmentManager, 'size'>,
     private readonly emit: (roomId: string, event: RoomEvent) => void,
     private readonly ensureParticipantReady: (participantId: string) => Promise<RoomParticipant>,
     confirmDeadlineMs = 30_000,

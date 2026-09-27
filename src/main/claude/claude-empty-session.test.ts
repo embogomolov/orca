@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AgentSessionRecord } from '../../shared/agent-session-record'
+import { agentSessionRecordFixture } from '../../shared/agent-session-record.test-fixture'
 import { openJournalDatabase } from '../native-chat/agent-session-journal/journal-database'
 import {
   journalDatabaseFile,
@@ -21,15 +22,27 @@ afterEach(async () => {
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'orca-empty-claude-'))
   roots.push(root)
-  const record = {
+  const record: AgentSessionRecord = {
+    ...agentSessionRecordFixture(),
     sessionId: 'orca-session',
     provider: 'claude',
-    location: { workspaceId: 'workspace', workspaceKind: 'folder' },
+    location: {
+      executionHostId: 'local',
+      wslDistro: null,
+      workspaceId: 'workspace',
+      workspaceKind: 'folder'
+    },
     accountHome: { variable: 'CLAUDE_CONFIG_DIR', path: join(root, 'account') },
     providerHandleChain: [
-      { origin: 'created', handle: { provider: 'claude', sessionId: providerId, leafUuid: null } }
+      {
+        linkId: 'link',
+        mintedAtFence: 1,
+        observedAt: 1,
+        origin: 'created',
+        handle: { provider: 'claude', sessionId: providerId, leafUuid: null }
+      }
     ]
-  } as AgentSessionRecord
+  }
   await mkdir(record.accountHome.path)
   const directory = journalDirectoryFor(root, {
     workspaceId: 'workspace',

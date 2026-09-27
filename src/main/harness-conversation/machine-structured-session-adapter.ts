@@ -4,8 +4,6 @@ import type {
   AgentJournalMessageItem,
   AgentSessionJournalIdentity
 } from '../../shared/agent-session-journal-types'
-import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
-import type { StructuredProviderConfiguration } from '../../shared/structured-agent-provider'
 import type {
   AgentSessionAcquisition,
   AgentSessionDispatchOutcome,
@@ -61,18 +59,18 @@ export class MachineStructuredSessionAdapter
     const previousId = providerSessionId(identity)
     const startEmpty =
       agent === 'openclaude' && (await this.deps.canStartEmptyClaudeSession?.(identity.sessionId))
-    const state = {
+    const state: Parameters<typeof createMachineStructuredSessionDriverSink>[0]['state'] = {
       processId: 0,
       providerSessionId: startEmpty ? null : previousId,
-      endedReason: null as string | null,
-      context: null as AgentSessionContextSnapshot | null,
-      configuration: null as StructuredProviderConfiguration | null,
-      transcriptPath: null as string | null,
-      subagents: [] as NonNullable<MachineStructuredSession['subagents']>
+      endedReason: null,
+      context: null,
+      configuration: null,
+      transcriptPath: null,
+      subagents: []
     }
     const messages = new Map<string, MachineStructuredMessage>()
     const prompts: MachineStructuredSession['prompts'] = new Map()
-    const sessionRef = { current: null as MachineStructuredSession | null }
+    const sessionRef: { current: MachineStructuredSession | null } = { current: null }
     const sink = createMachineStructuredSessionDriverSink({
       identity,
       events: input.events,

@@ -41,7 +41,7 @@ export function AgentSubagentProvider({
             sessions: loadedBySource[source.key]?.sessions ?? []
           }
         ])
-      ) as Record<string, AgentSubagentSourceData>,
+      ),
     [loadedBySource, sources]
   )
   const value = useMemo(

@@ -1,3 +1,4 @@
+import { roomHarnessAdapterTestFixture } from './room-harness-adapter-test-record'
 import { describe, expect, it, vi } from 'vitest'
 import type { RoomHarnessAgent } from '../../../shared/rooms'
 import { RoomDatabase } from './database'
@@ -142,14 +143,14 @@ function createMessage(
 }
 
 function adapter(getStatus: () => Promise<'idle' | 'working'>): RoomHarnessAdapter {
-  return {
+  return roomHarnessAdapterTestFixture({
     steer: vi.fn(),
     status: vi.fn(async () => ({
       handle: 'machine',
       isRunningAgent: true,
       status: await getStatus()
     }))
-  } as unknown as RoomHarnessAdapter
+  })
 }
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {

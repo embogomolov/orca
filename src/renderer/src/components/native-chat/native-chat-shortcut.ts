@@ -60,7 +60,10 @@ export function useNativeChatToggleRequest({
 }): void {
   useEffect(() => {
     const handleRequest = (event: Event): void => {
-      const request = event as CustomEvent<{ terminalTabId?: string }>
+      if (!(event instanceof CustomEvent)) {
+        return
+      }
+      const request = event
       if (request.detail?.terminalTabId !== tabId || !unifiedTabId) {
         return
       }

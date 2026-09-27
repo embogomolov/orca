@@ -22,7 +22,9 @@ export function providerImageData(path: string): {
   data: string
 } {
   providerAttachmentUri(path)
-  const mediaType = IMAGE_MEDIA_TYPES[extname(path).toLowerCase() as keyof typeof IMAGE_MEDIA_TYPES]
+  const mediaType = Object.entries(IMAGE_MEDIA_TYPES).find(
+    ([extension]) => extension === extname(path).toLowerCase()
+  )?.[1]
   if (!mediaType) {
     throw new Error(`attachment_type_unsupported:${path}`)
   }

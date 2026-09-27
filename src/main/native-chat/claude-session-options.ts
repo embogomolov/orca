@@ -1,4 +1,5 @@
 import type { AgentType } from '../../shared/agent-status-types'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 
 export type ClaudeSessionOptions = {
   fastMode: boolean
@@ -18,14 +19,11 @@ export function parseClaudeSessionOptionsRecord(
   } catch {
     return null
   }
-  if (typeof parsed !== 'object' || parsed === null) {
+  if (!isRecord(parsed)) {
     return null
   }
-  const record = parsed as Record<string, unknown>
-  const message =
-    typeof record.message === 'object' && record.message !== null
-      ? (record.message as Record<string, unknown>)
-      : null
+  const record = parsed
+  const message = isRecord(record.message) ? record.message : null
   const content = typeof message?.content === 'string' ? message.content.trim() : ''
   const match = /^<local-command-stdout>Fast mode (ON|OFF)<\/local-command-stdout>$/.exec(content)
   if (!match) {

@@ -1,6 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 
 export function recoverRoomDeliveries(
   db: SyncDatabase.Database,
@@ -13,15 +13,14 @@ export function recoverRoomDeliveries(
     now: number
   ) => RoomDelivery
 ): void {
-  const interrupted = (
-    db
-      .prepare(
-        `SELECT * FROM room_deliveries WHERE state = 'delivering' OR (
+  const interrupted = db
+    .prepare(
+      `SELECT * FROM room_deliveries WHERE state = 'delivering' OR (
            state = 'delivered' AND provider_turn_id IS NULL AND responded_at IS NULL
          )`
-      )
-      .all() as RoomRow[]
-  ).map(deliveryFromRow)
+    )
+    .all()
+    .map(deliveryFromRow)
   for (const delivery of interrupted) {
     const uncertain = delivery.phase !== 'waking'
     finish(

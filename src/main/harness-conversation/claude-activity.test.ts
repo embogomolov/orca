@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { HarnessConversationDriverSink } from './driver'
 import { ClaudeConversationActivity } from './claude-activity'
 
@@ -36,13 +35,13 @@ describe('ClaudeConversationActivity', () => {
     const sink = createSink()
     const activity = new ClaudeConversationActivity(sink)
 
-    activity.observe({
+    activity.observeContext({
       type: 'system',
       subtype: 'init',
       model: 'claude-opus',
       fast_mode_state: 'on'
-    } as unknown as SDKMessage)
-    activity.observe({
+    })
+    activity.observeContext({
       type: 'assistant',
       message: {
         model: 'claude-opus-5',
@@ -52,9 +51,9 @@ describe('ClaudeConversationActivity', () => {
           cache_read_input_tokens: 100
         }
       }
-    } as unknown as SDKMessage)
+    })
     activity.setTranscriptMetadata({ effort: 'high' })
-    activity.observe({
+    activity.observeContext({
       type: 'result',
       modelUsage: {
         'provider-model-id': {
@@ -68,14 +67,16 @@ describe('ClaudeConversationActivity', () => {
           maxOutputTokens: 32_000
         }
       }
-    } as unknown as SDKMessage)
+    })
     activity.observe({
       type: 'system',
       subtype: 'task_started',
       task_id: 'child',
       task_type: 'local_agent',
-      description: 'Inspect the renderer'
-    } as SDKMessage)
+      description: 'Inspect the renderer',
+      uuid: '00000000-0000-4000-8000-000000000000',
+      session_id: 'session-1'
+    })
 
     expect(sink.setContext).toHaveBeenLastCalledWith(
       expect.objectContaining({

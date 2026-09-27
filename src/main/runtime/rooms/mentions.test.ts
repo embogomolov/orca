@@ -1,12 +1,13 @@
+import { roomParticipantFixture } from '../../../shared/rooms.test-fixture'
 import { describe, expect, it } from 'vitest'
-import type { RoomParticipant } from '../../../shared/rooms'
+
 import { extractRoomReplyRecipients } from './mentions'
 
 const participants = [
-  { actorKind: 'agent', identity: 'codex' },
-  { actorKind: 'agent', identity: 'claude' },
-  { actorKind: 'user', identity: 'user' }
-] as RoomParticipant[]
+  roomParticipantFixture({ actorKind: 'agent', identity: 'codex' }),
+  roomParticipantFixture({ actorKind: 'agent', identity: 'claude' }),
+  roomParticipantFixture({ actorKind: 'user', identity: 'user' })
+]
 
 describe('room reply recipients', () => {
   it('routes only a valid structured footer', () => {

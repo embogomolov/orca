@@ -1,6 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery, RoomWorkState } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 
 export const roomDeliveryDispatchStopped = (db: SyncDatabase.Database, roomId: string): boolean =>
   Boolean(db.prepare('SELECT 1 FROM rooms WHERE id = ? AND delivery_queue_stopped = 1').get(roomId))
@@ -30,7 +30,10 @@ export function roomDeliveryWorkState(db: SyncDatabase.Database, roomId: string)
          ) AS stopping
        FROM rooms WHERE rooms.id = ?`
     )
-    .get(roomId, roomId, roomId) as { active: number; stopping: number; stopped: number }
+    .get(roomId, roomId, roomId)
+  if (!row) {
+    throw new Error('room_not_found')
+  }
   return row.stopping ? 'active' : row.stopped ? 'stopped' : row.active ? 'active' : 'idle'
 }
 
@@ -38,10 +41,9 @@ export function stopRoomDeliveries(
   db: SyncDatabase.Database,
   roomId: string
 ): { stopped: RoomDelivery[]; deliveries: RoomDelivery[] } {
-  const stopped = (
-    db
-      .prepare(
-        `SELECT d.* FROM room_deliveries d
+  const stopped = db
+    .prepare(
+      `SELECT d.* FROM room_deliveries d
          JOIN room_messages m ON m.id = d.message_id
          WHERE m.room_id = ? AND (
            d.state IN ('pending', 'delivering') OR
@@ -49,9 +51,9 @@ export function stopRoomDeliveries(
            (d.state = 'failed' AND d.error = 'room_delivery_uncertain') OR
            (d.state = 'suppressed' AND d.error = 'room_stopping')
          )`
-      )
-      .all(roomId) as RoomRow[]
-  ).map(deliveryFromRow)
+    )
+    .all(roomId)
+    .map(deliveryFromRow)
   if (stopped.length === 0) {
     return { stopped, deliveries: [] }
   }
@@ -74,16 +76,15 @@ export function stopMessageDeliveries(
   db: SyncDatabase.Database,
   messageId: string
 ): { stopped: RoomDelivery[]; deliveries: RoomDelivery[] } {
-  const stopped = (
-    db
-      .prepare(
-        `SELECT * FROM room_deliveries WHERE message_id = ? AND (
+  const stopped = db
+    .prepare(
+      `SELECT * FROM room_deliveries WHERE message_id = ? AND (
            state IN ('pending', 'delivering', 'failed', 'suppressed') OR
            (state = 'delivered' AND responded_at IS NULL)
          )`
-      )
-      .all(messageId) as RoomRow[]
-  ).map(deliveryFromRow)
+    )
+    .all(messageId)
+    .map(deliveryFromRow)
   if (stopped.length === 0) {
     return { stopped, deliveries: [] }
   }
@@ -114,22 +115,20 @@ export function resumeRoomDeliveries(
   }
   const manuallyPaused = roomDeliveryDispatchStopped(db, roomId)
   const manuallyStopped = manuallyPaused
-    ? (
-        db
-          .prepare(
-            `SELECT d.* FROM room_deliveries d
+    ? db
+        .prepare(
+          `SELECT d.* FROM room_deliveries d
          JOIN room_messages m ON m.id = d.message_id
          WHERE m.room_id = ? AND d.state = 'suppressed' AND d.error = 'room_stopped'`
-          )
-          .all(roomId) as RoomRow[]
-      ).map(deliveryFromRow)
+        )
+        .all(roomId)
+        .map(deliveryFromRow)
     : []
   const resumable = manuallyPaused
     ? manuallyStopped
-    : (
-        db
-          .prepare(
-            `SELECT d.* FROM room_deliveries d
+    : db
+        .prepare(
+          `SELECT d.* FROM room_deliveries d
                JOIN room_messages m ON m.id = d.message_id
                WHERE m.room_id = ? AND d.state = 'suppressed' AND d.error IS NULL
                  AND m.sequence = (
@@ -139,9 +138,9 @@ export function resumeRoomDeliveries(
                    WHERE latest.room_id = ? AND latest_delivery.state = 'suppressed'
                      AND latest_delivery.error IS NULL
                  )`
-          )
-          .all(roomId, roomId) as RoomRow[]
-      ).map(deliveryFromRow)
+        )
+        .all(roomId, roomId)
+        .map(deliveryFromRow)
   if (resumable.length === 0) {
     if (manuallyPaused) {
       db.prepare('UPDATE rooms SET delivery_queue_stopped = 0 WHERE id = ?').run(roomId)
@@ -180,11 +179,10 @@ export function resumeRoomDeliveries(
     db.prepare('UPDATE rooms SET delivery_queue_stopped = 0 WHERE id = ?').run(roomId)
   }
   const activeIds = new Set(
-    (
-      db
-        .prepare('SELECT id FROM room_participants WHERE room_id = ? AND participation = ?')
-        .all(roomId, 'active') as RoomRow[]
-    ).map((row) => String(row.id))
+    db
+      .prepare('SELECT id FROM room_participants WHERE room_id = ? AND participation = ?')
+      .all(roomId, 'active')
+      .map((row) => String(row.id))
   )
   return {
     resumed: deliveries.filter(
@@ -204,14 +202,13 @@ export function supersedeRoomStop(db: SyncDatabase.Database, roomId: string): Ro
   if (stopping) {
     throw new Error('room_stop_in_progress')
   }
-  const stopped = (
-    db
-      .prepare(
-        `SELECT d.* FROM room_deliveries d JOIN room_messages m ON m.id = d.message_id
+  const stopped = db
+    .prepare(
+      `SELECT d.* FROM room_deliveries d JOIN room_messages m ON m.id = d.message_id
          WHERE m.room_id = ? AND d.state = 'suppressed' AND d.error = 'room_stopped'`
-      )
-      .all(roomId) as RoomRow[]
-  ).map(deliveryFromRow)
+    )
+    .all(roomId)
+    .map(deliveryFromRow)
   if (stopped.length === 0) {
     db.prepare('UPDATE rooms SET delivery_queue_stopped = 0 WHERE id = ?').run(roomId)
     return []
@@ -246,9 +243,7 @@ export function finishRoomStop(
 
 function deliveriesById(db: SyncDatabase.Database, ids: string[]): RoomDelivery[] {
   const placeholders = ids.map(() => '?').join(', ')
-  const rows = db
-    .prepare(`SELECT * FROM room_deliveries WHERE id IN (${placeholders})`)
-    .all(...ids) as RoomRow[]
+  const rows = db.prepare(`SELECT * FROM room_deliveries WHERE id IN (${placeholders})`).all(...ids)
   const deliveries = new Map(rows.map((row) => [String(row.id), deliveryFromRow(row)]))
   return ids.flatMap((id) => {
     const delivery = deliveries.get(id)

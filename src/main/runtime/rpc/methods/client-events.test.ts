@@ -1,12 +1,9 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RuntimeClientEvent } from '../../../../shared/runtime-client-events'
-import type { OrcaRuntimeService } from '../../orca-runtime'
-import {
-  eraseRpcMethods,
-  isStreamingMethod,
-  type RpcContext,
-  type RpcStreamingMethod
-} from '../core'
+import { OrcaRuntimeService } from '../../orca-runtime'
+import { RoomService } from '../../rooms/service'
+import { roomHarnessRuntimeFixture } from '../../rooms/room-harness-runtime.test-fixture'
+import { eraseRpcMethods, isStreamingMethod, type RpcStreamingMethod } from '../core'
 // Why: importing client-events directly trips its module-init cycle through ipc/ssh; the index resolves it.
 import { ALL_RPC_METHODS } from './index'
 
@@ -27,15 +24,19 @@ function makeRuntime(): {
     ) =>
       () => {}
   )
-  const runtime = {
-    onClientEvent,
-    getRoomService: () => ({
-      db: { notificationReplay: { list: () => ({ cursor: 42 }) } }
-    }),
-    registerSubscriptionCleanup: (_id: string, cleanup: () => void) => {
-      cleanups.push(cleanup)
-    }
-  } as unknown as OrcaRuntimeService
+  const runtime = new OrcaRuntimeService()
+  const rooms = new RoomService(':memory:', roomHarnessRuntimeFixture(), {})
+  afterEach(() => rooms.close())
+  vi.spyOn(rooms.db.notificationReplay, 'list').mockReturnValue({
+    messages: [],
+    cursor: 42,
+    hasMore: false
+  })
+  vi.spyOn(runtime, 'getRoomService').mockReturnValue(rooms)
+  vi.spyOn(runtime, 'onClientEvent').mockImplementation(onClientEvent)
+  vi.spyOn(runtime, 'registerSubscriptionCleanup').mockImplementation((_id, cleanup) => {
+    cleanups.push(cleanup)
+  })
   return { runtime, onClientEvent, cleanups }
 }
 
@@ -45,7 +46,7 @@ describe('runtime.clientEvents.subscribe', () => {
 
     const done = subscribeMethod.handler(
       undefined,
-      { runtime, connectionId: 'conn-1', clientKind: 'mobile' } as RpcContext,
+      { runtime, connectionId: 'conn-1', clientKind: 'mobile' },
       () => {}
     )
 
@@ -59,11 +60,7 @@ describe('runtime.clientEvents.subscribe', () => {
   it('keeps non-mobile subscriptions consuming terminal side effects', async () => {
     const { runtime, onClientEvent, cleanups } = makeRuntime()
 
-    const done = subscribeMethod.handler(
-      undefined,
-      { runtime, connectionId: 'conn-1' } as RpcContext,
-      () => {}
-    )
+    const done = subscribeMethod.handler(undefined, { runtime, connectionId: 'conn-1' }, () => {})
 
     expect(onClientEvent).toHaveBeenCalledWith(expect.any(Function), {
       consumesTerminalSideEffects: true
@@ -76,11 +73,7 @@ describe('runtime.clientEvents.subscribe', () => {
     const { runtime, cleanups } = makeRuntime()
     const emit = vi.fn()
 
-    const done = subscribeMethod.handler(
-      undefined,
-      { runtime, connectionId: 'conn-1' } as RpcContext,
-      emit
-    )
+    const done = subscribeMethod.handler(undefined, { runtime, connectionId: 'conn-1' }, emit)
 
     expect(emit).toHaveBeenCalledWith(
       expect.objectContaining({

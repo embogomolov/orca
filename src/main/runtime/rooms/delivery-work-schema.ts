@@ -1,7 +1,7 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 
 export function ensureRoomDeliveryWorkSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(rooms)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(rooms)').all()
   if (!columns.some((column) => column.name === 'delivery_queue_stopped')) {
     db.exec(
       `ALTER TABLE rooms ADD COLUMN delivery_queue_stopped INTEGER NOT NULL DEFAULT 0

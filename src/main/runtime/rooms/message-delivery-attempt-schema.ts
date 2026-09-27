@@ -1,7 +1,7 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 
 export function ensureRoomMessageDeliveryAttemptSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(room_messages)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(room_messages)').all()
   if (!columns.some((column) => column.name === 'delivery_attempted')) {
     db.exec(
       `ALTER TABLE room_messages ADD COLUMN delivery_attempted INTEGER NOT NULL DEFAULT 0

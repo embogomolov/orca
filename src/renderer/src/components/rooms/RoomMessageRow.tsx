@@ -184,7 +184,7 @@ export function RoomMessageRow({
           })}
         </span>
         {message.mentions.map((identity) => (
-          <Badge key={identity} variant="secondary" className="px-1.5 py-0 text-[10px]">
+          <Badge key={identity} variant="secondary" size="sm">
             @{identity}
           </Badge>
         ))}

@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest'
-import type { RoomHarnessRuntime } from './harness-adapter'
+import { roomHarnessRuntimeFixture } from './room-harness-runtime.test-fixture'
 import { RoomService } from './service'
 import { roomHarnessAdapterTestRecord } from './room-harness-adapter-test-record'
 
@@ -21,10 +21,10 @@ it.each([{ contender: 'stop' as const }, { contender: 'delete' as const }])(
       updatedAt: 1
     })
     const steer = vi.fn(async () => ({ handle: snapshot().id, accepted: true, bytesWritten: 1 }))
-    const runtime = {
+    const runtime = roomHarnessRuntimeFixture({
       listRoomRunningAgents: async () => [],
       listRoomExistingAgents: async () => []
-    } as unknown as RoomHarnessRuntime
+    })
     const adapters = roomHarnessAdapterTestRecord({
       status: async () => {
         if (firstRead) {

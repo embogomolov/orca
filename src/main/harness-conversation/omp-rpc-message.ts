@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import type { HarnessConversationDriverSink } from './driver'
 
 export type OmpAssistantMessage = {
@@ -10,10 +11,10 @@ export type OmpAssistantMessage = {
 export type OmpTextStreams = Map<'assistant' | 'reasoning', { id: string; text: string }>
 
 export function ompAssistantMessage(value: unknown): OmpAssistantMessage | null {
-  if (!value || typeof value !== 'object' || (value as { role?: unknown }).role !== 'assistant') {
+  if (!isRecord(value) || value.role !== 'assistant') {
     return null
   }
-  return value as OmpAssistantMessage
+  return { role: value.role, stopReason: value.stopReason, content: value.content }
 }
 
 export function completeOmpResponse(
@@ -66,10 +67,10 @@ function ompMessageText(message: OmpAssistantMessage, role: 'assistant' | 'reaso
   const key = role === 'assistant' ? 'text' : 'thinking'
   return message.content
     .flatMap((block) => {
-      if (!block || typeof block !== 'object' || (block as { type?: unknown }).type !== type) {
+      if (!isRecord(block) || block.type !== type) {
         return []
       }
-      const text = (block as Record<string, unknown>)[key]
+      const text = block[key]
       return typeof text === 'string' ? [text] : []
     })
     .join('\n\n')
@@ -80,9 +81,6 @@ function isOmpTerminalAnswer(message?: OmpAssistantMessage): boolean {
     message?.stopReason === 'stop' &&
     ompMessageText(message, 'assistant').trim() &&
     Array.isArray(message.content) &&
-    !message.content.some(
-      (block) =>
-        block && typeof block === 'object' && (block as { type?: unknown }).type === 'toolCall'
-    )
+    !message.content.some((block) => isRecord(block) && block.type === 'toolCall')
   )
 }

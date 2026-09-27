@@ -6,7 +6,7 @@ import type {
   RoomMessagePage,
   RoomUnread
 } from '../../../shared/rooms'
-import { attachmentFromRow, type RoomRow } from './rows'
+import { attachmentFromRow } from './rows'
 import { RoomDeliveryStore } from './deliveries'
 import { getRoomUnread, hydrateRoomMessages } from './message-queries'
 import type { CreateRoomMessage } from './message-input'
@@ -30,9 +30,7 @@ export class RoomMessageStore {
     ]
     this.db.exec('SAVEPOINT room_message_create')
     try {
-      const room = this.db
-        .prepare('SELECT loop_limit FROM rooms WHERE id = ?')
-        .get(input.roomId) as RoomRow | undefined
+      const room = this.db.prepare('SELECT loop_limit FROM rooms WHERE id = ?').get(input.roomId)
       if (!room) {
         throw new Error('room_not_found')
       }
@@ -42,9 +40,7 @@ export class RoomMessageStore {
             `SELECT id FROM room_participants
              WHERE id = ? AND room_id = ? AND actor_kind = ? AND identity = ? COLLATE NOCASE`
           )
-          .get(input.senderId, input.roomId, input.actorKind, input.senderIdentity) as
-          | RoomRow
-          | undefined
+          .get(input.senderId, input.roomId, input.actorKind, input.senderIdentity)
         if (!sender) {
           throw new Error('room_message_sender_invalid')
         }
@@ -52,12 +48,12 @@ export class RoomMessageStore {
         throw new Error('room_message_sender_required')
       }
       const parent = input.replyToId
-        ? (this.db
+        ? this.db
             .prepare(
               `SELECT id, root_message_id, hop_count FROM room_messages
                WHERE id = ? AND room_id = ? AND deleted_at IS NULL`
             )
-            .get(input.replyToId, input.roomId) as RoomRow | undefined)
+            .get(input.replyToId, input.roomId)
         : undefined
       if (input.replyToId && !parent) {
         throw new Error('room_reply_not_found')
@@ -131,9 +127,7 @@ export class RoomMessageStore {
   }
 
   get(id: string): RoomMessage {
-    const row = this.db.prepare('SELECT * FROM room_messages WHERE id = ?').get(id) as
-      | RoomRow
-      | undefined
+    const row = this.db.prepare('SELECT * FROM room_messages WHERE id = ?').get(id)
     if (!row) {
       throw new Error('room_message_not_found')
     }
@@ -157,7 +151,7 @@ export class RoomMessageStore {
          JOIN room_messages m ON m.id = a.message_id
          WHERE a.id = ? AND m.room_id = ? AND m.deleted_at IS NULL`
       )
-      .get(id, roomId) as RoomRow | undefined
+      .get(id, roomId)
     if (!row) {
       throw new Error('room_attachment_not_found')
     }
@@ -165,14 +159,13 @@ export class RoomMessageStore {
   }
 
   listAttachments(roomId: string): RoomAttachment[] {
-    return (
-      this.db
-        .prepare(
-          `SELECT a.* FROM room_attachments a
+    return this.db
+      .prepare(
+        `SELECT a.* FROM room_attachments a
            JOIN room_messages m ON m.id = a.message_id WHERE m.room_id = ?`
-        )
-        .all(roomId) as RoomRow[]
-    ).map(attachmentFromRow)
+      )
+      .all(roomId)
+      .map(attachmentFromRow)
   }
 
   linkReply(id: string, replyToId: string): void {
@@ -210,7 +203,7 @@ export class RoomMessageStore {
          WHERE room_id = ? AND (? IS NULL OR sequence < ?)
          ORDER BY sequence DESC LIMIT ?`
       )
-      .all(roomId, beforeSequence, beforeSequence, boundedLimit + 1) as RoomRow[]
+      .all(roomId, beforeSequence, beforeSequence, boundedLimit + 1)
     const hasMore = rows.length > boundedLimit
     const pageRows = rows.slice(0, boundedLimit).toReversed()
     const messages = hydrateRoomMessages(this.db, pageRows)
@@ -234,7 +227,7 @@ export class RoomMessageStore {
          )
          ORDER BY m.sequence`
       )
-      .all(roomId) as RoomRow[]
+      .all(roomId)
     const messages = hydrateRoomMessages(this.db, rows)
     return { messages, deliveries: this.deliveries.listForMessages(messages.map(({ id }) => id)) }
   }
@@ -255,7 +248,7 @@ export class RoomMessageStore {
     const paths = this.db
       .prepare(`SELECT local_path FROM room_attachments WHERE message_id IN (${placeholders})`)
       .all(...ids)
-      .map((row) => String((row as RoomRow).local_path))
+      .map((row) => String(row.local_path))
     this.db.exec('BEGIN IMMEDIATE')
     try {
       this.db
@@ -279,7 +272,7 @@ export class RoomMessageStore {
     const now = Date.now()
     const row = this.db
       .prepare('SELECT max(sequence) AS sequence FROM room_messages WHERE room_id = ?')
-      .get(roomId) as RoomRow | undefined
+      .get(roomId)
     const boundedSequence = Math.min(Math.max(0, sequence), Number(row?.sequence ?? 0))
     this.db
       .prepare(

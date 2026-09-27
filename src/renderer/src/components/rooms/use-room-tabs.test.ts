@@ -4,8 +4,18 @@ import { getRoomTabIds } from './use-room-tabs'
 
 describe('room tab cleanup', () => {
   it('selects every tab for the deleted room across worktrees', () => {
-    const tab = (id: string, entityId: string, contentType: Tab['contentType'] = 'room') =>
-      ({ id, entityId, contentType }) as Tab
+    const tab = (id: string, entityId: string, contentType: Tab['contentType'] = 'room'): Tab => ({
+      id,
+      entityId,
+      contentType,
+      groupId: 'group',
+      worktreeId: 'worktree',
+      label: id,
+      customLabel: null,
+      color: null,
+      sortOrder: 0,
+      createdAt: 1
+    })
 
     expect(
       getRoomTabIds(

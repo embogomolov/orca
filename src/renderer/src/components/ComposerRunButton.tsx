@@ -28,7 +28,8 @@ export function ComposerRunButton({
       onClick={onClick}
       variant={mode === 'stop' ? 'secondary' : 'default'}
       size="icon-sm"
-      className="rounded-full pointer-coarse:size-10"
+      shape="round"
+      className="pointer-coarse:size-10"
     >
       {loading ? (
         <LoaderCircle className="size-4 animate-spin" />

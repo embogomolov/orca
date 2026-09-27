@@ -155,7 +155,7 @@ function createFadePlugin(): () => (tree: MarkdownNode) => void {
 
 function createFadeSpan(timeline: FadeTimeline): Components['span'] {
   return function FadeSpan({ node: _node, ...props }): React.JSX.Element {
-    const attributes = props as Record<string, unknown>
+    const attributes = props
     const segmentKey = attributes['data-streaming-fade-key']
     if (typeof segmentKey !== 'string') {
       return <span {...props} />
@@ -166,15 +166,14 @@ function createFadeSpan(timeline: FadeTimeline): Components['span'] {
       timeline.settled.add(segmentKey)
       return <span {...props} />
     }
+    const style: React.CSSProperties & { '--streaming-markdown-fade-delay': string } = {
+      '--streaming-markdown-fade-delay': `${Math.round(startAt - now)}ms`
+    }
     return (
       <span
         {...props}
         className="streaming-markdown-fade-segment"
-        style={
-          {
-            '--streaming-markdown-fade-delay': `${Math.round(startAt - now)}ms`
-          } as React.CSSProperties
-        }
+        style={style}
         onAnimationEnd={(event) => {
           if (event.target === event.currentTarget) {
             timeline.settled.add(segmentKey)

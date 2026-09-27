@@ -30,8 +30,8 @@ vi.mock('@/components/ui/tooltip', () => ({
   TooltipContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@/components/ui/dropdown-menu', () => {
-  const React = require('react') as typeof ReactModule
+vi.mock('@/components/ui/dropdown-menu', async () => {
+  const React = await vi.importActual<typeof ReactModule>('react')
   return {
     DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     DropdownMenuTrigger: ({
@@ -103,14 +103,16 @@ vi.mock('@/components/ui/dropdown-menu', () => {
         data-on-value-change={onValueChange ? '1' : '0'}
       >
         {React.Children.map(children, (child) => {
-          if (!React.isValidElement(child)) {
+          if (
+            !React.isValidElement<{
+              value?: string
+              disabled?: boolean
+              children?: React.ReactNode
+            }>(child)
+          ) {
             return child
           }
-          const props = child.props as {
-            value?: string
-            disabled?: boolean
-            children?: React.ReactNode
-          }
+          const props = child.props
           const selected = props.value !== undefined && props.value === value
           return (
             <button
@@ -139,11 +141,7 @@ vi.mock('@/components/ui/dropdown-menu', () => {
     }: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }) => (
       // Why: parent RadioGroup mock reads `value` via Children.map — keep it on
       // props even though native span has no value attribute.
-      <span
-        data-radio-item
-        data-disabled={disabled || undefined}
-        {...({ value } as Record<string, string>)}
-      >
+      <span data-radio-item data-disabled={disabled || undefined} {...{ value }}>
         {children}
       </span>
     )

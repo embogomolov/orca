@@ -340,11 +340,9 @@ export function RoomQueueSquareOverlay({
         }}
         aria-describedby={undefined}
         showCloseButton
-        overlayClassName="pointer-events-none bg-transparent backdrop-blur-none"
-        className={cn(
-          'flex max-h-[min(50dvh,24rem)] min-w-0 flex-col gap-2 p-3 sm:max-w-md',
-          receiving && 'bg-accent'
-        )}
+        variant="floating"
+        highlighted={receiving}
+        className="flex max-h-[min(50dvh,24rem)] min-w-0 flex-col sm:max-w-md"
         onOpenAutoFocus={(event) => event.preventDefault()}
         onInteractOutside={(event) => {
           const target = event.detail.originalEvent.target
@@ -353,10 +351,12 @@ export function RoomQueueSquareOverlay({
           }
         }}
       >
-        <DialogHeader className="flex-row items-center gap-2 pr-8 text-left">
+        <DialogHeader inline>
           <RoomAuthorAvatar actorKind="agent" participant={participant} />
           <div className="min-w-0">
-            <DialogTitle className="truncate text-sm">@{participant.identity}</DialogTitle>
+            <DialogTitle size="sm">
+              <span className="block truncate">@{participant.identity}</span>
+            </DialogTitle>
             {participant.displayName !== participant.identity ? (
               <p className="truncate text-[11px] text-muted-foreground">
                 {participant.displayName}

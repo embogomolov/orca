@@ -5,7 +5,7 @@ import type { RoomHarnessAdapter, RoomHarnessBinding } from './harness-adapter'
 export async function stageRoomDeliveryAttachments(input: {
   adapter: RoomHarnessAdapter
   binding: RoomHarnessBinding
-  attachments: RoomAttachmentManager
+  attachments: Pick<RoomAttachmentManager, 'size'>
   messages: RoomMessage[]
 }): Promise<ReadonlyMap<string, string>> {
   const paths = new Map<string, string>()

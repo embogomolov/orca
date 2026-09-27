@@ -1,3 +1,4 @@
+import { roomDataFixture } from './room-data.test-fixture'
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,7 +56,7 @@ const participant = (id: string): RoomParticipant => ({
 })
 
 const roomData = (deliveryQueueVersion?: 1): RoomData =>
-  ({
+  roomDataFixture({
     target: { kind: 'local' },
     roomId: 'room',
     snapshot: {
@@ -65,7 +66,7 @@ const roomData = (deliveryQueueVersion?: 1): RoomData =>
     },
     messages: [],
     deliveries: {}
-  }) as RoomData
+  })
 
 describe('RoomComposer queue targets', () => {
   beforeEach(() => mocks.rpc.mockResolvedValue({ message: {} }))

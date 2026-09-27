@@ -94,10 +94,9 @@ describe('#10142 close confirmation policy is the same for keyboard and mouse', 
 
   it('hides a revealed room terminal without closing its busy session', () => {
     const notifyTerminalSurfaceClosed = vi.fn()
-    const previousWindow = globalThis.window
-    globalThis.window = {
+    vi.stubGlobal('window', {
       api: { ui: { notifyTerminalSurfaceClosed } }
-    } as never
+    })
     getStateMock.mockReturnValue({
       ...stateWithBusyTerminalTab(closeTab),
       tabsByWorktree: {
@@ -108,7 +107,7 @@ describe('#10142 close confirmation policy is the same for keyboard and mouse', 
     try {
       closeTerminalTab('tab-busy')
     } finally {
-      globalThis.window = previousWindow
+      vi.unstubAllGlobals()
     }
 
     expect(closeTab).toHaveBeenCalledWith('tab-busy', { preserveSessionOnClose: true })

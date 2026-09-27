@@ -106,8 +106,8 @@ export function archiveMetadata(value: unknown, sourceId: string): ArchiveJsonRe
 }
 
 export function archiveMessageKind(value: unknown): RoomMessage['kind'] {
-  return ['chat', 'system', 'decision', 'proposal'].includes(String(value))
-    ? (value as RoomMessage['kind'])
+  return value === 'chat' || value === 'system' || value === 'decision' || value === 'proposal'
+    ? value
     : 'system'
 }
 

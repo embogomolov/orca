@@ -1,6 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 
 const QUEUEABLE = `(d.state = 'pending' OR (
   d.state = 'suppressed' AND d.error = 'room_stopped'
@@ -15,10 +15,9 @@ const MUTABLE = `(d.attempts = 0 AND (
 ))`
 
 export function listMutableRoomBroadcastIds(db: SyncDatabase.Database, roomId: string): string[] {
-  return (
-    db
-      .prepare(
-        `SELECT m.id FROM room_messages m
+  return db
+    .prepare(
+      `SELECT m.id FROM room_messages m
          WHERE m.room_id = ? AND m.actor_kind = 'user'
          AND m.queue_edit_token IS NULL
          AND EXISTS (
@@ -37,9 +36,9 @@ export function listMutableRoomBroadcastIds(db: SyncDatabase.Database, roomId: s
            SELECT 1 FROM room_deliveries d WHERE d.message_id = m.id AND NOT ${MUTABLE}
          )
          ORDER BY m.sequence`
-      )
-      .all(roomId) as RoomRow[]
-  ).map((row) => String(row.id))
+    )
+    .all(roomId)
+    .map((row) => String(row.id))
 }
 
 export function normalizeNewRoomBroadcasts(
@@ -60,13 +59,13 @@ export function normalizeNewRoomBroadcasts(
        WHERE m.id IN (${placeholders}) AND ${QUEUEABLE}
        GROUP BY m.id ORDER BY position, m.sequence`
     )
-    .all(...promoted) as RoomRow[]
+    .all(...promoted)
   const participants = db
     .prepare(
       `SELECT id FROM room_participants
        WHERE room_id = ? AND actor_kind = 'agent' AND participation = 'active' ORDER BY id`
     )
-    .all(roomId) as RoomRow[]
+    .all(roomId)
   const find = db.prepare(
     `SELECT id FROM room_deliveries d
      WHERE d.message_id = ? AND d.participant_id = ? AND ${QUEUEABLE}`
@@ -78,14 +77,17 @@ export function normalizeNewRoomBroadcasts(
   const next = new Map(
     participants.map((participant) => {
       const id = String(participant.id)
-      return [id, Number((tail.get(id) as RoomRow).position)]
+      return [id, Number(tail.get(id)!.position)]
     })
   )
   const changed: string[] = []
   for (const message of ordered) {
     for (const participant of participants) {
       const participantId = String(participant.id)
-      const delivery = find.get(String(message.id), participantId) as RoomRow
+      const delivery = find.get(String(message.id), participantId)
+      if (!delivery) {
+        throw new Error('room_delivery_queue_stale')
+      }
       const position = next.get(participantId)!
       update.run(position, String(delivery.id))
       next.set(participantId, position + 1)
@@ -98,7 +100,7 @@ export function normalizeNewRoomBroadcasts(
   const changedPlaceholders = changed.map(() => '?').join(', ')
   const rows = db
     .prepare(`SELECT * FROM room_deliveries WHERE id IN (${changedPlaceholders})`)
-    .all(...changed) as RoomRow[]
+    .all(...changed)
   const byId = new Map(rows.map((row) => [String(row.id), deliveryFromRow(row)]))
   return changed.map((id) => byId.get(id)!)
 }

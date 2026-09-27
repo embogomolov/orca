@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { RoomEvent } from '../../../shared/rooms'
-import type { RoomAttachmentManager } from './attachments'
+
 import { RoomDatabase } from './database'
 import { claimRoomBroadcastForTest } from './delivery-test-claim'
 import { RoomMessageController } from './message-controller'
@@ -28,7 +28,7 @@ describe('room message recipients', () => {
         {
           consumeUploads: async () => [],
           remove: async () => {}
-        } as unknown as RoomAttachmentManager,
+        },
         () => {},
         () => {}
       )
@@ -105,7 +105,7 @@ describe('room message recipients', () => {
         {
           consumeUploads: async () => [],
           remove: async () => {}
-        } as unknown as RoomAttachmentManager,
+        },
         () => {},
         () => {}
       )
@@ -170,7 +170,7 @@ describe('room message recipients', () => {
         {
           consumeUploads: async () => [],
           remove: async () => {}
-        } as unknown as RoomAttachmentManager,
+        },
         (_roomId, event) => events.push(event),
         () => {}
       )

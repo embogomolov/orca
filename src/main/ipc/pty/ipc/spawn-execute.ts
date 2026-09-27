@@ -49,12 +49,8 @@ export async function executePtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<void> {
       sequence: 0,
       recentOutputMark: null
     }
-    if (
-      ctx.preAdoptedStablePane &&
-      'outputBoundary' in ctx.preAdoptedStablePane &&
-      ctx.preAdoptedStablePane.outputBoundary
-    ) {
-      outputBoundary = ctx.preAdoptedStablePane.outputBoundary as PtyOutputBoundary
+    if (ctx.preAdoptedStablePane?.outputBoundary) {
+      outputBoundary = ctx.preAdoptedStablePane.outputBoundary
     }
     const stablePaneSpawn = ctx.preAdoptedStablePane
       ? ctx.preAdoptedStablePane
@@ -79,8 +75,7 @@ export async function executePtyIpcSpawn(ctx: PtyIpcSpawnState): Promise<void> {
     ctx.result = stablePaneSpawn.result
     ctx.stablePaneOwner = stablePaneSpawn.owner
     if ('outputBoundary' in stablePaneSpawn) {
-      outputBoundary =
-        (stablePaneSpawn.outputBoundary as PtyOutputBoundary | undefined) ?? outputBoundary
+      outputBoundary = stablePaneSpawn.outputBoundary ?? outputBoundary
     }
     if (
       ctx.stablePaneOwner &&

@@ -1,5 +1,6 @@
+import { aiVaultSessionFixture } from '../../../../shared/ai-vault-session.test-fixture'
 import { describe, expect, it } from 'vitest'
-import type { AiVaultSession } from '../../../../shared/ai-vault-types'
+
 import {
   subagentDisplayName,
   subagentsInTurn,
@@ -41,7 +42,7 @@ describe('subagentsInTurn', () => {
     const data: AgentSubagentSourceData = {
       loading: false,
       sessions: [
-        {
+        aiVaultSessionFixture({
           sessionId: 'child',
           title: 'Boole',
           modifiedAt: new Date(1_000).toISOString(),
@@ -51,7 +52,7 @@ describe('subagentsInTurn', () => {
             status: 'completed',
             turnStartedAts: [11_000, 21_000]
           }
-        } as AiVaultSession
+        })
       ],
       source: {
         key: 'codex',

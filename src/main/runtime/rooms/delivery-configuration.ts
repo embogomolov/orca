@@ -1,14 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { Room, RoomParticipant, RoomRole } from '../../../shared/rooms'
 
-type DeliveredConfigurationRow = {
-  provider_session_key: string | null
-  provider_session_id: string | null
-  description: string
-  role_revision: string
-  force_full: number
-}
-
 export type RoomDeliveryConfiguration = {
   description?: string
   role?: RoomRole | null
@@ -51,7 +43,7 @@ export class RoomDeliveryConfigurationStore {
     const snapshot = this.snapshot(input)
     const delivered = this.db
       .prepare('SELECT * FROM room_delivery_configuration WHERE participant_id = ?')
-      .get(input.participant.id) as DeliveredConfigurationRow | undefined
+      .get(input.participant.id)
     const full =
       !delivered ||
       delivered.force_full === 1 ||

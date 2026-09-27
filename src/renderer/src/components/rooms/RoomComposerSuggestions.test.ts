@@ -1,5 +1,6 @@
+import { roomParticipantFixture } from '../../../../shared/rooms.test-fixture'
 import { describe, expect, it } from 'vitest'
-import type { RoomParticipant } from '../../../../shared/rooms'
+
 import {
   applyRoomComposerSuggestion,
   getExactRoomMentionSuggestion,
@@ -25,29 +26,34 @@ describe('room composer suggestions', () => {
 
   it('offers all and matching live room identities', () => {
     const participants = [
-      {
+      roomParticipantFixture({
         actorKind: 'agent',
         identity: 'codex',
         displayName: 'Claude Impersonator',
         state: 'online',
         participation: 'active'
-      },
-      {
+      }),
+      roomParticipantFixture({
         actorKind: 'agent',
         identity: 'claude',
         displayName: 'Researcher',
         state: 'busy',
         participation: 'active'
-      },
-      {
+      }),
+      roomParticipantFixture({
         actorKind: 'agent',
         identity: 'gemini',
         displayName: 'Gemini',
         state: 'online',
         participation: 'paused'
-      },
-      { actorKind: 'user', identity: 'user', displayName: 'You', state: 'online' }
-    ] as RoomParticipant[]
+      }),
+      roomParticipantFixture({
+        actorKind: 'user',
+        identity: 'user',
+        displayName: 'You',
+        state: 'online'
+      })
+    ]
 
     expect(getRoomComposerSuggestions(getRoomComposerQuery('@cl', 3), participants)).toEqual([
       expect.objectContaining({

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { OrcaRuntimeService } from './orca-runtime'
+import { runtimeStoreFixture } from './runtime-store.test-fixture'
+import { getDefaultSettings } from '../../shared/constants'
 
 describe('structured agent-session create intent', () => {
   it('pins the selected Codex launch home after normal launch preparation', async () => {
@@ -199,29 +201,51 @@ describe('structured agent-session create intent', () => {
     })
   })
   it('turns an existing provider session into an authoritative resume intent', async () => {
-    const runtime = new OrcaRuntimeService({
-      getSettings: () => ({ agentDefaultEnv: {} })
-    } as never)
+    const runtime = new OrcaRuntimeService(
+      runtimeStoreFixture({
+        getSettings: () => ({ ...getDefaultSettings('/tmp'), agentDefaultEnv: {} })
+      })
+    )
     vi.spyOn(runtime, 'getStructuredAgentSessionCreateSupport').mockResolvedValue({
       supported: true
     })
-    const internal = runtime as unknown as {
-      resolveStructuredAgentSessionLocation: () => Promise<{
-        executionHostId: string
-        wslDistro: null
-        workspaceId: string
-        workspaceKind: 'git-worktree'
-      }>
-      resolveRuntimeFileTarget: () => Promise<{ worktree: { path: string } }>
-    }
-    internal.resolveStructuredAgentSessionLocation = vi.fn(async () => ({
-      executionHostId: 'local',
+    runtime['resolveStructuredAgentSessionLocation'] = vi.fn(async () => ({
+      executionHostId: 'local' as const,
       wslDistro: null,
       workspaceId: 'workspace-1',
       workspaceKind: 'git-worktree' as const
     }))
-    internal.resolveRuntimeFileTarget = vi.fn(async () => ({
-      worktree: { path: '/repos/workspace-1' }
+    runtime['resolveRuntimeFileTarget'] = vi.fn(async () => ({
+      executionHostId: 'local' as const,
+      worktree: {
+        id: 'workspace-1',
+        repoId: 'repo-1',
+        path: '/repos/workspace-1',
+        head: 'abc',
+        branch: 'main',
+        isBare: false,
+        isMainWorktree: false,
+        displayName: '',
+        comment: '',
+        linkedIssue: null,
+        linkedPR: null,
+        linkedLinearIssue: null,
+        isArchived: false,
+        isUnread: false,
+        isPinned: false,
+        sortOrder: 0,
+        lastActivityAt: 0,
+        parentWorktreeId: null,
+        childWorktreeIds: [],
+        lineage: null,
+        git: {
+          path: '/repos/workspace-1',
+          head: 'abc',
+          branch: 'main',
+          isBare: false,
+          isMainWorktree: false
+        }
+      }
     }))
 
     const intent = await runtime.resolveStructuredAgentSessionCreateIntent({

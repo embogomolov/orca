@@ -150,8 +150,17 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
       await this.current.setModel(value)
       this.activity.setModel(value)
     } else if (optionId === 'effort') {
+      if (
+        value !== 'low' &&
+        value !== 'medium' &&
+        value !== 'high' &&
+        value !== 'xhigh' &&
+        value !== 'max'
+      ) {
+        throw new Error('conversation_option_invalid')
+      }
       await this.current.applyFlagSettings({
-        effortLevel: value as 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+        effortLevel: value
       })
       this.activity.setEffort(value)
     } else {
@@ -183,7 +192,7 @@ export class ClaudeConversationDriver implements HarnessConversationDriver {
           void this.publishTranscriptPath(message.session_id)
         }
         if (message.type === 'stream_event') {
-          const event = message.event as unknown as Record<string, unknown>
+          const event = message.event
           if (event.type === 'message_start') {
             streamingId = `claude:${message.uuid}`
             streamedText.clear()

@@ -6,7 +6,7 @@ import type { RoomQueueState } from './room-queue-state'
 const EMPTY_PARTICIPANTS: RoomParticipant[] = []
 
 export function useRoomQueueSquarePresence(input: {
-  state: RoomQueueState | null
+  state: Pick<RoomQueueState, 'participants'> | null
   dragging: boolean
   dragSettling: boolean
   keptSquareId: string | null

@@ -1,6 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 
 export const isRoomDeliveryMutable = (delivery: RoomDelivery): boolean =>
   delivery.attempts === 0 &&
@@ -32,10 +32,11 @@ export function assertRoomMessageDeliveryMutable(
 ): void {
   const message = db
     .prepare('SELECT delivery_attempted, queue_edit_token FROM room_messages WHERE id = ?')
-    .get(messageId) as RoomRow | undefined
-  const deliveries = (
-    db.prepare('SELECT * FROM room_deliveries WHERE message_id = ?').all(messageId) as RoomRow[]
-  ).map(deliveryFromRow)
+    .get(messageId)
+  const deliveries = db
+    .prepare('SELECT * FROM room_deliveries WHERE message_id = ?')
+    .all(messageId)
+    .map(deliveryFromRow)
   if (
     !message ||
     Number(message.delivery_attempted) === 1 ||

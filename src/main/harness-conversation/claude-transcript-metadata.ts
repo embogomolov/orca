@@ -1,4 +1,5 @@
 import { readNativeChatTranscriptTailFile } from '../native-chat/transcript-tail-reader'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import { claudeTextMessage } from './claude-message'
 
 export type ClaudeTranscriptMetadata = { model?: string; effort?: string }
@@ -14,15 +15,14 @@ export async function readClaudeTranscriptMetadata(
       if (metadata) {
         return null
       }
-      const record = JSON.parse(line) as {
-        type?: unknown
-        effort?: unknown
-        message?: { model?: unknown }
-      }
-      if (record.type !== 'assistant') {
+      const record: unknown = JSON.parse(line)
+      if (!isRecord(record) || record.type !== 'assistant') {
         return null
       }
-      const model = typeof record.message?.model === 'string' ? record.message.model : undefined
+      const model =
+        isRecord(record.message) && typeof record.message.model === 'string'
+          ? record.message.model
+          : undefined
       const effort = typeof record.effort === 'string' ? record.effort : undefined
       if (!model && !effort) {
         return null

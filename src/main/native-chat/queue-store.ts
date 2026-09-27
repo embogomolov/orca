@@ -1,13 +1,39 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { z } from 'zod'
 import type {
   NativeChatQueuedMessage,
   NativeChatQueueSnapshot
 } from '../../shared/native-chat-queue'
 import { writeDurableSecureJsonFile } from '../../shared/secure-file'
 
-type PersistedQueues = { version: 1; queues: Record<string, NativeChatQueueSnapshot> }
+const persistedQueuesSchema = z.object({
+  version: z.literal(1),
+  queues: z.record(
+    z.string(),
+    z
+      .object({
+        paneKey: z.string(),
+        revision: z.number(),
+        paused: z.enum(['failed', 'interrupted']).optional(),
+        items: z.array(
+          z
+            .object({
+              id: z.string(),
+              text: z.string(),
+              imagePaths: z.array(z.string()),
+              createdAt: z.number(),
+              state: z.enum(['pending', 'submitting', 'paused', 'uncertain']),
+              error: z.string().optional(),
+              kind: z.enum(['chat', 'command']).default('chat')
+            })
+            .passthrough()
+        )
+      })
+      .passthrough()
+  )
+})
 
 export class NativeChatQueueStore {
   private readonly filePath: string
@@ -248,10 +274,7 @@ export class NativeChatQueueStore {
       return {}
     }
     try {
-      const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as PersistedQueues
-      if (parsed.version !== 1 || !parsed.queues || typeof parsed.queues !== 'object') {
-        return {}
-      }
+      const parsed = persistedQueuesSchema.parse(JSON.parse(readFileSync(this.filePath, 'utf8')))
       for (const queue of Object.values(parsed.queues)) {
         queue.items = queue.items.map((item) =>
           item.state === 'submitting'

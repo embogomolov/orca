@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { isRecord } from '../../shared/agent-status-child-work-value-guards'
 import type { AgentHookEventPayload } from '../../shared/agent-hook-listener'
 import { mergeNativeChatMessages } from '../../shared/native-chat-merge'
 import type { AgentType, NativeChatMessage } from '../../shared/native-chat-types'
@@ -118,7 +119,7 @@ export class NativeChatHookActivityStore {
     try {
       content = readFileSync(this.filePath(agent, sessionId), 'utf8')
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         return []
       }
       console.warn('[native-chat] failed to read hook activity', error)
@@ -130,7 +131,7 @@ export class NativeChatHookActivityStore {
         continue
       }
       try {
-        const message = JSON.parse(line) as unknown
+        const message: unknown = JSON.parse(line)
         if (isHookActivityMessage(message)) {
           byId.set(message.id, normalizePersistedHookTurnId(message))
         }
@@ -219,10 +220,10 @@ function compareMessages(left: NativeChatMessage, right: NativeChatMessage): num
 }
 
 function isHookActivityMessage(value: unknown): value is NativeChatMessage {
-  if (!value || typeof value !== 'object') {
+  if (!isRecord(value)) {
     return false
   }
-  const message = value as Partial<NativeChatMessage>
+  const message = value
   return (
     typeof message.id === 'string' &&
     message.role === 'tool' &&
@@ -233,7 +234,7 @@ function isHookActivityMessage(value: unknown): value is NativeChatMessage {
       if (!block || typeof block !== 'object') {
         return false
       }
-      const candidate = block as { type?: unknown; output?: unknown }
+      const candidate = block
       return (
         candidate.type === 'tool-call' ||
         (candidate.type === 'tool-result' && typeof candidate.output === 'string')

@@ -1,5 +1,6 @@
+import { roomMessageFixture, roomDeliveryFixture } from '../../../../shared/rooms.test-fixture'
 import { describe, expect, it } from 'vitest'
-import type { RoomDelivery, RoomMessage } from '../../../../shared/rooms'
+
 import { getRoomContinueDeliveryIds } from './room-composer-continue-deliveries'
 import { roomComposerRunMode } from './room-composer-run-mode'
 import { getRoomDictationUnavailableReason } from './RoomDictationButton'
@@ -7,14 +8,14 @@ import { getRoomDictationUnavailableReason } from './RoomDictationButton'
 describe('room loop continuation', () => {
   it('targets only the newest suppressed chain', () => {
     const messages = [
-      { id: 'old', sequence: 4 },
-      { id: 'latest', sequence: 9 }
-    ] as RoomMessage[]
+      roomMessageFixture({ id: 'old', sequence: 4 }),
+      roomMessageFixture({ id: 'latest', sequence: 9 })
+    ]
     const deliveries = [
-      { id: 'old-delivery', messageId: 'old', state: 'suppressed' },
-      { id: 'beta-delivery', messageId: 'latest', state: 'suppressed' },
-      { id: 'gamma-delivery', messageId: 'latest', state: 'suppressed' }
-    ] as RoomDelivery[]
+      roomDeliveryFixture({ id: 'old-delivery', messageId: 'old', state: 'suppressed' }),
+      roomDeliveryFixture({ id: 'beta-delivery', messageId: 'latest', state: 'suppressed' }),
+      roomDeliveryFixture({ id: 'gamma-delivery', messageId: 'latest', state: 'suppressed' })
+    ]
 
     expect(getRoomContinueDeliveryIds(messages, deliveries)).toEqual([
       'beta-delivery',

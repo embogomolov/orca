@@ -34,7 +34,7 @@ export function roomParticipantsTableSql(tableName: string): string {
 }
 
 export function ensureRoomParticipantParticipationSchema(db: SyncDatabase.Database): void {
-  const columns = db.pragma('table_info(room_participants)') as { name: string }[]
+  const columns = db.prepare('PRAGMA table_info(room_participants)').all()
   if (!columns.some((column) => column.name === 'participation')) {
     db.exec(
       "ALTER TABLE room_participants ADD COLUMN participation TEXT NOT NULL DEFAULT 'active' CHECK(participation IN ('active', 'paused'))"
@@ -61,8 +61,8 @@ export function ensureRoomParticipantSleepingStateSchema(db: SyncDatabase.Databa
 function participantTableSql(db: SyncDatabase.Database): string | null {
   const table = db
     .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'room_participants'")
-    .get() as { sql: string } | undefined
-  return table?.sql ?? null
+    .get()
+  return typeof table?.sql === 'string' ? table.sql : null
 }
 
 function rebuildParticipants(db: SyncDatabase.Database): void {

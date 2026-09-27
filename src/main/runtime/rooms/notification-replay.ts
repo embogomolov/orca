@@ -3,7 +3,6 @@ import type { RoomMessage, RoomNotificationReplayPage } from '../../../shared/ro
 import { hydrateRoomMessages } from './message-queries'
 import type { RoomDatabase } from './database'
 import { addRoomMessageNotificationContext } from './room-event-notification'
-import type { RoomRow } from './rows'
 
 export class RoomNotificationReplayStore {
   constructor(private readonly db: SyncDatabase.Database) {}
@@ -20,12 +19,12 @@ export class RoomNotificationReplayStore {
     if (afterSequence === null) {
       const row = this.db
         .prepare('SELECT COALESCE(MAX(sequence), 0) AS sequence FROM room_messages')
-        .get() as RoomRow
+        .get()!
       return { messages: [], cursor: Number(row.sequence), hasMore: false }
     }
     const rows = this.db
       .prepare('SELECT * FROM room_messages WHERE sequence > ? ORDER BY sequence ASC LIMIT ?')
-      .all(afterSequence, boundedLimit + 1) as RoomRow[]
+      .all(afterSequence, boundedLimit + 1)
     const pageRows = rows.slice(0, boundedLimit)
     return {
       messages: hydrateRoomMessages(
@@ -51,6 +50,6 @@ export function replayRoomNotifications(
         type: 'message.created',
         message
       })
-    ) as RoomNotificationReplayPage['events']
+    )
   }
 }

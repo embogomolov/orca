@@ -1,7 +1,9 @@
+import { aiVaultSessionFixture } from '../../../../shared/ai-vault-session.test-fixture'
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, expect, it, vi } from 'vitest'
-import type { AiVaultSession } from '../../../../shared/ai-vault-types'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { stubLayout, stubResizeObserver } from '../native-chat/native-chat-windowing-test-harness'
+
 import { EMPTY_AGENT_SESSION_CONTEXT } from '../../../../shared/agent-session-context'
 import type { AgentSubagentSourceData } from './AgentSubagentContext'
 import { AgentSubagentSheet } from './AgentSubagentSheet'
@@ -12,11 +14,19 @@ vi.mock('../native-chat/use-native-chat-live-session', () => ({
   useNativeChatLiveSession: mocks.transcript
 }))
 afterEach(cleanup)
+beforeEach(() => {
+  const restoreLayout = stubLayout()
+  const restoreObserver = stubResizeObserver()
+  return () => {
+    restoreObserver()
+    restoreLayout()
+  }
+})
 
 it.each(['grok', 'omp'] as const)(
   'keeps %s nested child status fresh and child answers in the selected transcript',
   (agent) => {
-    const child = {
+    const child = aiVaultSessionFixture({
       id: 'child',
       sessionId: 'child',
       title: 'Child',
@@ -24,8 +34,8 @@ it.each(['grok', 'omp'] as const)(
       agent,
       createdAt: '2026-09-07T00:00:00Z',
       modifiedAt: '2026-09-07T00:00:01Z',
-      subagent: { status: 'running' }
-    } as AiVaultSession
+      subagent: { parentSessionId: 'parent', agentType: null, status: 'running' }
+    })
     const grandchild = {
       ...child,
       id: 'grandchild',
@@ -52,6 +62,13 @@ it.each(['grok', 'omp'] as const)(
       markCompactionRequested: vi.fn(),
       readPhase: 'ready',
       messages: [
+        {
+          id: 'task',
+          role: 'user',
+          source: 'transcript',
+          timestamp: 0,
+          blocks: [{ type: 'text', text: 'Report your status' }]
+        },
         {
           id: 'answer',
           role: 'assistant',

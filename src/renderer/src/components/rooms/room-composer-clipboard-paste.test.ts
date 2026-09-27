@@ -38,14 +38,18 @@ describe('room composer clipboard paste', () => {
   })
 
   it('loads the Electron clipboard PNG as a browser File', async () => {
-    window.api = {
-      ui: {
-        readClipboardImage: vi.fn().mockResolvedValue({
-          content: new Uint8Array([112, 110, 103]).buffer,
-          mimeType: 'image/png'
-        })
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      writable: true,
+      value: {
+        ui: {
+          readClipboardImage: vi.fn().mockResolvedValue({
+            content: new Uint8Array([112, 110, 103]).buffer,
+            mimeType: 'image/png'
+          })
+        }
       }
-    } as never
+    })
 
     const file = await readRoomComposerClipboardImage()
 

@@ -53,7 +53,7 @@ export function RoomSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto scrollbar-sleek sm:max-w-xl">
+      <DialogContent scrollable className="max-h-[85vh] sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{translate('rooms.settings.title', 'Room settings')}</DialogTitle>
           <DialogDescription>

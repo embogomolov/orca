@@ -82,10 +82,8 @@ export function RoomParticipantSessionControl(props: {
       }}
       fallbackModelLabel={fallbackModelLabel}
       fallbackOptionLabel={fallbackOptionLabel || null}
-      className={cn(
-        'h-9 max-w-80 rounded-md border border-border bg-card px-2',
-        participant.participation === 'paused' && 'opacity-60'
-      )}
+      variant="card"
+      dimmed={participant.participation === 'paused'}
       leading={
         <>
           {participant.participation === 'paused' ? (

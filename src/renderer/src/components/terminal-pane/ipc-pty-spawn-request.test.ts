@@ -7,24 +7,20 @@ vi.mock('@/runtime/runtime-rpc-client', () => ({ callRuntimeRpc }))
 import { spawnIpcPty } from './ipc-pty-spawn-request'
 
 describe('spawnIpcPty provider resume', () => {
-  const originalWindow = (globalThis as { window?: typeof window }).window
+  const originalWindow = globalThis.window
   const spawn = vi.fn()
 
   beforeEach(() => {
     callRuntimeRpc.mockReset()
     spawn.mockReset()
-    ;(globalThis as { window: typeof window }).window = {
+    vi.stubGlobal('window', {
       ...originalWindow,
       api: { ...originalWindow?.api, pty: { ...originalWindow?.api?.pty, spawn } }
-    } as unknown as typeof window
+    })
   })
 
   afterEach(() => {
-    if (originalWindow) {
-      ;(globalThis as { window: typeof window }).window = originalWindow
-    } else {
-      delete (globalThis as { window?: typeof window }).window
-    }
+    vi.unstubAllGlobals()
   })
 
   it('routes a local provider resume through host authority', async () => {

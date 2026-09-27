@@ -1,7 +1,8 @@
+import { roomParticipantFixture } from '../../../../shared/rooms.test-fixture'
 // @vitest-environment happy-dom
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { EMPTY_ROOM_CONTEXT, type RoomParticipant } from '../../../../shared/rooms'
+import { EMPTY_ROOM_CONTEXT } from '../../../../shared/rooms'
 
 const controls = vi.hoisted(() => vi.fn((_props: unknown) => null))
 vi.mock('../agent-session-controls/AgentSessionControls', () => ({
@@ -26,14 +27,14 @@ describe('sleeping room participant labels', () => {
     ['codex', 'gpt-5.6-sol', 'GPT-5.6 Sol'],
     ['codex', 'gpt-6-astra', 'gpt-6-astra']
   ] as const)('labels %s model %s without altering its saved id', (agent, model, expected) => {
-    const participant = {
+    const participant = roomParticipantFixture({
       id: 'p',
       agent,
       identity: agent,
       state: 'sleeping',
       participation: 'active',
       context: { ...EMPTY_ROOM_CONTEXT, model, effort: 'high' }
-    } as RoomParticipant
+    })
     render(<RoomParticipantSessionControl participant={participant} target={{ kind: 'local' }} />)
     expect(controls.mock.calls.at(-1)?.[0]).toMatchObject({
       fallbackModelLabel: expected,

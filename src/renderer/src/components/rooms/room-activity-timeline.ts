@@ -5,6 +5,7 @@ import type {
   NativeChatToolResultBlock
 } from '../../../../shared/native-chat-types'
 import { roomActivityKindFromTool } from '../../../../shared/room-activity'
+import { isRecord } from '../../../../shared/agent-status-child-work-value-guards'
 import type { RoomActivityKind, RoomSettledActivity } from '../../../../shared/rooms'
 import { visibleRoomReplyText } from '../native-chat/native-chat-room-transport'
 import { codexSubagentProviderFrame } from '../../../../shared/codex-subagent-items'
@@ -99,26 +100,30 @@ export function buildRoomActivitySections(messages: NativeChatMessage[]): RoomAc
 
 export function settledRoomActivity(metadata: Record<string, unknown>): RoomSettledActivity | null {
   const value = metadata.activity
-  if (!value || typeof value !== 'object') {
+  if (!isRecord(value)) {
     return null
   }
-  const activity = value as Partial<RoomSettledActivity>
+  const activity = value
   if (
     (activity.state !== 'completed' && activity.state !== 'interrupted') ||
+    typeof activity.startedAt !== 'number' ||
     !Number.isFinite(activity.startedAt) ||
+    typeof activity.completedAt !== 'number' ||
     !Number.isFinite(activity.completedAt) ||
     !Array.isArray(activity.messages)
   ) {
     return null
   }
+  const { startedAt, completedAt } = activity
   return {
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: Provider replies persist typed settled activity; its discriminator, timestamps and message array were checked above.
     ...(activity as RoomSettledActivity),
     messages: activity.messages.filter(
       (message) =>
         message.timestamp === null ||
         (Number.isFinite(message.timestamp) &&
-          message.timestamp >= activity.startedAt! &&
-          message.timestamp <= activity.completedAt!)
+          message.timestamp >= startedAt &&
+          message.timestamp <= completedAt)
     )
   }
 }

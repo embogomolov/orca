@@ -1,3 +1,7 @@
+import {
+  hostTestStub,
+  hostTestHistoryPage
+} from '../../native-chat/agent-session-wire/structured-agent-session-host-test-harness'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EMPTY_ROOM_CONTEXT } from '../../../shared/room-context'
 import { ROOM_HARNESS_AGENTS, type RoomHarnessAgent } from '../../../shared/rooms'
@@ -124,7 +128,18 @@ function structuredAttachParams(
 
 function structuredHostStub() {
   return {
-    attach: vi.fn(async () => ({ ok: true })),
+    attach: vi.fn(async () => ({
+      ok: true as const,
+      replayed: false,
+      fence: 1,
+      cursor: { epoch: 'epoch-1', sequence: 0 },
+      value: {
+        sessionId: 'session-1',
+        fence: 1,
+        page: hostTestHistoryPage(),
+        unconfirmedClientMessageIds: []
+      }
+    })),
     hold: vi.fn(async () => undefined),
     close: vi.fn(async () => undefined),
     hasProviderChild: vi.fn(() => true),
@@ -149,7 +164,7 @@ describe('machine room harness', () => {
   it('uses the structured transport only when explicitly enabled', async () => {
     const runtime = runtimeStub()
     const host = structuredHostStub()
-    setStructuredAgentSessionHost(host as never)
+    setStructuredAgentSessionHost(hostTestStub(host))
     runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
     runtime.resolveStructuredAgentSessionCreateIntent = vi.fn(async (input) =>
       structuredAttachParams(input.agent, input.envelope.sessionId)
@@ -179,7 +194,7 @@ describe('machine room harness', () => {
   it('hands an idle existing terminal session to the machine transport', async () => {
     const runtime = runtimeStub()
     const host = structuredHostStub()
-    setStructuredAgentSessionHost(host as never)
+    setStructuredAgentSessionHost(hostTestStub(host))
     runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
     runtime.resolveStructuredAgentSessionCreateIntent = vi.fn(async (input) =>
       structuredAttachParams(input.agent, input.envelope.sessionId)
@@ -215,11 +230,15 @@ describe('machine room harness', () => {
       hasSession: vi.fn(() => true),
       restoreReadableSessions: vi.fn(async () => undefined),
       listSessionTabs: vi.fn(() => [
-        { sessionId: 'room_session_1', workspaceId: 'worktree-1', agent: 'codex' }
+        { sessionId: 'room_session_1', workspaceId: 'worktree-1', agent: 'codex' as const }
       ]),
-      history: vi.fn(() => ({ providerSession: { id: 'provider-1' } }))
+      history: vi.fn(() => ({
+        ok: true as const,
+        page: hostTestHistoryPage(),
+        providerSession: { key: 'session_id' as const, id: 'provider-1' }
+      }))
     }
-    setStructuredAgentSessionHost(host as never)
+    setStructuredAgentSessionHost(hostTestStub(host))
     runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
 
     const binding = await createRoomHarnessAdapters(runtime).codex.connectExisting(
@@ -244,7 +263,7 @@ describe('machine room harness', () => {
       hasSession: vi.fn(() => false),
       restoreReadableSessions: vi.fn(async () => undefined)
     }
-    setStructuredAgentSessionHost(host as never)
+    setStructuredAgentSessionHost(hostTestStub(host))
     runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
     runtime.resolveStructuredAgentSessionCreateIntent = vi.fn(async (input) =>
       structuredAttachParams(input.agent, input.envelope.sessionId)
@@ -278,7 +297,7 @@ describe('machine room harness', () => {
     const runtime = runtimeStub()
     const running = await runtime.listRoomRunningAgents('worktree-1')
     runtime.listRoomRunningAgents = vi.fn().mockResolvedValueOnce(running).mockResolvedValueOnce([])
-    setStructuredAgentSessionHost(structuredHostStub() as never)
+    setStructuredAgentSessionHost(hostTestStub(structuredHostStub()))
     runtime.ensureStructuredAgentSessionHost = vi.fn(async () => undefined)
     runtime.resolveStructuredAgentSessionCreateIntent = vi.fn(async () => {
       throw new Error('machine_failed')

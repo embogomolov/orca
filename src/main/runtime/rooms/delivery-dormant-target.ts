@@ -2,12 +2,13 @@ import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery } from '../../../shared/rooms'
 import { retargetRoomMessageDeliveries } from './delivery-broadcast-operations'
 import { assertRoomMessageDeliveryMutable } from './delivery-mutability'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 
 const listForMessage = (db: SyncDatabase.Database, messageId: string): RoomDelivery[] =>
-  (
-    db.prepare('SELECT * FROM room_deliveries WHERE message_id = ?').all(messageId) as RoomRow[]
-  ).map(deliveryFromRow)
+  db
+    .prepare('SELECT * FROM room_deliveries WHERE message_id = ?')
+    .all(messageId)
+    .map(deliveryFromRow)
 
 const isDormant = (delivery: RoomDelivery): boolean =>
   delivery.state === 'suppressed' &&
@@ -78,7 +79,7 @@ export function removeDormantRoomMessageTarget(
     throw new Error('room_delivery_queue_stale')
   }
   const delivery = deliveryFromRow(
-    db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(selected.id) as RoomRow
+    db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(selected.id)
   )
   return { deleteMessage: false, deliveries: [delivery] }
 }

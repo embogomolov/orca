@@ -1,4 +1,5 @@
 import type { AgentSessionRecord } from './agent-session-record'
+import { isRecord } from './agent-status-child-work-value-guards'
 import {
   agentSessionProviderHandleRoot,
   type AgentSessionProviderHandleLink
@@ -12,10 +13,10 @@ export function isOptionalAgentSessionTranscript(
   if (value === undefined) {
     return true
   }
-  if (typeof value !== 'object' || value === null) {
+  if (!isRecord(value)) {
     return false
   }
-  const transcript = value as Partial<AgentSessionProviderTranscript>
+  const transcript = value
   return (
     typeof transcript.path === 'string' &&
     transcript.path.length <= 4096 &&

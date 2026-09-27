@@ -1,22 +1,21 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 
 export function awaitingRoomDeliveryResponseGroup(
   db: SyncDatabase.Database,
   participantId: string,
   providerTurnId: string
 ): RoomDelivery[] {
-  return (
-    db
-      .prepare(
-        `SELECT d.* FROM room_deliveries d JOIN room_messages m ON m.id = d.message_id
+  return db
+    .prepare(
+      `SELECT d.* FROM room_deliveries d JOIN room_messages m ON m.id = d.message_id
          WHERE d.participant_id = ? AND d.provider_turn_id = ?
          AND d.state = 'delivered' AND d.responded_at IS NULL
          ORDER BY m.sequence DESC`
-      )
-      .all(participantId, providerTurnId) as RoomRow[]
-  ).map(deliveryFromRow)
+    )
+    .all(participantId, providerTurnId)
+    .map(deliveryFromRow)
 }
 
 export function listRoomDeliveriesForTurn(
@@ -24,14 +23,13 @@ export function listRoomDeliveriesForTurn(
   participantId: string,
   providerTurnId: string
 ): RoomDelivery[] {
-  return (
-    db
-      .prepare(
-        `SELECT * FROM room_deliveries WHERE participant_id = ? AND provider_turn_id = ?
+  return db
+    .prepare(
+      `SELECT * FROM room_deliveries WHERE participant_id = ? AND provider_turn_id = ?
          ORDER BY queue_position`
-      )
-      .all(participantId, providerTurnId) as RoomRow[]
-  ).map(deliveryFromRow)
+    )
+    .all(participantId, providerTurnId)
+    .map(deliveryFromRow)
 }
 
 export function markRoomDeliveryResponseGroup(

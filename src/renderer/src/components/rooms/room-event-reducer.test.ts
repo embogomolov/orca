@@ -1,19 +1,21 @@
+import {
+  roomSnapshotFixture,
+  roomDeliveryFixture,
+  roomFixture,
+  roomMessageFixture,
+  roomParticipantFixture
+} from '../../../../shared/rooms.test-fixture'
 import { describe, expect, it } from 'vitest'
-import type {
-  RoomAgentActivity,
-  RoomDelivery,
-  RoomMessage,
-  RoomSnapshot
-} from '../../../../shared/rooms'
+import type { RoomAgentActivity } from '../../../../shared/rooms'
 import { EMPTY_ACTIVE_ROOM, reduceRoomEvent } from './room-event-reducer'
 
 describe('room transient activity state', () => {
   it('accepts the authoritative work state on delivery updates', () => {
     const stopped = reduceRoomEvent(
-      { ...EMPTY_ACTIVE_ROOM, snapshot: { workState: 'active' } as RoomSnapshot },
+      { ...EMPTY_ACTIVE_ROOM, snapshot: roomSnapshotFixture({ workState: 'active' }) },
       {
         type: 'delivery.updated',
-        delivery: { id: 'delivery-1' } as RoomDelivery,
+        delivery: roomDeliveryFixture({ id: 'delivery-1' }),
         workState: 'stopped'
       }
     )
@@ -22,10 +24,10 @@ describe('room transient activity state', () => {
   })
 
   it('accepts room work state updates and preserves them when absent', () => {
-    const room = { id: 'room' } as RoomSnapshot['room']
+    const room = roomFixture({ id: 'room' })
     const initial = {
       ...EMPTY_ACTIVE_ROOM,
-      snapshot: { room, workState: 'stopped' } as RoomSnapshot
+      snapshot: roomSnapshotFixture({ room, workState: 'stopped' })
     }
     const resumed = reduceRoomEvent(initial, {
       type: 'room.updated',
@@ -40,8 +42,8 @@ describe('room transient activity state', () => {
   })
 
   it('does not let a stale queue load overwrite a live delivery update', () => {
-    const live = { id: 'delivery-1', state: 'delivering' } as RoomDelivery
-    const stale = { id: 'delivery-1', state: 'pending' } as RoomDelivery
+    const live = roomDeliveryFixture({ id: 'delivery-1', state: 'delivering' })
+    const stale = roomDeliveryFixture({ id: 'delivery-1', state: 'pending' })
     const state = reduceRoomEvent(
       { ...EMPTY_ACTIVE_ROOM, deliveries: { [live.id]: live } },
       { type: 'local.messages.loaded', messages: [], deliveries: [stale] }
@@ -51,40 +53,40 @@ describe('room transient activity state', () => {
   })
 
   it('restores only the latest unresolved confirmed Steer from loaded deliveries', () => {
-    const snapshot = {
+    const snapshot = roomSnapshotFixture({
       participants: [{ id: 'agent-a' }, { id: 'agent-b' }, { id: 'agent-c' }],
       activities: []
-    } as unknown as RoomSnapshot
+    })
     const loaded = reduceRoomEvent(
       { ...EMPTY_ACTIVE_ROOM, snapshot },
       {
         type: 'local.messages.loaded',
         messages: [],
         deliveries: [
-          {
+          roomDeliveryFixture({
             id: 'steer-a',
             participantId: 'agent-a',
             state: 'delivered',
             intent: 'steer',
             deliveredAt: 10,
             respondedAt: null
-          } as RoomDelivery,
-          {
+          }),
+          roomDeliveryFixture({
             id: 'steer-b',
             participantId: 'agent-b',
             state: 'delivered',
             intent: 'steer',
             deliveredAt: 20,
             respondedAt: null
-          } as RoomDelivery,
-          {
+          }),
+          roomDeliveryFixture({
             id: 'steer-c',
             participantId: 'agent-c',
             state: 'delivering',
             intent: 'steer',
             deliveredAt: null,
             respondedAt: null
-          } as RoomDelivery
+          })
         ]
       }
     )
@@ -94,14 +96,14 @@ describe('room transient activity state', () => {
         type: 'local.messages.loaded',
         messages: [],
         deliveries: [
-          {
+          roomDeliveryFixture({
             id: 'steer-b-newer',
             participantId: 'agent-b',
             state: 'delivered',
             intent: 'steer',
             deliveredAt: 30,
             respondedAt: null
-          } as RoomDelivery
+          })
         ]
       }
     )
@@ -110,28 +112,28 @@ describe('room transient activity state', () => {
         ...EMPTY_ACTIVE_ROOM,
         snapshot,
         deliveries: {
-          settled: {
+          settled: roomDeliveryFixture({
             id: 'settled',
             participantId: 'agent-b',
             state: 'delivered',
             intent: 'steer',
             deliveredAt: 40,
             respondedAt: 50
-          } as RoomDelivery
+          })
         }
       },
       {
         type: 'local.messages.loaded',
         messages: [],
         deliveries: [
-          {
+          roomDeliveryFixture({
             id: 'settled',
             participantId: 'agent-b',
             state: 'delivered',
             intent: 'steer',
             deliveredAt: 40,
             respondedAt: null
-          } as RoomDelivery
+          })
         ]
       }
     )
@@ -150,8 +152,8 @@ describe('room transient activity state', () => {
   })
 
   it('does not let page merge clear a persisted or live delivery lock', () => {
-    const persisted = { id: 'persisted', deliveryAttempted: true } as RoomMessage
-    const live = { id: 'persisted', body: 'live' } as RoomMessage
+    const persisted = roomMessageFixture({ id: 'persisted', deliveryAttempted: true })
+    const live = roomMessageFixture({ id: 'persisted', body: 'live' })
     const state = reduceRoomEvent(
       { ...EMPTY_ACTIVE_ROOM, messages: [live] },
       { type: 'local.messages.loaded', messages: [persisted], deliveries: [] }
@@ -163,37 +165,37 @@ describe('room transient activity state', () => {
   })
 
   it('removes cascaded deliveries with their participant', () => {
-    const removed = { id: 'removed', participantId: 'agent-1' } as RoomDelivery
-    const kept = { id: 'kept', participantId: 'agent-2' } as RoomDelivery
+    const removed = roomDeliveryFixture({ id: 'removed', participantId: 'agent-1' })
+    const kept = roomDeliveryFixture({ id: 'kept', participantId: 'agent-2' })
     const state = reduceRoomEvent(
       {
         ...EMPTY_ACTIVE_ROOM,
-        snapshot: { participants: [{ id: 'agent-1' }, { id: 'agent-2' }] } as RoomSnapshot,
+        snapshot: roomSnapshotFixture({ participants: [{ id: 'agent-1' }, { id: 'agent-2' }] }),
         deliveries: { [removed.id]: removed, [kept.id]: kept }
       },
       { type: 'participant.removed', participantId: 'agent-1' }
     )
 
     expect(state.deliveries).toEqual({ [kept.id]: kept })
-    expect(state.snapshot?.participants).toEqual([{ id: 'agent-2' }])
+    expect(state.snapshot?.participants).toEqual([roomParticipantFixture({ id: 'agent-2' })])
   })
 
   it('keeps a message delivery lock after its participant and delivery disappear', () => {
-    const message = { id: 'message' } as RoomMessage
+    const message = roomMessageFixture({ id: 'message' })
     const claimed = reduceRoomEvent(
       {
         ...EMPTY_ACTIVE_ROOM,
         messages: [message],
-        snapshot: { participants: [{ id: 'agent' }] } as RoomSnapshot
+        snapshot: roomSnapshotFixture({ participants: [{ id: 'agent' }] })
       },
       {
         type: 'delivery.updated',
-        delivery: {
+        delivery: roomDeliveryFixture({
           id: 'delivery',
           messageId: message.id,
           participantId: 'agent',
           attempts: 1
-        } as RoomDelivery
+        })
       }
     )
     const removed = reduceRoomEvent(claimed, {
@@ -280,21 +282,21 @@ describe('room transient activity state', () => {
     })
     const attemptedA = reduceRoomEvent(EMPTY_ACTIVE_ROOM, {
       type: 'delivery.updated',
-      delivery: {
+      delivery: roomDeliveryFixture({
         id: 'steer-a',
         participantId: 'agent-a',
         state: 'delivering',
         intent: 'steer'
-      } as RoomDelivery
+      })
     })
     const confirmedA = reduceRoomEvent(attemptedA, {
       type: 'delivery.updated',
-      delivery: {
+      delivery: roomDeliveryFixture({
         id: 'steer-a',
         participantId: 'agent-a',
         state: 'delivered',
         intent: 'steer'
-      } as RoomDelivery
+      })
     })
     const afterA = reduceRoomEvent(confirmedA, {
       type: 'activity.updated',
@@ -302,21 +304,21 @@ describe('room transient activity state', () => {
     })
     const ordinaryB = reduceRoomEvent(afterA, {
       type: 'delivery.updated',
-      delivery: {
+      delivery: roomDeliveryFixture({
         id: 'next-b',
         participantId: 'agent-b',
         state: 'delivered',
         intent: 'next'
-      } as RoomDelivery
+      })
     })
     const confirmedB = reduceRoomEvent(ordinaryB, {
       type: 'delivery.updated',
-      delivery: {
+      delivery: roomDeliveryFixture({
         id: 'steer-b',
         participantId: 'agent-b',
         state: 'delivered',
         intent: 'steer'
-      } as RoomDelivery
+      })
     })
     const afterB = reduceRoomEvent(confirmedB, {
       type: 'activity.updated',

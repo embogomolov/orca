@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { RpcDispatcher } from '../dispatcher'
-import type { OrcaRuntimeService } from '../../orca-runtime'
+import { OrcaRuntimeService } from '../../orca-runtime'
 import { AI_VAULT_METHODS } from './ai-vault'
 
 const mocks = vi.hoisted(() => ({ list: vi.fn(), resolve: vi.fn() }))
@@ -16,7 +16,8 @@ beforeEach(() => {
 })
 
 function call(params: unknown) {
-  const runtime = { getRuntimeId: () => 'host' } as OrcaRuntimeService
+  const runtime = new OrcaRuntimeService()
+  vi.spyOn(runtime, 'getRuntimeId').mockReturnValue('host')
   return new RpcDispatcher({ runtime, methods: AI_VAULT_METHODS }).dispatch({
     id: 'subagents',
     authToken: 'token',

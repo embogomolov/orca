@@ -1,9 +1,10 @@
+import { unusedRoomAttachments } from './attachments.test-fixture'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import SyncDatabase from '../../sqlite/sync-database'
-import type { RoomAttachmentManager } from './attachments'
+
 import { RoomDatabase } from './database'
 import { claimRoomBroadcastForTest } from './delivery-test-claim'
 import { RoomMessageController } from './message-controller'
@@ -41,7 +42,7 @@ describe('room message delivery immutability', () => {
     })
     const controller = new RoomMessageController(
       database,
-      {} as RoomAttachmentManager,
+      unusedRoomAttachments(),
       () => undefined,
       () => undefined
     )
@@ -90,7 +91,7 @@ describe('room message delivery immutability', () => {
     expect(database.messages.get(created.message.id).deliveryAttempted).toBe(true)
     const controller = new RoomMessageController(
       database,
-      {} as RoomAttachmentManager,
+      unusedRoomAttachments(),
       () => undefined,
       () => undefined
     )

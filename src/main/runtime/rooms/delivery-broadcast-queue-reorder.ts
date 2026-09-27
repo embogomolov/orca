@@ -1,6 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 import { isBroadcastMessage, retargetRoomMessageDeliveries } from './delivery-broadcast-operations'
 import { assertRoomMessageDeliveryMutable } from './delivery-mutability'
 
@@ -27,30 +27,28 @@ export function reorderRoomBroadcastQueue(
     ? retargetRoomMessageDeliveries(
         db,
         retargetMessageId,
-        (
-          db
-            .prepare(
-              `SELECT id FROM room_participants
+        db
+          .prepare(
+            `SELECT id FROM room_participants
                WHERE room_id = ? AND actor_kind = 'agent' AND participation = 'active' ORDER BY id`
-            )
-            .all(roomId) as RoomRow[]
-        ).map((row) => String(row.id)),
+          )
+          .all(roomId)
+          .map((row) => String(row.id)),
         Date.now()
       ).map((delivery) => delivery.id)
     : []
-  const pending = (
-    db
-      .prepare(
-        `SELECT d.* FROM room_deliveries d JOIN room_messages m ON m.id = d.message_id
+  const pending = db
+    .prepare(
+      `SELECT d.* FROM room_deliveries d JOIN room_messages m ON m.id = d.message_id
          JOIN room_participants p ON p.id = d.participant_id AND p.participation = 'active'
          WHERE m.room_id = ? AND (
            d.state = 'pending' OR
            (d.state = 'suppressed' AND d.error = 'room_stopped' AND d.attempts = 0 AND d.intent = 'next')
          ) AND m.actor_kind = 'user' AND m.queue_edit_token IS NULL
          ORDER BY d.queue_position, m.sequence`
-      )
-      .all(roomId) as RoomRow[]
-  ).map(deliveryFromRow)
+    )
+    .all(roomId)
+    .map(deliveryFromRow)
   const currentIds = [...new Set(pending.map((delivery) => delivery.messageId))]
   const movedId = movedMessageId ?? retargetMessageId!
   if (
@@ -93,6 +91,6 @@ export function reorderRoomBroadcastQueue(
     })
   }
   return [...new Set([...pending.map((delivery) => delivery.id), ...changedIds])].map((id) =>
-    deliveryFromRow(db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(id) as RoomRow)
+    deliveryFromRow(db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(id))
   )
 }

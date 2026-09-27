@@ -318,9 +318,7 @@ function ImagePreviewContent({
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture?.(event.pointerId)
     }
-    const remaining = touchPointsRef.current.entries().next().value as
-      | [number, ImagePoint]
-      | undefined
+    const remaining = touchPointsRef.current.entries().next().value
     if (!remaining) {
       panRef.current = null
       pinchRef.current = null
@@ -368,8 +366,8 @@ function ImagePreviewContent({
   return (
     <DialogContent
       showCloseButton={false}
-      overlayClassName="bg-black/90 backdrop-blur-none"
-      className="inset-0 top-0 left-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none backdrop-blur-none sm:max-w-none"
+      variant="viewer"
+      className="inset-0 top-0 left-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 overflow-hidden sm:max-w-none"
       onKeyDown={handleKeyDown}
     >
       <DialogTitle className="sr-only">{preview.fileName}</DialogTitle>

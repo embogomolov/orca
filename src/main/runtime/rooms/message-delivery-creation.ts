@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { CreateRoomMessage } from './message-input'
-import type { RoomRow } from './rows'
 
 export function createRoomMessageDeliveries(
   db: SyncDatabase.Database,
@@ -14,12 +13,12 @@ export function createRoomMessageDeliveries(
   const targets =
     input.enqueueDeliveries === false
       ? []
-      : (db
+      : db
           .prepare(
             `SELECT id FROM room_participants
              WHERE room_id = ? AND actor_kind = 'agent' AND participation = 'active'`
           )
-          .all(input.roomId) as RoomRow[])
+          .all(input.roomId)
   const requested = input.targetParticipantIds ? new Set(input.targetParticipantIds) : null
   if (
     requested &&
@@ -46,7 +45,7 @@ export function createRoomMessageDeliveries(
       continue
     }
     const participantId = String(target.id)
-    const position = nextPosition.get(participantId) as RoomRow
+    const position = nextPosition.get(participantId)!
     insert.run(
       randomUUID(),
       messageId,

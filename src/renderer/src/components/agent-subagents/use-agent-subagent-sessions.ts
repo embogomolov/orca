@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { isRecord } from '../../../../shared/agent-status-child-work-value-guards'
 import type { AgentSubagentSnapshot } from '../../../../shared/agent-status-types'
 import type { AiVaultSession, AiVaultSubagentListResult } from '../../../../shared/ai-vault-types'
 import { isNativeChatSupportedAgent } from '../../../../shared/native-chat-agent-support'
@@ -52,7 +53,6 @@ export function useAgentSubagentSessions({
       (!parentFilePath && !parentSessionId && !structuredSessionId) ||
       !isNativeChatSupportedAgent(agent)
     ) {
-      setState({ ...EMPTY_STATE, scopeKey })
       return
     }
     let cancelled = false
@@ -83,9 +83,7 @@ export function useAgentSubagentSessions({
         if (
           structuredSessionId &&
           parentFilePath &&
-          (!result ||
-            typeof result !== 'object' ||
-            (result as { parentFilePath?: unknown }).parentFilePath !== parentFilePath)
+          (!isRecord(result) || result.parentFilePath !== parentFilePath)
         ) {
           result = await callRuntimeRpc<unknown>(
             target,
@@ -132,17 +130,15 @@ export function useAgentSubagentSessions({
 
 function parseSubagentList(value: unknown): AiVaultSubagentListResult {
   const sessions =
-    value && typeof value === 'object' && Array.isArray((value as { sessions?: unknown }).sessions)
-      ? (value as { sessions: unknown[] }).sessions.filter(isSession)
-      : []
+    isRecord(value) && Array.isArray(value.sessions) ? value.sessions.filter(isSession) : []
   return { sessions, issues: [] }
 }
 
 function isSession(value: unknown): value is AiVaultSession {
-  if (!value || typeof value !== 'object') {
+  if (!isRecord(value)) {
     return false
   }
-  const session = value as Partial<AiVaultSession>
+  const session = value
   return (
     typeof session.id === 'string' &&
     typeof session.sessionId === 'string' &&

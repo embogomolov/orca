@@ -1,7 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { RoomDatabase } from './database'
 import { RoomDeliveryWorker } from './delivery-worker'
-import type { RoomAttachmentManager } from './attachments'
 import { roomHarnessAdapterTestRecord } from './room-harness-adapter-test-record'
 
 function deferred() {
@@ -39,7 +38,7 @@ function setup(automatic = false) {
       status: async () => ({ handle: 'session', isRunningAgent: true, status: 'working' }),
       steer
     }),
-    { size: async () => 0 } as unknown as RoomAttachmentManager,
+    { size: async () => 0 },
     () => {},
     async (id) => db.participants.get(id),
     undefined,

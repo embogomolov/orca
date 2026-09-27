@@ -1,6 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery, RoomWorkState } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 import {
   finishRoomStop,
   resumeRoomDeliveries,
@@ -43,7 +43,7 @@ export class RoomDeliveryStore {
   listForMessage(messageId: string): RoomDelivery[] {
     const rows = this.db
       .prepare('SELECT * FROM room_deliveries WHERE message_id = ? ORDER BY participant_id')
-      .all(messageId) as RoomRow[]
+      .all(messageId)
     return rows.map(deliveryFromRow)
   }
 
@@ -53,7 +53,7 @@ export class RoomDeliveryStore {
         `SELECT * FROM room_deliveries WHERE message_id IN (${messageIds.map(() => '?').join(', ')})
          ORDER BY message_id, participant_id`
       )
-      .all(...messageIds) as RoomRow[]
+      .all(...messageIds)
     return rows.map(deliveryFromRow)
   }
 
@@ -230,7 +230,7 @@ export class RoomDeliveryStore {
          ${intent ? 'AND intent = ?' : ''}
          ORDER BY next_attempt_at, id LIMIT 1`
       )
-      .get(...(intent ? [participantId, intent] : [participantId])) as RoomRow | undefined
+      .get(...(intent ? [participantId, intent] : [participantId]))
     return row ? deliveryFromRow(row) : null
   }
 
@@ -252,7 +252,7 @@ export class RoomDeliveryStore {
         `SELECT * FROM room_deliveries WHERE participant_id = ? AND state = 'delivered'
          AND responded_at IS NULL ORDER BY delivered_at, id LIMIT 1`
       )
-      .get(participantId) as RoomRow | undefined
+      .get(participantId)
     return row ? deliveryFromRow(row) : null
   }
 
@@ -263,7 +263,7 @@ export class RoomDeliveryStore {
          AND state = 'delivered' AND responded_at IS NULL
          ORDER BY queue_position DESC, delivered_at DESC LIMIT 1`
       )
-      .get(participantId, providerTurnId) as RoomRow | undefined
+      .get(participantId, providerTurnId)
     return row ? deliveryFromRow(row) : null
   }
 
@@ -322,9 +322,7 @@ export class RoomDeliveryStore {
   }
 
   get(id: string): RoomDelivery {
-    const row = this.db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(id) as
-      | RoomRow
-      | undefined
+    const row = this.db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(id)
     if (!row) {
       throw new Error('room_delivery_not_found')
     }

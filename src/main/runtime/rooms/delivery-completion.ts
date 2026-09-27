@@ -1,6 +1,6 @@
 import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomDelivery, RoomDeliveryAttempt } from '../../../shared/rooms'
-import { deliveryFromRow, type RoomRow } from './rows'
+import { deliveryFromRow } from './rows'
 
 export function finishRoomDelivery(
   db: SyncDatabase.Database,
@@ -33,9 +33,7 @@ export function finishRoomDelivery(
     delivery.id,
     delivery.state
   )
-  const row = db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(delivery.id) as
-    | RoomRow
-    | undefined
+  const row = db.prepare('SELECT * FROM room_deliveries WHERE id = ?').get(delivery.id)
   if (!row) {
     throw new Error('room_delivery_not_found')
   }

@@ -22,16 +22,12 @@ import {
   type RoomQueuePointer
 } from './room-queue-drag-targeting'
 
-const rect = (left: number, top: number, width: number, height: number) => ({
-  left,
-  top,
-  width,
-  height,
-  right: left + width,
-  bottom: top + height
-})
+const rect = (left: number, top: number, width: number, height: number) =>
+  new DOMRect(left, top, width, height)
 
-const collisionArgs = (pointerCoordinates: { x: number; y: number } | null) => {
+const collisionArgs = (
+  pointerCoordinates: { x: number; y: number } | null
+): Parameters<typeof roomQueueCollision>[0] => {
   const row = rect(0, 0, 100, 40)
   const square = rect(200, 0, 100, 100)
   const containers = [
@@ -46,12 +42,16 @@ const collisionArgs = (pointerCoordinates: { x: number; y: number } | null) => {
     node: { current: null }
   }))
   return {
-    active: { id: 'active', data: { current: undefined }, rect: { current: {} } },
+    active: {
+      id: 'active',
+      data: { current: undefined },
+      rect: { current: { initial: null, translated: null } }
+    },
     collisionRect: rect(215, 15, 20, 20),
     droppableRects: new Map(containers.map((container) => [container.id, container.rect.current])),
     droppableContainers: containers,
     pointerCoordinates
-  } as Parameters<typeof roomQueueCollision>[0]
+  }
 }
 
 describe('room queue collision detection', () => {
@@ -106,15 +106,15 @@ describe('room queue collision detection', () => {
       ...args.droppableRects.entries()
     ])
     const element = document.createElement('div')
-    element.getBoundingClientRect = () => rect(0, 0, 220, 120) as DOMRect
-    const elementRef = { current: null as HTMLDivElement | null }
+    element.getBoundingClientRect = () => rect(0, 0, 220, 120)
+    const elementRef: { current: HTMLDivElement | null } = { current: null }
     const overlay: RoomQueueOverlaySurface = {
       elementRef,
       targetId: squareOpenId('source'),
       itemIds: new Set([directed.id])
     }
     const square = document.createElement('button')
-    square.getBoundingClientRect = () => rect(0, 0, 100, 100) as DOMRect
+    square.getBoundingClientRect = () => rect(0, 0, 100, 100)
     const squares = new Map([['hidden', square]])
 
     expect(roomQueueCollision(args, overlay)[0]?.id).toBe(squareId('hidden'))
@@ -170,7 +170,7 @@ describe('room queue collision detection', () => {
   it('starts, preserves, cancels, and retargets long-press from real square bounds', () => {
     vi.useFakeTimers()
     const square = document.createElement('button')
-    square.getBoundingClientRect = () => rect(200, 0, 100, 100) as DOMRect
+    square.getBoundingClientRect = () => rect(200, 0, 100, 100)
     const squares = new Map([['agent', square]])
     expect(roomQueueSquareAtPointer({ x: 190, y: 50 }, squares)).toBeNull()
     expect(roomQueueSquareAtPointer({ x: 200, y: 50 }, squares)).toBe('agent')
@@ -184,7 +184,7 @@ describe('room queue collision detection', () => {
       )
     ).toBe(squareId('agent'))
     const shared = document.createElement('div')
-    shared.getBoundingClientRect = () => rect(0, 0, 400, 200) as DOMRect
+    shared.getBoundingClientRect = () => rect(0, 0, 400, 200)
     expect(
       roomQueueDropTarget(
         { activatorEvent: new PointerEvent('pointerdown'), over: null },
@@ -247,9 +247,9 @@ describe('room queue collision detection', () => {
 
   it('treats the full square group, including gaps, as one reveal target', () => {
     const first = document.createElement('div')
-    first.getBoundingClientRect = () => rect(200, 0, 100, 27) as DOMRect
+    first.getBoundingClientRect = () => rect(200, 0, 100, 27)
     const second = document.createElement('div')
-    second.getBoundingClientRect = () => rect(320, 0, 100, 27) as DOMRect
+    second.getBoundingClientRect = () => rect(320, 0, 100, 27)
     const squares = new Map([
       ['first', first],
       ['second', second]

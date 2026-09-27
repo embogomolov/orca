@@ -1,7 +1,7 @@
+import { roomHarnessAdapterTestFixture } from './room-harness-adapter-test-record'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RoomDatabase } from './database'
 import { claimReadyRoomDelivery } from './delivery-machine-readiness'
-import type { RoomHarnessAdapter } from './harness-adapter'
 import { claimReadyRoomBroadcast } from './delivery-broadcast-dispatch'
 
 describe('room delivery claim readiness', () => {
@@ -38,13 +38,13 @@ describe('room delivery claim readiness', () => {
       targetParticipantIds: [target.id]
     }).deliveries[0]
 
-    const adapter = {
+    const adapter = roomHarnessAdapterTestFixture({
       status: vi.fn(async () => ({
         handle: 'term-codex',
         isRunningAgent: true,
         status: 'working' as const
       }))
-    } as unknown as RoomHarnessAdapter
+    })
     const ensureReady = vi.fn()
     await expect(
       claimReadyRoomDelivery(database, { codex: adapter }, delivery, ensureReady, () => true)
@@ -76,9 +76,9 @@ describe('room delivery claim readiness', () => {
       body: 'next',
       targetParticipantIds: [target.id]
     }).deliveries[0]
-    const adapter = {
+    const adapter = roomHarnessAdapterTestFixture({
       status: async () => ({ handle: 'term-codex', isRunningAgent: true, status: null })
-    } as unknown as RoomHarnessAdapter
+    })
 
     const ensureReady = vi.fn()
     await expect(
@@ -118,7 +118,7 @@ describe('room delivery claim readiness', () => {
       targetParticipantIds: [target.id]
     }).deliveries[0]
     let recovered = false
-    const adapter = {
+    const adapter = roomHarnessAdapterTestFixture({
       status: vi.fn(async () => {
         if (!recovered) {
           if (!dead) {
@@ -128,7 +128,7 @@ describe('room delivery claim readiness', () => {
         }
         return { handle: 'term-new', isRunningAgent: true, status: 'idle' as const }
       })
-    } as unknown as RoomHarnessAdapter
+    })
     const gate = deferred()
     const ensureReady = vi.fn(async () => {
       await gate.promise
@@ -183,7 +183,7 @@ describe('room delivery claim readiness', () => {
     let recovered = false
     let siblingWorking = true
     const adapter = (identity: 'codex' | 'claude') =>
-      ({
+      roomHarnessAdapterTestFixture({
         status: vi.fn(async () => {
           if (identity === 'codex' && !recovered) {
             throw new Error('terminal_handle_stale')
@@ -195,7 +195,7 @@ describe('room delivery claim readiness', () => {
               identity === 'claude' && siblingWorking ? ('working' as const) : ('idle' as const)
           }
         })
-      }) as unknown as RoomHarnessAdapter
+      })
     const ensureReady = vi.fn(async (id: string) => {
       expect(id).toBe(participants[0]!.id)
       recovered = true
@@ -265,14 +265,14 @@ describe('room delivery claim readiness', () => {
     })
     let recovered = false
     const adapter = (identity: 'codex' | 'claude') =>
-      ({
+      roomHarnessAdapterTestFixture({
         status: vi.fn(async () => {
           if (identity === 'codex' && !recovered) {
             throw new Error('terminal_handle_stale')
           }
           return { handle: identity, isRunningAgent: true, status: 'idle' as const }
         })
-      }) as unknown as RoomHarnessAdapter
+      })
 
     await expect(
       claimReadyRoomBroadcast(

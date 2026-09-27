@@ -1,4 +1,5 @@
 import type { AgentJournalToolCallItem } from './agent-session-journal-types'
+import { isRecord } from './agent-status-child-work-value-guards'
 import { AGENT_STATUS_MAX_SUBAGENTS, type AgentSubagentSnapshot } from './agent-status-types'
 import type { NativeChatMessage } from './native-chat-types'
 
@@ -18,10 +19,10 @@ const STATES = new Set(['inProgress', 'completed', 'failed', 'interrupted'])
 const THREAD_ID = /^[A-Za-z0-9_-]{1,64}$/
 
 export function codexSubagentItem(value: unknown): AgentJournalToolCallItem | null {
-  if (!value || typeof value !== 'object') {
+  if (!isRecord(value)) {
     return null
   }
-  const item = value as Record<string, unknown>
+  const item = value
   if (item.type === 'subAgentActivity') {
     if (
       typeof item.kind !== 'string' ||
@@ -100,22 +101,22 @@ export function codexLiveSubagents(
           : block.type === 'text' && block.providerFrame
             ? codexSubagentProviderFrame(block.providerFrame)
             : null
-      if (!call || !call.input || typeof call.input !== 'object') {
+      if (!call || !isRecord(call.input)) {
         continue
       }
-      const item = call.input as Record<string, unknown>
+      const item = call.input
       if (!codexSubagentItem(item)) {
         continue
       }
       if (item.type === 'collabAgentToolCall') {
-        if (!item.agentsStates || typeof item.agentsStates !== 'object') {
+        if (!isRecord(item.agentsStates)) {
           continue
         }
         for (const [id, value] of Object.entries(item.agentsStates)) {
-          if (!THREAD_ID.test(id) || !value || typeof value !== 'object') {
+          if (!THREAD_ID.test(id) || !isRecord(value)) {
             continue
           }
-          const status = (value as Record<string, unknown>).status
+          const status = value.status
           if (
             ['completed', 'interrupted', 'errored', 'shutdown', 'notFound'].includes(String(status))
           ) {
@@ -137,7 +138,10 @@ export function codexLiveSubagents(
         }
         continue
       }
-      const id = item.agentThreadId as string
+      if (typeof item.agentThreadId !== 'string' || typeof item.agentPath !== 'string') {
+        continue
+      }
+      const id = item.agentThreadId
       if (item.kind === 'completed' || item.kind === 'interrupted') {
         children.delete(id)
         continue
@@ -148,8 +152,8 @@ export function codexLiveSubagents(
       }
       children.set(id, {
         id,
-        description: item.agentPath as string,
-        agentType: (item.agentPath as string).split('/').at(-1),
+        description: item.agentPath,
+        agentType: item.agentPath.split('/').at(-1),
         state: 'working',
         startedAt: existing?.startedAt ?? message.timestamp ?? 0
       })

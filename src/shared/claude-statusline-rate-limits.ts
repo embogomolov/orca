@@ -2,6 +2,8 @@
 // turn — piggybacked on Messages API responses, so reading it costs no usage-endpoint
 // budget (the endpoint 429s under Orca's polling; see rate-limits/service.ts).
 
+import { isRecord } from './agent-status-child-work-value-guards'
+
 export const CLAUDE_STATUSLINE_PATHNAME = '/statusline/claude'
 
 // Why: the statusline ticks ~3x/sec while streaming and the service drops same-value posts
@@ -45,10 +47,10 @@ function finiteNumber(value: unknown): number | undefined {
 }
 
 function parseWindow(value: unknown): ClaudeStatusLineWindow | null {
-  if (typeof value !== 'object' || value === null) {
+  if (!isRecord(value)) {
     return null
   }
-  const raw = value as { used_percentage?: unknown; utilization?: unknown; resets_at?: unknown }
+  const raw = value
   const usedPercentage = finiteNumber(raw.used_percentage)
   // Why: mirror mapClaudeUsageWindow's OAuth-shape tolerance (utilization, 0-100) so a statusline field rename degrades instead of silently darkening the feed.
   const utilization = usedPercentage === undefined ? finiteNumber(raw.utilization) : undefined
@@ -74,10 +76,10 @@ function parseWindow(value: unknown): ClaudeStatusLineWindow | null {
  * Returns null when the payload carries no usable rate-limit windows.
  */
 export function parseClaudeStatusLineBody(body: unknown): ClaudeStatusLineRateLimits | null {
-  if (typeof body !== 'object' || body === null) {
+  if (!isRecord(body)) {
     return null
   }
-  const fields = body as { payload?: unknown; configDir?: unknown; agent?: unknown }
+  const fields = body
   if (typeof fields.payload !== 'string' || !fields.payload) {
     return null
   }
@@ -87,27 +89,15 @@ export function parseClaudeStatusLineBody(body: unknown): ClaudeStatusLineRateLi
   } catch {
     return null
   }
-  if (typeof payload !== 'object' || payload === null) {
+  if (!isRecord(payload)) {
     return null
   }
-  const payloadRecord = payload as {
-    rate_limits?: unknown
-    context_window?: unknown
-    model?: unknown
-    effort?: unknown
-    effort_level?: unknown
-  }
-  const rateLimits =
-    typeof payloadRecord.rate_limits === 'object' && payloadRecord.rate_limits !== null
-      ? payloadRecord.rate_limits
-      : null
-  const fiveHour = parseWindow((rateLimits as { five_hour?: unknown } | null)?.five_hour)
-  const sevenDay = parseWindow((rateLimits as { seven_day?: unknown } | null)?.seven_day)
+  const payloadRecord = payload
+  const rateLimits = isRecord(payloadRecord.rate_limits) ? payloadRecord.rate_limits : null
+  const fiveHour = parseWindow(rateLimits?.five_hour)
+  const sevenDay = parseWindow(rateLimits?.seven_day)
   const context = parseContext(payloadRecord.context_window)
-  const modelRecord =
-    typeof payloadRecord.model === 'object' && payloadRecord.model !== null
-      ? (payloadRecord.model as Record<string, unknown>)
-      : null
+  const modelRecord = isRecord(payloadRecord.model) ? payloadRecord.model : null
   const model = [modelRecord?.id, modelRecord?.display_name, payloadRecord.model]
     .find((value) => typeof value === 'string' && value.trim())
     ?.toString()
@@ -120,10 +110,7 @@ export function parseClaudeStatusLineBody(body: unknown): ClaudeStatusLineRateLi
     return null
   }
   const configDir = typeof fields.configDir === 'string' ? fields.configDir.trim() : ''
-  const paneKey =
-    typeof (fields as { paneKey?: unknown }).paneKey === 'string'
-      ? (fields as { paneKey: string }).paneKey.trim().slice(0, 512)
-      : ''
+  const paneKey = typeof fields.paneKey === 'string' ? fields.paneKey.trim().slice(0, 512) : ''
   return {
     ...(fields.agent === 'openclaude' ? { agent: 'openclaude' as const } : {}),
     configDir: configDir || null,
@@ -137,19 +124,12 @@ export function parseClaudeStatusLineBody(body: unknown): ClaudeStatusLineRateLi
 }
 
 function parseContext(value: unknown): ClaudeStatusLineContext | null {
-  if (typeof value !== 'object' || value === null) {
+  if (!isRecord(value)) {
     return null
   }
-  const raw = value as {
-    context_window_size?: unknown
-    used_percentage?: unknown
-    current_usage?: unknown
-  }
+  const raw = value
   const maxTokens = finiteNumber(raw.context_window_size)
-  const current =
-    typeof raw.current_usage === 'object' && raw.current_usage !== null
-      ? (raw.current_usage as Record<string, unknown>)
-      : null
+  const current = isRecord(raw.current_usage) ? raw.current_usage : null
   const input = finiteNumber(current?.input_tokens)
   const cacheCreation = finiteNumber(current?.cache_creation_input_tokens)
   const cacheRead = finiteNumber(current?.cache_read_input_tokens)

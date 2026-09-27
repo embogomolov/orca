@@ -1,5 +1,6 @@
+import { roomDeliveryFixture } from '../../../shared/rooms.test-fixture'
 import { expect, it, vi } from 'vitest'
-import type { RoomDelivery } from '../../../shared/rooms'
+
 import { RoomDeliveryGate } from './delivery-room-gate'
 
 it('keeps claim handoff tracked until its delivery task settles', async () => {
@@ -10,7 +11,7 @@ it('keeps claim handoff tracked until its delivery task settles', async () => {
     'room-a',
     async () => {
       fence = gate.requestFence('room-a')
-      return [{ id: 'delivery-a' } as RoomDelivery]
+      return [roomDeliveryFixture({ id: 'delivery-a' })]
     },
     () => void gate.startTask('room-a', () => child.promise)
   )

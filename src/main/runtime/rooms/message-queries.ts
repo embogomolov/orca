@@ -14,13 +14,13 @@ export function hydrateRoomMessages(db: SyncDatabase.Database, rows: RoomRow[]):
     for (let offset = 0; offset < ids.length; offset += RELATED_MESSAGE_BATCH_SIZE) {
       const batch = ids.slice(offset, offset + RELATED_MESSAGE_BATCH_SIZE)
       related.push(
-        ...(db
+        ...db
           .prepare(
             `SELECT * FROM ${table} WHERE message_id IN (${batch.map(() => '?').join(', ')})${
               table === 'room_message_mentions' ? ' ORDER BY message_id, position, rowid' : ''
             }`
           )
-          .all(...batch) as RoomRow[])
+          .all(...batch)
       )
     }
     return related
@@ -62,7 +62,7 @@ export function getRoomUnread(
          AND m.sequence > coalesce(r.last_read_sequence, 0) AND m.deleted_at IS NULL
        WHERE rooms.id = ? GROUP BY rooms.id, r.last_read_sequence`
     )
-    .get(readerKey, roomId) as RoomRow | undefined
+    .get(readerKey, roomId)
   if (!row) {
     throw new Error('room_not_found')
   }

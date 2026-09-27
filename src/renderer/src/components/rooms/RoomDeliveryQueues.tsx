@@ -175,7 +175,7 @@ export function RoomDeliveryQueues({
     if (!message || message.actorKind !== 'user' || !isMessageMutable(data, message.id)) {
       return
     }
-    const visualItem = active.data.current?.item as QueuedMessageItem | undefined
+    const visualItem: QueuedMessageItem | undefined = active.data.current?.item
     setActiveDragItem({
       ...visualItem,
       id,

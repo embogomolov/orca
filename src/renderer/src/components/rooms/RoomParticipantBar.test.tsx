@@ -107,6 +107,8 @@ describe('room responsive layout contract', () => {
       "'terminal-tab-strip flex min-w-0 flex-1 gap-2 overflow-x-auto overflow-y-hidden'"
     )
     expect(participantBarSource).not.toMatch(/<header className="[^"]*overflow-hidden/)
-    expect(selectorSource).toContain('[&_[cmdk-list-sizer]]:space-y-2')
+    expect(selectorSource).toContain('<CommandList variant="cards"')
+    const commandSource = readFileSync(new URL('../ui/command.tsx', import.meta.url), 'utf8')
+    expect(commandSource).toContain('[&_[cmdk-list-sizer]]:space-y-2')
   })
 })

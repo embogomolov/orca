@@ -222,8 +222,8 @@ function upsert<T extends { id: string }>(items: T[], item: T, key: keyof T = 'i
     if ('sequence' in item) {
       next.sort(
         (left, right) =>
-          Number((left as { sequence?: number }).sequence ?? 0) -
-          Number((right as { sequence?: number }).sequence ?? 0)
+          Number('sequence' in left ? (left.sequence ?? 0) : 0) -
+          Number('sequence' in right ? (right.sequence ?? 0) : 0)
       )
     }
     return next

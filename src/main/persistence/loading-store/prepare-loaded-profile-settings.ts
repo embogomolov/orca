@@ -239,9 +239,10 @@ export function prepareLoadedProfileSettings(
   ) {
     markNeedsSave()
   }
-  const legacyHarnessStreaming = (
-    parsed.settings as GlobalSettings & { experimentalHarnessStreaming?: unknown }
-  )?.experimentalHarnessStreaming
+  const legacyHarnessStreaming =
+    parsed.settings && 'experimentalHarnessStreaming' in parsed.settings
+      ? parsed.settings.experimentalHarnessStreaming
+      : undefined
   const enabledHarnessStreamingAgents = normalizeEnabledStructuredMachineAgents(
     parsed.settings?.enabledHarnessStreamingAgents
   )

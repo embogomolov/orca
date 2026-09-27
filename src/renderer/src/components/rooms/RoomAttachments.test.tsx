@@ -90,7 +90,7 @@ describe('RoomComposerAttachments image viewer', () => {
     mocks.downloadRoomAttachment.mockResolvedValue('/tmp/image.png')
     render(
       <RoomMessageAttachments
-        data={{ target: { kind: 'local' } } as never}
+        data={{ target: { kind: 'local' } }}
         message={{
           id: 'message-1',
           roomId: 'room-1',

@@ -135,7 +135,7 @@ function SubagentList({
 }): React.JSX.Element {
   const { active, done, unknown } = useMemo(
     () =>
-      sourceDatas.reduce(
+      sourceDatas.reduce<{ active: SubagentRow[]; done: SubagentRow[]; unknown: SubagentRow[] }>(
         (rows, sourceData) => {
           const split = splitSubagentRows(sourceData, sourceDatas.length > 1)
           rows.active.push(...split.active)
@@ -143,7 +143,7 @@ function SubagentList({
           rows.unknown.push(...split.unknown)
           return rows
         },
-        { active: [] as SubagentRow[], done: [] as SubagentRow[], unknown: [] as SubagentRow[] }
+        { active: [], done: [], unknown: [] }
       ),
     [sourceDatas]
   )
@@ -151,12 +151,14 @@ function SubagentList({
   const identity = source?.showIdentity === false ? null : source?.identity
   return (
     <>
-      <SheetHeader className="border-b border-border pr-12">
-        <SheetTitle className="flex items-center gap-2">
-          <Bot className="size-4" />
-          {identity
-            ? translate('agentSubagents.forAgent', '@{{identity}} subagents', { identity })
-            : translate('agentSubagents.label', 'Subagents')}
+      <SheetHeader bordered>
+        <SheetTitle>
+          <span className="flex items-center gap-2">
+            <Bot className="size-4" />
+            {identity
+              ? translate('agentSubagents.forAgent', '@{{identity}} subagents', { identity })
+              : translate('agentSubagents.label', 'Subagents')}
+          </span>
         </SheetTitle>
         <SheetDescription>
           {translate(
@@ -234,8 +236,8 @@ function SubagentSection({
                 </span>
               </span>
               {row.session?.model ? (
-                <Badge variant="outline" className="max-w-28 truncate text-[10px]">
-                  {row.session.model}
+                <Badge variant="outline" size="caption" className="max-w-28">
+                  <span className="truncate">{row.session.model}</span>
                 </Badge>
               ) : null}
               {row.session ? (
@@ -298,24 +300,28 @@ function SubagentTranscript({
   const displayName = subagentDisplayName(session.title, session.subagent?.agentType)
   return (
     <>
-      <SheetHeader className="border-b border-border pr-12">
+      <SheetHeader bordered>
         <div className="flex min-w-0 items-center gap-2">
           <Button type="button" variant="ghost" size="icon-sm" onClick={onBack}>
             <ArrowLeft />
           </Button>
           <div className="min-w-0 flex-1">
-            <SheetTitle className="truncate">{displayName}</SheetTitle>
-            <SheetDescription className="truncate">
-              {sourceData.source.showIdentity === false
-                ? translate(
-                    'agentSubagents.transcriptDescriptionAnonymous',
-                    'Read-only subagent transcript'
-                  )
-                : translate(
-                    'agentSubagents.transcriptDescription',
-                    '@{{identity}} · Read-only subagent transcript',
-                    { identity: sourceData.source.identity }
-                  )}
+            <SheetTitle>
+              <span className="block truncate">{displayName}</span>
+            </SheetTitle>
+            <SheetDescription>
+              <span className="block truncate">
+                {sourceData.source.showIdentity === false
+                  ? translate(
+                      'agentSubagents.transcriptDescriptionAnonymous',
+                      'Read-only subagent transcript'
+                    )
+                  : translate(
+                      'agentSubagents.transcriptDescription',
+                      '@{{identity}} · Read-only subagent transcript',
+                      { identity: sourceData.source.identity }
+                    )}
+              </span>
             </SheetDescription>
           </div>
           <Badge variant="outline">

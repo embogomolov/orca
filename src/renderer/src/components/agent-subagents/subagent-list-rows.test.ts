@@ -1,10 +1,11 @@
+import { aiVaultSessionFixture } from '../../../../shared/ai-vault-session.test-fixture'
 import { expect, it } from 'vitest'
-import type { AiVaultSession } from '../../../../shared/ai-vault-types'
+
 import type { AgentSubagentSourceData } from './AgentSubagentContext'
 import { splitSubagentRows } from './subagent-list-rows'
 
 it('does not present missing provider status as successful completion or duplicate live children', () => {
-  const data = {
+  const data: AgentSubagentSourceData = {
     loading: false,
     source: {
       key: 'omp',
@@ -16,15 +17,14 @@ it('does not present missing provider status as successful completion or duplica
       showIdentity: false,
       liveSubagents: [{ id: 'running', state: 'working', startedAt: 1 }]
     },
-    sessions: ['running', 'completed', null].map(
-      (status) =>
-        ({
-          sessionId: status ?? 'unknown',
-          title: status ?? 'unknown',
-          subagent: { status }
-        }) as AiVaultSession
+    sessions: (['running', 'completed', null] as const).map((status) =>
+      aiVaultSessionFixture({
+        sessionId: status ?? 'unknown',
+        title: status ?? 'unknown',
+        subagent: { parentSessionId: 'parent', agentType: null, status }
+      })
     )
-  } as AgentSubagentSourceData
+  }
   const rows = splitSubagentRows(data, false)
   expect(rows.active.map((row) => row.id)).toEqual(['running'])
   expect(rows.done.map((row) => row.id)).toEqual(['completed'])

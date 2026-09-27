@@ -371,23 +371,18 @@ describe('room deletion', () => {
   })
 })
 
-function roomGenerationIds(store: object): string[] {
-  return [...(store as { roomGenerations: Map<string, number> }).roomGenerations.keys()]
+function roomGenerationIds(
+  store: RoomService['attachmentTransfers'] | RoomService['archiveTransfers']
+): string[] {
+  return [...store['roomGenerations'].keys()]
 }
 
 function transcriptGenerationIds(service: RoomService): string[] {
-  const bridge = (service as unknown as { transcriptBridge: object }).transcriptBridge
-  return [...(bridge as { generations: Map<string, number> }).generations.keys()]
+  return [...service['transcriptBridge']['generations'].keys()]
 }
 
 function attachmentManager(service: RoomService): {
   startUpload(roomId: string, fileName: string, byteSize: number): Promise<string>
 } {
-  return (
-    service.attachmentTransfers as unknown as {
-      manager: {
-        startUpload(roomId: string, fileName: string, byteSize: number): Promise<string>
-      }
-    }
-  ).manager
+  return service.attachmentTransfers['manager']
 }

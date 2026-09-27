@@ -1,7 +1,8 @@
+import { roomParticipantFixture } from '../../../../shared/rooms.test-fixture'
 // @vitest-environment happy-dom
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RoomParticipant } from '../../../../shared/rooms'
+
 import { RoomComposerSuggestions, type RoomComposerSuggestion } from './RoomComposerSuggestions'
 
 class TestResizeObserver {
@@ -15,7 +16,12 @@ function suggestion(identity: string, displayName: string): RoomComposerSuggesti
     label: `@${identity}`,
     identity,
     displayName,
-    participant: { identity, displayName, actorKind: 'agent', agent: 'codex' } as RoomParticipant
+    participant: roomParticipantFixture({
+      identity,
+      displayName,
+      actorKind: 'agent',
+      agent: 'codex'
+    })
   }
 }
 

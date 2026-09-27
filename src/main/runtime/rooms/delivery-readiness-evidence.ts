@@ -2,7 +2,7 @@ import type SyncDatabase from '../../sqlite/sync-database'
 import type { RoomParticipant } from '../../../shared/rooms'
 import type { RoomHarnessBinding } from './harness-adapter-types'
 import { roomParticipantHarnessBinding } from './participant-harness-binding'
-import { participantFromRow, type RoomRow } from './rows'
+import { participantFromRow } from './rows'
 
 type RoomDeliveryBindingEvidence =
   | {
@@ -60,14 +60,13 @@ export function activeRoomReadinessMatches(
   roomId: string,
   expected: readonly RoomReadyTarget[]
 ): boolean {
-  const current = (
-    db
-      .prepare(
-        `SELECT * FROM room_participants WHERE room_id = ? AND actor_kind = 'agent'
+  const current = db
+    .prepare(
+      `SELECT * FROM room_participants WHERE room_id = ? AND actor_kind = 'agent'
          AND participation = 'active' ORDER BY id`
-      )
-      .all(roomId) as RoomRow[]
-  ).map(participantFromRow)
+    )
+    .all(roomId)
+    .map(participantFromRow)
   if (
     current.length !== expected.length ||
     new Set(expected.map(({ participantId }) => participantId)).size !== current.length
