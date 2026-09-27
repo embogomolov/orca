@@ -23,7 +23,6 @@ import {
 } from './structured-agent-session-launch-cancellation'
 
 export type StructuredLaunchState = StructuredLaunchRecoveryState & {
-  sessionOptions?: StructuredAgentLaunchOptions['sessionOptions']
   identity: string
   /** Fixed by the caller that opened this launch so coalesced prompts use one delivery mode. */
   promptDelivery: StructuredAgentLaunchOptions['promptDelivery']
@@ -124,21 +123,17 @@ function persistStructuredLaunchState(state: StructuredLaunchState): void {
     clientOperationId: envelope.clientOperationId,
     payloadFingerprint: envelope.payloadFingerprint,
     expectedRuntimeFence: envelope.expectedRuntimeFence,
+    ...(Object.keys(state.selection.held).length > 0 ? { heldOptions: state.selection.held } : {}),
     ...(state.intent.target ? { target: state.intent.target } : {}),
     ...(resumeFrom ? { resumeFrom } : {})
   }
   writeStructuredAgentLaunchRecord(record)
 }
 
-export function getPersistedStructuredAgentLaunchRecord(
-  sessionId: string
-): StructuredAgentLaunchPersistedRecord | undefined {
-  return readStructuredAgentLaunchRecord(sessionId)
-}
+export const getPersistedStructuredAgentLaunchRecord = readStructuredAgentLaunchRecord
 
-export function structuredLaunchStates(): IterableIterator<StructuredLaunchState> {
-  return pendingStructuredLaunchesByIdentity.values()
-}
+export const structuredLaunchStates = (): IterableIterator<StructuredLaunchState> =>
+  pendingStructuredLaunchesByIdentity.values()
 
 function launchStateLifecycle(state: StructuredLaunchState): StructuredAgentSessionLaunchLifecycle {
   if (state.cancelled || state.callers.outcome === 'cancelled') {
@@ -232,7 +227,7 @@ export function markStructuredAgentSessionLaunchPublished(
   const state = getStructuredLaunchStateBySessionId(sessionId)
   if (!state) {
     const persisted = getPersistedStructuredAgentLaunchRecord(sessionId)
-    if (!persisted) {
+    if (!persisted || Object.keys(persisted.heldOptions ?? {}).length > 0) {
       return false
     }
     deleteStructuredAgentLaunchRecord(sessionId)
@@ -248,6 +243,9 @@ export function markStructuredAgentSessionLaunchPublished(
   // Still in flight: its own settlement publishes once the picks held during launch land.
   if (state.callers.outcome === 'pending') {
     return true
+  }
+  if (Object.keys(state.selection.held).length > 0) {
+    return false
   }
   state.callers.outcome = 'published'
   deleteStructuredAgentLaunchRecord(sessionId)

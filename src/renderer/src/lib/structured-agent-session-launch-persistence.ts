@@ -1,4 +1,5 @@
 import type { StructuredMachineAgent } from '../../../shared/structured-agent-provider'
+import { isAgentSessionOptions } from '../../../shared/agent-session-record'
 import type { RuntimeClientTarget } from '@/runtime/runtime-client-target'
 import { isStructuredMachineAgent } from '../../../shared/structured-agent-provider'
 import type { StructuredAgentSessionResumeSource } from '../../../shared/structured-agent-session-create'
@@ -14,6 +15,7 @@ export type StructuredAgentLaunchPersistedRecord = {
   expectedRuntimeFence: number | null
   resumeFrom?: StructuredAgentSessionResumeSource
   target?: RuntimeClientTarget
+  heldOptions?: Readonly<Record<string, string>>
 }
 
 const LAUNCH_STORAGE_KEY = 'orca:structuredAgentLaunches:v1'
@@ -46,7 +48,9 @@ function validRecord(value: unknown): value is StructuredAgentLaunchPersistedRec
   } = value
   const resumeFrom = 'resumeFrom' in value ? value.resumeFrom : undefined
   const target = 'target' in value ? value.target : undefined
+  const heldOptions = 'heldOptions' in value ? value.heldOptions : undefined
   return (
+    (heldOptions === undefined || isAgentSessionOptions(heldOptions)) &&
     typeof sessionId === 'string' &&
     sessionId.length > 0 &&
     typeof agent === 'string' &&

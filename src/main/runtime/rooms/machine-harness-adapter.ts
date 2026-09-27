@@ -6,8 +6,6 @@ import {
 } from '../../../shared/structured-agent-session-projection'
 import type { StructuredMachineAgent } from '../../../shared/structured-agent-provider'
 import type { RoomContextSnapshot } from '../../../shared/rooms'
-import type { AgentSessionRecord } from '../../../shared/agent-session-record'
-import { isEmptyCodexRoomSession } from './empty-codex-room-session'
 import { attachMachineRoomSession } from './machine-room-session-attach'
 import type {
   RoomHarnessLaunchOptions,
@@ -18,6 +16,7 @@ import type {
 } from './harness-adapter-types'
 import {
   createRoomMachineBinding,
+  machineRoomSubmissionAdmitted,
   readStructuredRoomState,
   structuredRoomCaller,
   structuredRoomHolderId,
@@ -89,7 +88,7 @@ export class MachineRoomHarnessAdapter {
       'adopted',
       history.providerSession?.id
     )
-    const ready = await this.holdOrRestartEmpty(binding)
+    const ready = await this.hold(binding)
     try {
       await this.applyPreferences(ready, options?.preferences)
       return ready
@@ -102,16 +101,14 @@ export class MachineRoomHarnessAdapter {
   private async attach(
     worktreeId: string,
     options?: RoomHarnessLaunchOptions,
-    providerSessionId?: string,
-    emptyRecord?: AgentSessionRecord
+    providerSessionId?: string
   ): Promise<RoomMachineHarnessBinding> {
     return attachMachineRoomSession({
       agent: this.agent,
       runtime: this.runtime,
       worktreeId,
       options,
-      providerSessionId,
-      emptyRecord
+      providerSessionId
     })
   }
 
@@ -165,7 +162,7 @@ export class MachineRoomHarnessAdapter {
     })
     return {
       handle: value.conversationId,
-      accepted: result.ok && result.value.submission.dispatchState === 'accepted',
+      accepted: result.ok && machineRoomSubmissionAdmitted(result.value.submission.dispatchState),
       bytesWritten: result.ok ? Buffer.byteLength(prompt) : 0
     }
   }
@@ -191,7 +188,7 @@ export class MachineRoomHarnessAdapter {
     })
     return {
       handle: value.conversationId,
-      accepted: result.ok && result.value.submission.dispatchState === 'accepted',
+      accepted: result.ok && machineRoomSubmissionAdmitted(result.value.submission.dispatchState),
       bytesWritten: result.ok ? Buffer.byteLength(prompt) : 0
     }
   }
@@ -236,28 +233,11 @@ export class MachineRoomHarnessAdapter {
       }
       return this.attach(value.worktreeId, preferences && { preferences }, sourceSessionId)
     }
-    return this.holdOrRestartEmpty(value)
+    return this.hold(value)
   }
 
-  private async holdOrRestartEmpty(
-    value: RoomMachineHarnessBinding
-  ): Promise<RoomMachineHarnessBinding> {
-    const host = structuredRoomHost()
-    try {
-      await host.hold(value.conversationId, structuredRoomHolderId(value))
-    } catch (error) {
-      const record = host.deps.store.getRecord(value.conversationId)
-      if (
-        this.agent !== 'codex' ||
-        record?.location.workspaceId !== value.worktreeId ||
-        !isEmptyCodexRoomSession(record, host.deps.journalRoot, error)
-      ) {
-        throw error
-      }
-      const created = await this.attach(value.worktreeId, undefined, undefined, record)
-      host.release(value.conversationId, structuredRoomHolderId(value))
-      return created
-    }
+  private async hold(value: RoomMachineHarnessBinding): Promise<RoomMachineHarnessBinding> {
+    await structuredRoomHost().hold(value.conversationId, structuredRoomHolderId(value))
     return { ...value, disposition: 'adopted' }
   }
 

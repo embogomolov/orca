@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@/lib/browser-uuid'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
@@ -174,7 +175,7 @@ export function RoomComposer({
           ? URL.createObjectURL(file)
           : null
         const pending: UploadingRoomAttachment = {
-          id: crypto.randomUUID(),
+          id: createBrowserUuid(),
           fileName: file.name,
           byteSize: file.size,
           mimeType: file.type,

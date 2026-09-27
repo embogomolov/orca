@@ -21,6 +21,7 @@ it.each([
       text: 'hello',
       imagePaths: ['/image.png'],
       state: projected,
+      canRetry: false,
       canEdit: editable,
       canRemove: editable
     })

@@ -76,7 +76,7 @@ describe('ClaudeStructuredSessionAdapter.acquire', () => {
       options: { model: 'opus', effort: 'high' }
     })
 
-    const calls = claude.connections[0].calls.filter((call) => call.subtype !== 'reinitialize')
+    const calls = claude.connections[0].calls
     expect(calls.slice(-4)).toEqual([
       { subtype: 'set_model', params: { model: 'opus' } },
       // The restored model's advertised levels gate the replay, so a stale effort

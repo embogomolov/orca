@@ -109,7 +109,9 @@ export async function deliverRoomDelivery(input: {
       return
     }
     const messageText = error instanceof Error ? error.message : String(error)
-    const uncertain = messageText === 'conversation_steer_uncertain'
+    const uncertain =
+      messageText === 'conversation_steer_uncertain' ||
+      messageText === 'conversation_delivery_uncertain'
     if (input.steer && !uncertain) {
       const queued = input.db.messages.deliveries.returnSteerToNext(
         delivery.id,

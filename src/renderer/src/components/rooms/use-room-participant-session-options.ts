@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@/lib/browser-uuid'
 import { patchStructuredAgentSessionOptionSnapshot } from '../../../../shared/structured-agent-session-options'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { roomRpc } from '@/runtime/runtime-rooms-client'
@@ -237,7 +238,7 @@ function createMachineSessionOptionsSurface(input: {
     >(input.target, 'agentSession.setOption', {
       envelope: {
         sessionId: input.sessionId,
-        clientOperationId: createStructuredAgentSessionOperationId(() => crypto.randomUUID()),
+        clientOperationId: createStructuredAgentSessionOperationId(createBrowserUuid),
         expectedRuntimeFence: input.fence,
         payloadFingerprint: structuredAgentSessionPayloadFingerprint({
           method: 'agentSession.setOption',

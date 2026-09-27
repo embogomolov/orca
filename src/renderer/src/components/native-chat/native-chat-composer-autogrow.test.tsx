@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
-/** The composer grows with the draft up to 25dvh, then scrolls internally.
- *  Sizing is layout-driven (field-sizing + a viewport-relative cap) rather than a JS
+/** The composer grows with the draft up to eight lines, then scrolls internally.
+ *  Sizing is layout-driven rather than a JS
  *  measure pass, so these assert the class contract that produces it. happy-dom
  *  has no layout engine, so real pixel growth is covered by Electron validation. */
 
@@ -94,9 +94,9 @@ describe('native chat composer autogrow', () => {
     expect(renderField('').getAttribute('contenteditable')).toBe('true')
   })
 
-  it('caps growth at one quarter of the viewport', () => {
+  it('caps growth at eight lines plus padding', () => {
     const textarea = renderField('a\n'.repeat(20))
-    expect(textarea.className).toContain('max-h-[25dvh]')
+    expect(textarea.className).toContain('max-h-[calc(8lh+0.5rem)]')
   })
 
   it('keeps the sleek scrollbar for the overflow past the cap', () => {

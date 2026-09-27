@@ -32,7 +32,7 @@ describe('Claude model before the first turn', () => {
     const adapter = await acquired(claude)
     const options = await adapter.readOptions({ sessionId: 'session-1', fence: 7 })
     expect(options.current).toMatchObject({ model: 'selected[1m]', effort: 'high' })
-    expect(options.current.confirmed).toContain('model')
+    expect(options.current.confirmed ?? []).not.toContain('model')
     expect(adapter.readContext('session-1')?.model).toBe('selected-model[1m]')
     expect(
       claude.connections[0]!.calls.filter((call) => call.subtype === 'get_settings')
@@ -62,7 +62,10 @@ describe('Claude model before the first turn', () => {
   )
 
   it('keeps an explicit launch model without issuing a redundant model write', async () => {
-    const claude = fakeClaude({ initProof: 'session-start', settings: {} })
+    const claude = fakeClaude({
+      initProof: 'session-start',
+      settings: { applied: { model: 'custom-launch-model' } }
+    })
     const adapter = await acquired(claude, { options: { model: 'custom-launch-model' } })
     const options = await adapter.readOptions({ sessionId: 'session-1', fence: 7 })
     expect(options.current.model).toBe('custom-launch-model')

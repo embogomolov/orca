@@ -248,14 +248,6 @@ describe('codex journal translation', () => {
           startedAt: expect.any(Number),
           completedAt: expect.any(Number)
         }
-      },
-      {
-        key: 'legacy:codex:session-1:turn-lifecycle%3Aturn-1',
-        body: {
-          kind: 'status',
-          text: 'Completed',
-          turnLifecycle: { turnId: TURN_ID, state: 'completed', outcome: 'completed' }
-        }
       }
     ])
     expect(tap.tombstones).toEqual([])

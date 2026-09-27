@@ -186,7 +186,9 @@ export function useStructuredAgentSessionOutbox(args: {
       return
     }
     const next = admission.entry
-    if (isWorking && next.intent !== 'steer') return
+    if (isWorking && next.intent !== 'steer') {
+      return
+    }
     // A launch settlement may have already admitted this entry and cleared its in-flight marker
     // before this effect observes the queued React snapshot. Storage is the shared ownership
     // record; only dispatch when the persisted entry is still queued.
@@ -287,69 +289,14 @@ export function useStructuredAgentSessionOutbox(args: {
     [sessionId]
   )
 
-  const retry = (clientMessageId: string): void => {
-    blockedIdRef.current = null
-    setError(null)
-    const submission = submissions.find(
-      (candidate) => candidate.clientMessageId === clientMessageId
-    )
-    const current = outboxRef.current.find((entry) => entry.clientMessageId === clientMessageId)
-    // A provider-history reconciliation can settle an earlier unknown as
-    // rejected before the user presses Retry. Reusing that operation id only
-    // replays the settled rejection forever, so rotate the id for a safe resend.
-    if (
-      current &&
-      (submission?.dispatchState === 'rejected' ||
-        retryWithFreshClientMessageIdRef.current === clientMessageId)
-    ) {
-      retryWithFreshClientMessageIdRef.current = null
-      const rotated = outboxRef.current.map((entry) =>
-        entry.clientMessageId === clientMessageId
-          ? {
-              ...entry,
-              clientMessageId: structuredSessionOperationId(),
-              state: 'queued' as const,
-              lastAttemptAt: null,
-              retryAfterUnknownSubmittedAt: null
-            }
-          : entry
-      )
-      if (!writeOutbox(sessionId, rotated)) {
-        setError('Message could not be saved to the outbox')
-        return
-      }
-      outboxRef.current = rotated
-      setOutbox(rotated)
-      return
-    }
-    const retryAfterUnknownSubmittedAt =
-      submission?.dispatchState === 'unknown'
-        ? submission.submittedAt
-        : current?.state === 'unconfirmed'
-          ? -1
-          : null
-    const next = outboxRef.current.map((entry) =>
-      entry.clientMessageId === clientMessageId
-        ? {
-            ...entry,
-            state: 'queued' as const,
-            retryAfterUnknownSubmittedAt
-          }
-        : entry
-    )
-    if (!writeOutbox(sessionId, next)) {
-      setError('Message could not be saved to the outbox')
-      return
-    }
-    outboxRef.current = next
-    setOutbox(next)
-  }
   const actions = useStructuredAgentSessionOutboxActions({
     sessionId,
+    submissions,
+    retryWithFreshClientMessageIdRef,
     outboxRef,
     blockedIdRef,
     setOutbox,
     setError
   })
-  return { outbox, error, blockedClientMessageId: blockedIdRef.current, send, retry, ...actions }
+  return { outbox, error, blockedClientMessageId: blockedIdRef.current, send, ...actions }
 }

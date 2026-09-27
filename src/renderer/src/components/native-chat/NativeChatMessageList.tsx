@@ -3,7 +3,6 @@ import { ArrowDown } from 'lucide-react'
 import type { CommentMarkdownLinkClickHandler } from '@/components/sidebar/CommentMarkdown'
 import { translate } from '@/i18n/i18n'
 import type { NativeChatLiveSession } from './use-native-chat-live-session'
-import type { NativeChatMessage } from '../../../../shared/native-chat-types'
 import { createNativeChatMessageListProjection } from './native-chat-message-list-projection'
 import { structuredQuestionTranscript } from './structured-agent-question-projection'
 import { nativeChatTaskListState } from './native-chat-task-list-state'
@@ -184,20 +183,6 @@ export function NativeChatMessageList({
     () => (journalItems ? isStructuredAgentSessionThinking(journalItems) : false),
     [journalItems]
   )
-  const turnMessagesByKey = useMemo(() => {
-    const byKey = new Map<string, NativeChatMessage[]>()
-    let key: string | undefined
-    for (const message of messages) {
-      if (message.role === 'user') {
-        key = message.id
-        byKey.set(key, [])
-      }
-      if (key) {
-        byKey.get(key)?.push(message)
-      }
-    }
-    return byKey
-  }, [messages])
   const turnStatuses = useNativeChatTurnStatus({
     messages,
     latestUserIndex,
@@ -350,7 +335,6 @@ export function NativeChatMessageList({
       expandedTurnIds,
       failedDeliveryMessageIds,
       subagentSourceKey,
-      turnMessagesByKey,
       allowFileUriLinks,
       runtimeContext,
       imageLoadContext,
@@ -365,7 +349,6 @@ export function NativeChatMessageList({
       expandedTurnIds,
       failedDeliveryMessageIds,
       subagentSourceKey,
-      turnMessagesByKey,
       onLinkClick,
       revealDiff,
       revealedDiff,

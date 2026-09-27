@@ -7,6 +7,8 @@ import type {
   HarnessConversationDriverSink
 } from './driver'
 import { MachineStructuredSessionAdapter } from './machine-structured-session-adapter'
+import { agentJournalItemKey } from '../../shared/agent-session-journal-item-key'
+import { promptIdentity } from './machine-structured-session-values'
 
 const identity: AgentSessionJournalIdentity = {
   sessionId: 'session-1',
@@ -17,6 +19,90 @@ const identity: AgentSessionJournalIdentity = {
 }
 
 describe('MachineStructuredSessionAdapter', () => {
+  it.each(['committed', 'failed', 'closed', 'replaced'] as const)(
+    'answers only the claimed prompt after durable commit (%s)',
+    async (outcome) => {
+      let sink: HarnessConversationDriverSink | undefined
+      const answerInput = vi.fn()
+      const answerPermission = vi.fn()
+      let exited = false
+      const adapter = new MachineStructuredSessionAdapter({
+        createDriver: async (input) => {
+          sink = input.sink
+          sink.setProcessId?.(123)
+          return {
+            ready: async () => undefined,
+            send: async () => undefined,
+            interrupt: async () => undefined,
+            answerInput,
+            answerPermission,
+            close: async () => {
+              exited = true
+            }
+          }
+        },
+        resolveWorkspacePath: async () => '/repo',
+        readProcessStartTime: async () => (exited ? null : 1_700_000_000_000)
+      })
+      await adapter.acquire({
+        identity,
+        fence: 7,
+        spawnToken: 'spawn',
+        events: { appendItem: vi.fn(), appendTombstone: vi.fn(), publish: vi.fn() }
+      })
+      const publish = (): void =>
+        sink?.emit({
+          type: 'input',
+          input: {
+            id: 'request',
+            questions: [
+              { id: 'q1', header: 'Choice', question: 'Choose', options: [{ label: 'Yes' }] }
+            ]
+          }
+        })
+      publish()
+      const committed = Promise.withResolvers<void>()
+      const commit = vi.fn(() => committed.promise)
+      const request = {
+        sessionId: identity.sessionId,
+        itemId: agentJournalItemKey(promptIdentity(identity, 'request')),
+        kind: 'question' as const,
+        response: { kind: 'answers' as const, answers: [{ questionId: 'q1', optionIds: ['Yes'] }] },
+        fence: 7,
+        commit
+      }
+      await expect(adapter.answerPrompt({ ...request, fence: 8 })).rejects.toThrow()
+      expect(commit).not.toHaveBeenCalled()
+      const pending = adapter.answerPrompt(request)
+      await expect(adapter.answerPrompt(request)).rejects.toThrow()
+      expect(commit).toHaveBeenCalledTimes(1)
+      expect(answerInput).not.toHaveBeenCalled()
+      if (outcome === 'closed') {
+        await adapter.closeSession(identity.sessionId)
+      }
+      if (outcome === 'replaced') {
+        publish()
+      }
+      if (outcome === 'failed') {
+        committed.reject(new Error('commit failed'))
+      } else {
+        committed.resolve()
+      }
+      if (outcome === 'committed') {
+        await pending
+        expect(answerInput).toHaveBeenCalledExactlyOnceWith('request', { q1: ['Yes'] })
+        await expect(adapter.answerPrompt(request)).rejects.toThrow()
+      } else {
+        await expect(pending).rejects.toThrow()
+        expect(answerInput).not.toHaveBeenCalled()
+        if (outcome === 'failed') {
+          await adapter.answerPrompt({ ...request, commit: async () => undefined })
+          expect(answerInput).toHaveBeenCalledExactlyOnceWith('request', { q1: ['Yes'] })
+        }
+      }
+      expect(answerPermission).not.toHaveBeenCalled()
+    }
+  )
   it('retains subagent lifecycle metadata before and after acquisition', async () => {
     let publish: HarnessConversationDriverSink['setSubagents'] = () => undefined
     const adapter = new MachineStructuredSessionAdapter({

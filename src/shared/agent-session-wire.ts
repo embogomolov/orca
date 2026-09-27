@@ -1,3 +1,4 @@
+import type { AgentType } from './agent-status-types'
 import type {
   AgentSessionBackgroundTask,
   AgentSessionBackgroundTaskState
@@ -179,7 +180,7 @@ export type AgentSessionStatusSummary = {
   rewindBlockedReason?: AgentSessionRewindReason
   sessionId: string
   workspaceId: string
-  agent: import('./agent-status-types').AgentType
+  agent: AgentType
   /** Null until the journal holds a persisted user or assistant message. */
   status: StructuredAgentSessionProjectedStatus | null
   /** Present only while this host has the provider child executing the session. */

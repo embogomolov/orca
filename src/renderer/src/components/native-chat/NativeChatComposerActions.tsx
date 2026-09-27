@@ -112,6 +112,7 @@ export function NativeChatComposerActions({
           isWorking={isWorking}
           pickerRequest={sessionOptionsPickerRequest}
           context={context}
+          showContextIndicator={!contextUsage}
           canCompact={canCompact}
           onCompact={onCompact}
         />

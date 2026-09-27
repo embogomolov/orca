@@ -120,8 +120,9 @@ export function journalClaudeMessage(
     ctx.turn.ensureOpen(message, source, observedAt)
     if (envelope.role === 'assistant') {
       body.assistantPhase = 'commentary'
-      if (envelope.parentToolUseId === null)
+      if (envelope.parentToolUseId === null) {
         ctx.lastAssistant = { identity, groupKey: ctx.turn.groupKey }
+      }
     }
     ctx.sink.appendItem(
       replayTurn ? { ...identity, turn: replayTurn } : identity,
@@ -131,7 +132,9 @@ export function journalClaudeMessage(
     changed = true
   }
   for (const tool of claudeToolUses(outputEnvelope)) {
-    if (envelope.parentToolUseId === null) ctx.lastAssistant = null
+    if (envelope.parentToolUseId === null) {
+      ctx.lastAssistant = null
+    }
     ctx.turn.ensureOpen(message, source, observedAt)
     ctx.tools.set(tool.id, tool)
     // Only a TOP-LEVEL call can be the parent of a top-level task row; a

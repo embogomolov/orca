@@ -38,7 +38,7 @@ export function restorePersistedStructuredLaunchState(
     cancelled: false,
     onVisibilityChanged: undefined,
     callers,
-    selection: { seed: intent.seedOptions, held: {} }
+    selection: { seed: intent.seedOptions, held: record.heldOptions ?? {} }
   }
   callers.outcome = record.lifecycle === 'failed' ? 'failed' : 'unknown'
   setStructuredLaunchState(state)

@@ -11,7 +11,8 @@ import type {
 import {
   messageIdentity,
   promptIdentity,
-  type MachineStructuredMessage
+  type MachineStructuredMessage,
+  type MachineStructuredSession
 } from './machine-structured-session-values'
 
 type DriverState = {
@@ -45,7 +46,7 @@ export function createMachineStructuredSessionDriverSink(input: {
   events?: StructuredAgentSessionEventSink
   state: DriverState
   messages: Map<string, MachineStructuredMessage>
-  prompts: Map<string, { kind: 'approval' | 'question'; requestId: string }>
+  prompts: MachineStructuredSession['prompts']
   sessionRef: { current: LiveSessionState | null }
   onEnd: (reason: string) => void
 }): HarnessConversationDriverSink {

@@ -237,7 +237,6 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
   const codex = new CodexStructuredSessionAdapter({
     resolveLaunch: createCodexStructuredLaunchResolver({
       store,
-      canStartEmptySession: canStartEmpty,
       resolveWorkspacePath: deps.resolveWorkspacePath,
       resolveEnvironment: resolveCodexEnvironment,
       ...(deps.resolveCodexPermissionPolicy
@@ -297,18 +296,28 @@ async function install(deps: StructuredAgentSessionRuntimeDeps): Promise<Install
     modelCatalog: agentModelCatalogStore
   })
   const machine = new MachineStructuredSessionAdapter({
-    createDriver: deps.createMachineDriver ?? (() => Promise.reject(new Error('structured machine providers are unavailable'))),
+    canStartEmptyClaudeSession: (sessionId) =>
+      canStartEmptyClaudeSession(store.getRecord(sessionId), deps.stateDirectory),
+    createDriver:
+      deps.createMachineDriver ??
+      (() => Promise.reject(new Error('structured machine providers are unavailable'))),
     resolveWorkspacePath: ({ workspaceId }) => deps.resolveWorkspacePath(workspaceId),
     resolveProviderEnvironment: async ({ sessionId }) => {
       const record = store.getRecord(sessionId)
       return record ? { [record.accountHome.variable]: record.accountHome.path } : {}
     },
     ...(deps.readProcessStartTime ? { readProcessStartTime: deps.readProcessStartTime } : {}),
-    onEvent: (event) => { if (event.type === 'ended' && event.cause === 'unexpected-exit') lifecycle.deliver(event) }
+    onEvent: (event) => {
+      if (event.type === 'ended' && event.cause === 'unexpected-exit') {
+        lifecycle.deliver(event)
+      }
+    }
   })
   const adapter = new StructuredAgentSessionAdapterRouter(
     { codex, claude, openclaude: machine, grok: machine, omp: machine },
-    async () => { await Promise.all([codex.closeAll(), claude.closeAll(), machine.closeAll()]) }
+    async () => {
+      await Promise.all([codex.closeAll(), claude.closeAll(), machine.closeAll()])
+    }
   )
   host = new StructuredAgentSessionHost({
     store,

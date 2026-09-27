@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@/lib/browser-uuid'
 import type {
   AgentSessionHistoryResult,
   AgentSessionMutationResult
@@ -85,7 +86,7 @@ function roomMutationEnvelope(
 ) {
   return {
     sessionId,
-    clientOperationId: createStructuredAgentSessionOperationId(() => crypto.randomUUID()),
+    clientOperationId: createStructuredAgentSessionOperationId(createBrowserUuid),
     expectedRuntimeFence: fence,
     payloadFingerprint: structuredAgentSessionPayloadFingerprint({ method, sessionId, fields })
   }

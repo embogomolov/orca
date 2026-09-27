@@ -21,6 +21,17 @@ import {
   type RoomHarnessLifecycleEvent
 } from './harness-lifecycle'
 import type { RoomMachineHarnessBinding } from './harness-adapter-types'
+import type { AgentJournalSubmission } from '../../../shared/agent-session-journal-types'
+
+export function machineRoomSubmissionAdmitted(
+  state: AgentJournalSubmission['dispatchState']
+): boolean {
+  if (state === 'unknown') {
+    throw new Error('conversation_delivery_uncertain')
+  }
+  // Admission starts awaiting-turn; only the provider replay confirms room delivery.
+  return state === 'pending' || state === 'accepted'
+}
 
 export function structuredRoomHost() {
   const current = getStructuredAgentSessionHost()

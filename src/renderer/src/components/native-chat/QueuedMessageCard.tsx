@@ -40,6 +40,7 @@ export type QueuedMessageItem = {
   dragDisabled?: boolean
   canEdit?: boolean
   canRemove?: boolean
+  canRetry?: boolean
 }
 
 export type QueuedMessageCardProps = {
@@ -144,12 +145,14 @@ export function QueuedMessageCard({
           )}
           {item.detail || item.error || item.state === 'uncertain' ? (
             <p className="truncate text-[11px] leading-4 text-muted-foreground">
-              {item.state === 'uncertain'
-                ? translate(
-                    'components.native-chat.queue.uncertain',
-                    'Delivery was interrupted; review before retrying.'
-                  )
-                : item.error || item.detail}
+              {item.error ||
+                item.detail ||
+                (item.state === 'uncertain'
+                  ? translate(
+                      'components.native-chat.queue.uncertain',
+                      'Delivery was interrupted; review before retrying.'
+                    )
+                  : null)}
             </p>
           ) : null}
         </div>

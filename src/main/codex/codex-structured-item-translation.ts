@@ -1,6 +1,8 @@
 import { toolExecutionMetadata, toolWebSearchResults } from '../../shared/native-chat-tool-identity'
 import type { AgentJournalItemBody } from '../../shared/agent-session-journal-types'
-import type { NativeChatBlock, NativeChatMessage } from '../../shared/native-chat-types'
+import type { NativeChatMessage } from '../../shared/native-chat-types'
+import { codexMessageBlocks } from './codex-message-blocks'
+export { codexMessageBlocks } from './codex-message-blocks'
 import { codexSubagentItem } from '../../shared/codex-subagent-items'
 import {
   boundInlineText,
@@ -30,42 +32,6 @@ export {
 } from './codex-turn-ordinals'
 
 // Codex thread items → journal item bodies.
-
-/** `userMessage` carries structured content parts; `agentMessage` a flat text. */
-export function codexMessageBlocks(item: CodexThreadItem): NativeChatBlock[] {
-  const text =
-    item.type === 'agentMessage'
-      ? (readString(item, 'text') ?? readTextContent(item, 'content'))
-      : readString(item, 'text')
-  if (text !== null) {
-    return [{ type: 'text', text: boundInlineText(text, DEFAULT_JOURNAL_PAYLOAD_LIMITS).text }]
-  }
-  const content = item.content
-  if (!Array.isArray(content)) {
-    return []
-  }
-  const blocks: NativeChatBlock[] = []
-  for (const part of content) {
-    if (typeof part !== 'object' || part === null) {
-      continue
-    }
-    const partText = readString(part as Record<string, unknown>, 'text')
-    if (partText !== null) {
-      blocks.push({
-        type: 'text',
-        text: boundInlineText(partText, DEFAULT_JOURNAL_PAYLOAD_LIMITS).text
-      })
-      continue
-    }
-    const record = part as Record<string, unknown>
-    if (record.type === 'image' && typeof record.url === 'string') {
-      blocks.push({ type: 'image-ref', url: record.url })
-    } else if (record.type === 'localImage' && typeof record.path === 'string') {
-      blocks.push({ type: 'image-ref', path: record.path })
-    }
-  }
-  return blocks
-}
 
 /** Codex reports `inProgress` then a terminal status; a zero exit code is the
  *  only thing that makes a finished command a success. */
@@ -238,7 +204,9 @@ function webSearchItem(item: CodexThreadItem): CodexJournalItem {
  * rows so a provider release cannot make new activity invisible.
  */
 export function codexJournalItem(item: CodexThreadItem): CodexJournalItem {
-  if (item.type === 'subAgentActivity') return { handled: true, body: null }
+  if (item.type === 'subAgentActivity') {
+    return { handled: true, body: null }
+  }
   const subagent = codexSubagentItem(item)
   if (subagent) {
     return {

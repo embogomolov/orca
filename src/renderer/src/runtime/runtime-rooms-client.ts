@@ -1,3 +1,4 @@
+import { createBrowserUuid } from '@/lib/browser-uuid'
 import type { RoomEvent, RoomSnapshot } from '../../../shared/rooms'
 import type { RuntimeRpcResponse } from '../../../shared/runtime-rpc-envelope'
 import { callRuntimeRpc } from './runtime-rpc-client'
@@ -27,7 +28,7 @@ export async function subscribeRoom(
     {
       selector: target.environmentId,
       method: 'rooms.subscribe',
-      params: { roomId, readerKey, subscriptionId: crypto.randomUUID() },
+      params: { roomId, readerKey, subscriptionId: createBrowserUuid() },
       timeoutMs: 15_000
     },
     {

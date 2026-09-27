@@ -91,10 +91,6 @@ export function fakeClaude(
       closed: false,
       pauseReading: () => {},
       resumeReading: () => {},
-      reinitialize: async () => {
-        connection.calls.push({ subtype: 'reinitialize' })
-        return routed('reinitialize') ?? {}
-      },
       initializationResult: async () => {
         connection.calls.push({ subtype: 'initialize' })
         if (options.initDelayMs !== undefined) {
@@ -115,9 +111,7 @@ export function fakeClaude(
             uuid: options.initUuid ?? 'init-uuid'
           })
         } else if (options.initProof !== 'none') {
-          // Keys mirror the real system/init frame, which carries `model` but no
-          // effort of any kind: the current effort only comes back from
-          // get_settings. Never add a field the CLI does not send.
+          // system/init reports model; only get_settings reports effort.
           handlers.onMessage?.({
             type: 'system',
             subtype: 'init',
@@ -299,9 +293,7 @@ export function recordingJournalSink(): StructuredAgentSessionEventSink {
   return { appendItem: () => {}, appendTombstone: () => {}, publish: () => {} }
 }
 
-export function tick(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve))
-}
+export const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
 export function invokeCanUseTool(
   connection: FakeConnection,

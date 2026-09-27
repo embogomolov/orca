@@ -1,6 +1,9 @@
 // @ts-nocheck -- mechanically split from OrcaRuntimeService; behavior is covered by AST equivalence and characterization tests.
 import { defaultAgentChatLabel } from '../../shared/agent-session-chat-label'
-import { isStructuredMachineAgent, type StructuredMachineAgent } from '../../shared/structured-agent-provider'
+import {
+  isStructuredMachineAgent,
+  type StructuredMachineAgent
+} from '../../shared/structured-agent-provider'
 import { OrcaRuntimeWithGetStructuredAgentSessionCreateSupport } from './orca-runtime-get-structured-agent-session-create-support'
 import { getStructuredAgentSessionHost } from '../native-chat/agent-session-wire/structured-agent-session-registry'
 import { replaceConversationInSnapshot } from './structured-conversation-tab-replacement'
@@ -27,7 +30,6 @@ import { isWindowsAbsolutePathLike } from '../../shared/cross-platform-path'
 import { isWslUncPath } from '../../shared/wsl-paths'
 import { parseAppSshPtyId } from '../../shared/ssh-pty-id'
 import type { PtyProcessInspection } from '../providers/pty-process-inspection'
-import type { StructuredMachineAgent } from '../../shared/structured-agent-provider'
 
 export class OrcaRuntimeWithRestoreStructuredAgentSessionTabsOnce extends OrcaRuntimeWithGetStructuredAgentSessionCreateSupport {
   async replaceStructuredAgentSessionTab(replacement: ConversationReplacement): Promise<void> {

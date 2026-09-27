@@ -78,21 +78,21 @@ realCodexTest(
       const available = await host.readOptions(original.conversationId)
       const model = available.models.find((entry) => entry.efforts.length > 0)!
       expect(model).toBeDefined()
-      const options = { model: model.id, effort: model.efforts[0].value, serviceTier: 'default' }
+      const options = { model: model.id, effort: model.efforts[0].value, fastMode: 'false' }
       for (const [key, value] of Object.entries(options)) {
-        expect(
-          await host.setOption(structuredRoomCaller(original), {
-            envelope: structuredRoomMutationEnvelope(
-              original.conversationId,
-              'agentSession.setOption',
-              { key, value }
-            ),
-            key,
-            value
-          })
-        ).toMatchObject({ ok: true })
+        const result = await host.setOption(structuredRoomCaller(original), {
+          envelope: structuredRoomMutationEnvelope(
+            original.conversationId,
+            'agentSession.setOption',
+            { key, value }
+          ),
+          key,
+          value
+        })
+        expect(result, JSON.stringify({ key, result })).toMatchObject({ ok: true })
       }
       const oldChain = store.getRecord(original.conversationId)!.providerHandleChain
+      const savedOptions = store.getRecord(original.conversationId)!.options
       await host.flushStreamedEvents(original.conversationId)
       await host.close(original.conversationId)
       expect(store.getRecord(original.conversationId)?.lease).toMatchObject({
@@ -101,8 +101,11 @@ realCodexTest(
         unreconciled: false
       })
       let restored = await rooms.restore(original)
-      expect(restored.conversationId).not.toBe(original.conversationId)
-      expect(store.getRecord(original.conversationId)!.providerHandleChain).toEqual(oldChain)
+      expect(restored.conversationId).toBe(original.conversationId)
+      expect(store.getRecord(original.conversationId)!.providerHandleChain).not.toEqual(oldChain)
+      expect(store.getRecord(original.conversationId)!.providerHandleChain.at(-1)).toMatchObject({
+        origin: 'created'
+      })
       expect(store.getRecord(restored.conversationId)).toMatchObject({
         accountHome: { path: account },
         options
@@ -111,7 +114,7 @@ realCodexTest(
       const emptyId = restored.conversationId
       await host.close(emptyId)
       restored = await rooms.connectExisting({ worktreeId: 'workspace-1', conversationId: emptyId })
-      expect(restored.conversationId).not.toBe(emptyId)
+      expect(restored.conversationId).toBe(emptyId)
       expect(store.getRecord(restored.conversationId)).toMatchObject({
         accountHome: { path: account },
         options
@@ -120,7 +123,7 @@ realCodexTest(
       await host.flushStreamedEvents(restored.conversationId)
       await host.close(restored.conversationId)
       expect((await rooms.restore(restored)).conversationId).toBe(restored.conversationId)
-      expect(store.getRecord(restored.conversationId)!.options).toEqual(options)
+      expect(store.getRecord(restored.conversationId)!.options).toEqual(savedOptions)
     } finally {
       for (const session of host.listSessionTabs()) {
         await host.close(session.sessionId)

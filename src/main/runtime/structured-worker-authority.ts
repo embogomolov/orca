@@ -107,8 +107,9 @@ export function resolveStructuredWorkerAuthority(
 export function structuredWorkerAgent(identity: StructuredWorkerIdentity): 'claude' | 'codex' {
   const agent =
     identity.agent ?? readStructuredAgentSessionRecord(identity.sessionId)?.provider ?? 'claude'
-  if (agent !== 'claude' && agent !== 'codex')
+  if (agent !== 'claude' && agent !== 'codex') {
     throw new Error('structured_worker_provider_unsupported')
+  }
   return agent
 }
 

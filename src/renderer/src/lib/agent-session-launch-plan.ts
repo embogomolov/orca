@@ -1,4 +1,5 @@
 import { isStructuredMachineAgent } from '../../../shared/structured-agent-provider'
+import { sessionOptionValueIsValid } from '../../../shared/agent-session-option-catalog'
 import { parseExecutionHostId } from '../../../shared/execution-host'
 import {
   runtimeTargetForExecutionHostId,
@@ -37,6 +38,7 @@ export type AgentSessionLaunchRequest = AgentLaunchRouteArgs & {
  * (or a retry within the same session) re-enters here without re-resolving.
  */
 export type AgentSessionLaunchVerdict = {
+  sessionOptions?: StructuredAgentLaunchOptions['sessionOptions']
   runtimeTarget?: RuntimeClientTarget
   route: AgentLaunchRoute
   agent: TuiAgent
@@ -73,6 +75,7 @@ export type AgentSessionLaunchPlan = Readonly<AgentSessionLaunchVerdict> & {
 
 function structuredLaunchOptions(verdict: AgentSessionLaunchVerdict): StructuredAgentLaunchOptions {
   return {
+    ...(verdict.sessionOptions ? { sessionOptions: verdict.sessionOptions } : {}),
     ...(verdict.runtimeTarget ? { target: verdict.runtimeTarget } : {}),
     ...(verdict.prompt !== undefined ? { prompt: verdict.prompt } : {}),
     ...(verdict.promptDelivery ? { promptDelivery: verdict.promptDelivery } : {}),
@@ -139,6 +142,15 @@ export function planAgentSessionLaunch(
   const host = parseExecutionHostId(input.executionHostId)
   const runtimeTarget = host ? runtimeTargetForExecutionHostId(host.id) : null
   return adoptAgentSessionLaunchVerdict({
+    ...(request.initialSessionOptions
+      ? {
+          sessionOptions: Object.fromEntries(
+            Object.entries(request.initialSessionOptions).flatMap(([key, value]) =>
+              sessionOptionValueIsValid(value) ? [[key, value]] : []
+            )
+          )
+        }
+      : {}),
     route: resolveAgentLaunchRoute(input),
     ...(runtimeTarget?.kind === 'environment' ? { runtimeTarget } : {}),
     agent: request.agent,

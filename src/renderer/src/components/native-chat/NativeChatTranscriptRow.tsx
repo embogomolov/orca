@@ -1,5 +1,4 @@
 import { memo } from 'react'
-import type { NativeChatMessage } from '../../../../shared/native-chat-types'
 import type { CommentMarkdownLinkClickHandler } from '@/components/sidebar/CommentMarkdown'
 import type { RuntimeFileOperationArgs } from '@/runtime/runtime-file-client'
 import { MessageRow } from './NativeChatMessageRow'
@@ -22,7 +21,6 @@ export type NativeChatTranscriptRowContext = {
   expandedTurnIds: ReadonlySet<string>
   failedDeliveryMessageIds?: ReadonlySet<string>
   subagentSourceKey?: string
-  turnMessagesByKey: ReadonlyMap<string, NativeChatMessage[]>
   allowFileUriLinks: boolean
   runtimeContext?: RuntimeFileOperationArgs | null
   imageLoadContext?: NativeChatImageLoadContext

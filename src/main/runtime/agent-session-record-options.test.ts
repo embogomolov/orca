@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { isAgentSessionRecord } from '../../shared/agent-session-record'
+import { isPersistedAgentSessionRecord } from '../../shared/agent-session-record'
 import { optionRecord } from '../harness-conversation/machine-structured-session-values'
 import { readNativeSessionOptions } from '../native-chat/agent-session-wire/structured-agent-session-option-restoration'
 import { AgentSessionRecordStore } from './agent-session-record-store'
@@ -64,7 +64,6 @@ it.each([
       },
       provider: 'codex',
       accountHome: { variable: 'CODEX_HOME', path: '/accounts/codex' },
-      runtimeKind: 'native',
       expectedFence: null,
       spawnToken: 'spawn-options',
       claimKeyId: 'key-1',
@@ -134,7 +133,7 @@ it.each([
     })
     expect(reopened.getRecord(SESSION)?.options).toEqual(expected)
     expect(reopened.getRecord(SESSION)?.lease.claimStatus).toBe('live')
-    expect(isAgentSessionRecord(reopened.getRecord(SESSION))).toBe(true)
+    expect(isPersistedAgentSessionRecord(reopened.getRecord(SESSION))).toBe(true)
   }
 )
 

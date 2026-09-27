@@ -108,7 +108,9 @@ export function QueuedMessageList({
                     onEditInComposer={onEditInComposer ? () => onEditInComposer(item) : undefined}
                     onRemove={onRemove ? () => onRemove(item.id) : undefined}
                     onSteer={onSteer ? () => onSteer(item.id) : undefined}
-                    onRetry={onRetry ? () => onRetry(item.id) : undefined}
+                    onRetry={
+                      onRetry && item.canRetry !== false ? () => onRetry(item.id) : undefined
+                    }
                     imageLoadContext={imageLoadContext}
                   />
                 )

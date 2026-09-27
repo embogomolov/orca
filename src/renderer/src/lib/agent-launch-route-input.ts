@@ -26,7 +26,10 @@ import type { NativeChatLaunchPromptDelivery } from '@/lib/native-chat-initial-v
 import { isNativeChatTranscriptLocalReadable } from '@/lib/native-chat-transcript-readability'
 import { getExecutionHostIdForWorktree } from '@/lib/worktree-runtime-owner'
 import { readLocalRuntimeCapabilitiesOrUnknown } from '@/runtime/local-runtime-capabilities'
-import { lastVerifiedRuntimeStatus } from '../../../shared/runtime-host-status'
+import {
+  isRuntimeHostContactRevoked,
+  lastVerifiedRuntimeStatus
+} from '../../../shared/runtime-host-status'
 import type { RuntimeStatusSlice } from '@/store/slices/runtime-status-types'
 
 export type ProspectiveWorkspaceKind = NonNullable<AgentLaunchRoutingInput['workspaceKind']>
@@ -122,6 +125,10 @@ export function buildAgentLaunchRouteInput(
   const { agent, workspace, tuiCustomization } = args
   const executionHostId = resolveExecutionHostId(store, workspace)
   const host = parseExecutionHostId(executionHostId)
+  const remoteStatus =
+    host?.kind === 'runtime'
+      ? store.runtimeStatusByEnvironmentId?.get(host.environmentId)
+      : undefined
   return {
     agent,
     settings: store.settings,
@@ -129,9 +136,8 @@ export function buildAgentLaunchRouteInput(
     hostCapabilities:
       host?.kind === 'local'
         ? readLocalRuntimeCapabilitiesOrUnknown()
-        : host?.kind === 'runtime'
-          ? (lastVerifiedRuntimeStatus(store.runtimeStatusByEnvironmentId?.get(host.environmentId))
-              ?.capabilities ?? null)
+        : host?.kind === 'runtime' && !isRuntimeHostContactRevoked(remoteStatus)
+          ? (lastVerifiedRuntimeStatus(remoteStatus)?.capabilities ?? null)
           : null,
     workspaceKind: workspace.kind,
     projectRuntime: resolveProjectRuntime(store, workspace, executionHostId),

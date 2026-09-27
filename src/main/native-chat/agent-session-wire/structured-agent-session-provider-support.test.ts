@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { agentSessionRecordFixture } from '../../../shared/agent-session-record.test-fixture'
-import { isAgentSessionRecord } from '../../../shared/agent-session-record'
+import { isPersistedAgentSessionRecord } from '../../../shared/agent-session-record'
 import { adapterSupportsRecord } from './structured-agent-session-provider-support'
 import { attachParamsForRecord } from './structured-agent-session-read-restore'
 import type { StructuredAgentSessionAdapter } from './structured-agent-session-adapter'
@@ -17,7 +17,7 @@ it.each(['openclaude', 'grok', 'omp'] as const)('restores %s through its own ada
     }
   }
   const restored = JSON.parse(JSON.stringify(record))
-  expect(isAgentSessionRecord(restored)).toBe(true)
+  expect(isPersistedAgentSessionRecord(restored)).toBe(true)
   const supportsCreate = vi.fn((_location, candidate) => candidate === agent)
   const adapter: StructuredAgentSessionAdapter = {
     supportsCreate,

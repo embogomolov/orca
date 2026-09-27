@@ -83,7 +83,9 @@ export class StructuredConversationCommandController {
     }
     return records.flatMap((record) => {
       const agent = agentSessionRecordAgent(record)
-      if (!isStructuredMachineAgent(agent)) return []
+      if (!isStructuredMachineAgent(agent)) {
+        return []
+      }
       const target = destination(record.sessionId)
       const sessionId = target !== record.sessionId ? target : null
       // Explicit history reveals remain readable; closed replacements stay closed.

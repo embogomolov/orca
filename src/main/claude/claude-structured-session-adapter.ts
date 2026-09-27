@@ -11,7 +11,11 @@ import { releaseClaudeAcquisition } from './claude-structured-acquisition-releas
 import { acquireClaudeSession } from './claude-structured-session-acquisition'
 import { supportsClaudeStructuredLocation } from './claude-structured-location-support'
 import { setClaudeStructuredSessionOption } from './claude-structured-options'
-import { readClaudeStructuredSessionOptions, readClaudeStructuredContext, readClaudeStructuredConfiguration } from './claude-structured-session-options'
+import {
+  readClaudeStructuredSessionOptions,
+  readClaudeStructuredContext,
+  readClaudeStructuredConfiguration
+} from './claude-structured-session-options'
 import { claudeStartupSettledWithin } from './claude-structured-session-startup-gate'
 import { CLAUDE_DEFAULT_REQUEST_TIMEOUT_MS } from './claude-agent-sdk-control-requests'
 import {
@@ -136,7 +140,9 @@ export class ClaudeStructuredSessionAdapter implements StructuredAgentSessionAda
     } else if (event.type === 'message') {
       session?.childWork.observe(event.message)
     }
-    if (event.type === 'message') session?.contextActivity?.observeContext(event.message)
+    if (event.type === 'message') {
+      session?.contextActivity?.observeContext(event.message)
+    }
     const backgroundTasksChanged =
       event.type === 'ended'
         ? (session?.backgroundTasks.clear() ?? false)

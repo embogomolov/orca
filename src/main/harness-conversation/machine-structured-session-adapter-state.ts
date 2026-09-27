@@ -1,4 +1,9 @@
 import type { AgentSessionContextSnapshot } from '../../shared/agent-session-context'
+import {
+  AgentSessionPromptAnswerRejectedError,
+  AgentSessionPromptUnavailableError,
+  type StructuredAgentSessionAdapter
+} from '../native-chat/agent-session-wire/structured-agent-session-adapter'
 import type { AgentSessionExecutionLocation } from '../../shared/agent-session-record'
 import { supportsCodexStructuredLocation } from '../codex/codex-structured-location-support'
 import type {
@@ -148,5 +153,53 @@ export class MachineStructuredSessionAdapterState {
 
   protected now(): number {
     return this.deps.now?.() ?? Date.now()
+  }
+
+  async answerPrompt(
+    input: Parameters<StructuredAgentSessionAdapter['answerPrompt']>[0]
+  ): Promise<void> {
+    const session = this.sessions.get(input.sessionId)
+    const prompt = session?.prompts.get(input.itemId)
+    if (
+      !session ||
+      session.requestedClose ||
+      session.fence !== input.fence ||
+      !prompt ||
+      prompt.claimed ||
+      prompt.kind !== input.kind
+    ) {
+      throw new AgentSessionPromptUnavailableError(input.itemId)
+    }
+    if ((prompt.kind === 'approval') !== (input.response.kind === 'option')) {
+      throw new AgentSessionPromptAnswerRejectedError('response does not match provider prompt')
+    }
+    prompt.claimed = true
+    try {
+      await input.commit()
+      if (
+        this.sessions.get(input.sessionId) !== session ||
+        session.requestedClose ||
+        session.fence !== input.fence ||
+        session.prompts.get(input.itemId) !== prompt
+      ) {
+        throw new AgentSessionPromptUnavailableError(input.itemId)
+      }
+      if (input.response.kind === 'option') {
+        session.driver.answerPermission(prompt.requestId, input.response.optionId)
+      } else {
+        session.driver.answerInput(
+          prompt.requestId,
+          Object.fromEntries(
+            input.response.answers.map((answer) => [
+              answer.questionId,
+              [...answer.optionIds, ...(answer.other ? [answer.other] : [])]
+            ])
+          )
+        )
+      }
+      session.prompts.delete(input.itemId)
+    } finally {
+      prompt.claimed = false
+    }
   }
 }

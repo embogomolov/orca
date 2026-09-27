@@ -1,4 +1,3 @@
-import { decodeAgentSessionQuestionAnswers } from '../../shared/agent-session-question-answer'
 import { randomUUID } from 'node:crypto'
 import type {
   AgentJournalItemIdentity,
@@ -28,7 +27,7 @@ export type MachineStructuredSession = {
   process: AgentSessionProcessIdentity
   providerSessionId: string
   messages: Map<string, MachineStructuredMessage>
-  prompts: Map<string, { kind: 'approval' | 'question'; requestId: string }>
+  prompts: Map<string, { kind: 'approval' | 'question'; requestId: string; claimed?: boolean }>
   activeTurn: string | null
   requestedClose: boolean
   context: AgentSessionContextSnapshot | null
@@ -191,33 +190,6 @@ export function providerOptions(
     canCompact: configuration?.canCompact === true,
     canSteer: configuration?.canSteer === true
   }
-}
-
-export function decodeAnswers(optionId: string): Record<string, string[]> {
-  const grouped = decodeAgentSessionQuestionAnswers(optionId)
-  if (grouped) {
-    return Object.fromEntries(
-      grouped.map((answer) => [
-        answer.questionId,
-        [...answer.optionIds, ...(answer.other ? [answer.other] : [])]
-      ])
-    )
-  }
-  if (!optionId.startsWith('answers:')) {
-    return { answers: [optionId] }
-  }
-  const parsed = JSON.parse(optionId.slice('answers:'.length)) as unknown
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('invalid answers')
-  }
-  return Object.fromEntries(
-    Object.entries(parsed).map(([key, value]) => [
-      key,
-      Array.isArray(value)
-        ? value.filter((entry): entry is string => typeof entry === 'string')
-        : []
-    ])
-  )
 }
 
 export async function processIdentity(

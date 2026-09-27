@@ -15,7 +15,6 @@ import type {
 import type { HarnessConversationDriverFactory } from './driver'
 import { createMachineStructuredSessionDriverSink } from './machine-structured-session-driver-sink'
 import {
-  decodeAnswers,
   lifecycleIdentity,
   machineAgent,
   type MachineStructuredSession,
@@ -72,7 +71,7 @@ export class MachineStructuredSessionAdapter
       subagents: [] as NonNullable<MachineStructuredSession['subagents']>
     }
     const messages = new Map<string, MachineStructuredMessage>()
-    const prompts = new Map<string, { kind: 'approval' | 'question'; requestId: string }>()
+    const prompts: MachineStructuredSession['prompts'] = new Map()
     const sessionRef = { current: null as MachineStructuredSession | null }
     const sink = createMachineStructuredSessionDriverSink({
       identity,
@@ -283,24 +282,5 @@ export class MachineStructuredSessionAdapter
     }
     await session.driver.interrupt()
     return { cancelled: true }
-  }
-
-  async answerPrompt(input: {
-    sessionId: string
-    itemId: string
-    kind: 'approval' | 'question'
-    optionId: string
-  }): Promise<void> {
-    const session = this.session(input.sessionId)
-    const prompt = session.prompts.get(input.itemId)
-    if (!prompt || prompt.kind !== input.kind) {
-      throw new Error('provider prompt is no longer pending')
-    }
-    session.prompts.delete(input.itemId)
-    if (prompt.kind === 'approval') {
-      session.driver.answerPermission(prompt.requestId, input.optionId)
-      return
-    }
-    session.driver.answerInput(prompt.requestId, decodeAnswers(input.optionId))
   }
 }

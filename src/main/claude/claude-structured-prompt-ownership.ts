@@ -10,7 +10,10 @@ import {
   cancelClaudeTurn,
   supportsClaudeQueuedInterruptCancellation
 } from './claude-structured-control-actions'
-import { cancelPendingClaudeSteers, type ClaudeLateDispatchSettlement } from './claude-structured-dispatch'
+import {
+  cancelPendingClaudeSteers,
+  type ClaudeLateDispatchSettlement
+} from './claude-structured-dispatch'
 import { buildClaudePromptReply } from './claude-structured-prompt-replies'
 import type { ClaudeSession } from './claude-structured-session-state'
 import type { ClaudePendingPrompt } from './claude-prompt-registry'
@@ -188,7 +191,9 @@ export async function cancelClaudeStructuredTurn(input: {
       isCurrent,
       input.onDispatchSettledLate
     )
-    if (result.cancelled) cancelPendingClaudeSteers(session, request.turnId)
+    if (result.cancelled) {
+      cancelPendingClaudeSteers(session, request.turnId)
+    }
     if (result.cancelled && claim && cancellationObserved) {
       interruptConfirmed = true
       await waitForClaudePromptCancellation(cancellationObserved, timeoutMs)

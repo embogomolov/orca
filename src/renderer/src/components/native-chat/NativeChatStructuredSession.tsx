@@ -22,7 +22,7 @@ import { NativeChatStructuredSessionStatus } from './NativeChatStructuredSession
 import { useNativeChatLaunchDraftSignal } from './use-native-chat-launch-draft-adoption'
 import { NativeChatLaunchRetry } from './NativeChatLaunchRetry'
 import { useNativeChatProvisionalLaunch } from './use-native-chat-provisional-launch'
-import { NativeChatDeliveryRetry } from './NativeChatDeliveryRetry'
+import { admitStructuredAgentSessionOutboxEntry } from '../../../../shared/structured-agent-session-outbox'
 import { useStructuredAgentSessionHostExecutionPhase } from './StructuredAgentSessionStatusBridge'
 import { structuredAgentLabel } from '@/lib/structured-agent-session-launch-label'
 import { NativeChatThreadGoalBanner } from './NativeChatThreadGoalBanner'
@@ -207,7 +207,14 @@ export function NativeChatStructuredSession(
     props.target,
     sendThroughRelaunch
   ])
-  const queuedMessages = controller.outbox.map(structuredSessionQueuedMessage)
+  const admission = admitStructuredAgentSessionOutboxEntry(
+    controller.outbox,
+    controller.blockedClientMessageId
+  )
+  const retryableId = admission.state === 'blocked' ? admission.entry.clientMessageId : null
+  const queuedMessages = controller.outbox.map((entry) =>
+    structuredSessionQueuedMessage(entry, retryableId)
+  )
 
   return (
     <div
@@ -255,11 +262,6 @@ export function NativeChatStructuredSession(
           />
         )}
       </div>
-      <NativeChatDeliveryRetry
-        outbox={controller.outbox}
-        blockedClientMessageId={controller.blockedClientMessageId}
-        retry={controller.retry}
-      />
       <NativeChatLaunchRetry
         lifecycle={provisionalLaunch.lifecycle}
         failureReason={provisionalLaunch.failureReason}
@@ -267,7 +269,7 @@ export function NativeChatStructuredSession(
       />
       <NativeChatStructuredSessionStatus
         sessionId={props.sessionId}
-        agentLabel={structuredAgentLabel(props.agent === 'codex' ? 'codex' : 'claude')}
+        agentLabel={structuredAgentLabel(props.agent)}
         startupPhase={startupPhase}
         error={controller.error}
         composerError={composerError}
@@ -322,7 +324,11 @@ export function NativeChatStructuredSession(
                 const optionId = question.options[optionIndex]?.id
                 return optionId ? [optionId] : []
               })
-              return { questionId: question.id, optionIds: question.multiSelect || !other ? optionIds : [], ...(other ? { other } : {}) }
+              return {
+                questionId: question.id,
+                optionIds: question.multiSelect || !other ? optionIds : [],
+                ...(other ? { other } : {})
+              }
             })
             if (chosen.every((answer) => answer.optionIds.length > 0 || answer.other)) {
               void controller.respond(prompt, { kind: 'answers', answers: chosen })

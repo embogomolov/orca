@@ -89,23 +89,37 @@ export class OrcaRuntimeWithGetStructuredAgentSessionCreateSupport extends OrcaR
     resumeFrom?: { providerSessionId: string }
     providerSessionId?: string
   }): Promise<AgentSessionAttachParams> {
-    const params = await this.resolveStructuredAgentSessionIntent(input, ({ workspacePath, launchEnv, location }) => {
-      if (input.agent === "codex") {
-        return resolveStructuredCodexAccountHomePath({ launchEnv, resolveLaunchHome: this.prepareCodexStructuredLaunchFn, workspacePath })
+    const params = await this.resolveStructuredAgentSessionIntent(
+      input,
+      ({ workspacePath, launchEnv, location }) => {
+        if (input.agent === 'codex') {
+          return resolveStructuredCodexAccountHomePath({
+            launchEnv,
+            resolveLaunchHome: this.prepareCodexStructuredLaunchFn,
+            workspacePath
+          })
+        }
+        if (input.agent === 'claude' || input.agent === 'openclaude') {
+          return resolveStructuredClaudeAccountHomePath({
+            launchEnv,
+            wslDistro: location.wslDistro,
+            getClaudeConfigDirectory: (target) => this.accounts.getClaudeConfigDirectory(target)
+          })
+        }
+        return launchEnv.HOME?.trim() || homedir()
       }
-      if (input.agent === "claude" || input.agent === "openclaude") {
-        return resolveStructuredClaudeAccountHomePath({ launchEnv, wslDistro: location.wslDistro, getClaudeConfigDirectory: (target) => this.accounts.getClaudeConfigDirectory(target) })
-      }
-      return launchEnv.HOME?.trim() || homedir()
-    })
-    if (!input.providerSessionId) return params
+    )
+    if (!input.providerSessionId) {
+      return params
+    }
     return {
       ...params,
-      providerHandle: params.provider === "codex"
-        ? { kind: "codex", threadId: input.providerSessionId }
-        : params.provider === "claude"
-          ? { kind: "claude", sessionId: input.providerSessionId, leafUuid: null }
-          : { kind: "acp", agent: input.agent, sessionId: input.providerSessionId }
+      providerHandle:
+        params.provider === 'codex'
+          ? { kind: 'codex', threadId: input.providerSessionId }
+          : params.provider === 'claude'
+            ? { kind: 'claude', sessionId: input.providerSessionId, leafUuid: null }
+            : { kind: 'acp', agent: input.agent, sessionId: input.providerSessionId }
     }
   }
 
